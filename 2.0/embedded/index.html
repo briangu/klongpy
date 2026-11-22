@@ -1,0 +1,3034 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/embedded/">
+      
+      
+        <link rel="prev" href="../native/management-node/">
+      
+      
+        <link rel="next" href="../static-profile/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Compiling Klong to C - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#compiling-klong-to-c" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Compiling Klong to C
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-two-programs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two programs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-a-program" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a program
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-it-under-the-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run it under the interpreter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emit-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emit C
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Emit C">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-pid_t-clash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pid_t clash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other options
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Build it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-the-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On the host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#externs-and-the-linker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Externs and the linker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#freestanding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Freestanding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policies
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Policies">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#widths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Widths
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#differences-from-the-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Differences from the interpreter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hardware-experimental" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware (experimental)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-a-pico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a Pico
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-has-not-been-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What has not been done
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-two-programs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two programs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-a-program" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a program
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-it-under-the-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run it under the interpreter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emit-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emit C
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Emit C">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-pid_t-clash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pid_t clash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other options
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Build it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-the-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On the host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#externs-and-the-linker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Externs and the linker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#freestanding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Freestanding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policies
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Policies">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#widths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Widths
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#differences-from-the-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Differences from the interpreter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hardware-experimental" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware (experimental)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-a-pico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a Pico
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-has-not-been-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What has not been done
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="compiling-klong-to-c">Compiling Klong to C<a class="headerlink" href="#compiling-klong-to-c" title="Permanent link">&para;</a></h1>
+<p>The C compiler covers the static profile, a subset of the language. Tests run with desktop C compilers. Two physical RP2040 Picos ran the three compiled examples described <a href="#on-a-pico">below</a>. The <a href="../native/#status-what-has-and-has-not-been-proven">board status table</a> also covers the interpreter.</p>
+<p>A small part of Klong, the <a href="../static-profile/">static profile</a>, can be compiled ahead of time to C99 with no heap, no recursion and no C library. A program written in it runs unchanged under the interpreter (<code>kg</code> or <code>kgpy</code>), which is how it is developed and tested, and the generated C does the same work on a target with no interpreter. The target is a microcontroller or any other place where a small, fixed-size, dependency-free function is wanted: a filter, a controller, a state machine over a few sensors.</p>
+<p>This page walks through the whole path with two programs from <code>examples/embedded/</code>: check the program, run it under the interpreter, emit C, build it for the host and for a bare target, and call it from a <code>main</code>. The commands need a C compiler.</p>
+<p>The rules of the profile (which operators, adverbs and forms are allowed, the types, the shape rules, the error ids) are on the <a href="../static-profile/">static profile page</a>. This page covers the tools around it.</p>
+<div class="admonition note">
+<p class="admonition-title">Scope</p>
+<p>This page is about the generated C only. The HLS C++ that <code>kgpy fpga source</code> writes from the same programs is experimental; see <a href="../hardware/">Klong functions as FPGA hardware</a>. Running the interpreter itself on a board, without generating C, is described under <a href="../native/">Native runtime</a>. What was and was not compiled is listed <a href="#what-has-not-been-done">below</a>.</p>
+</div>
+<h2 id="the-two-programs">The two programs<a class="headerlink" href="#the-two-programs" title="Permanent link">&para;</a></h2>
+<p><code>mavg.kg</code> is a moving average over the last four samples. The window and the write position are state that lives between calls. The last line declares the function the host calls and its type.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>buf::[0.0 0.0 0.0 0.0]
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pos::0
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>step::{buf::buf:=x,pos;pos::(pos+1)!#buf;(+/buf)%#buf}
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>.entry("step";"float -&gt; float")
+</code></pre></div>
+<p><code>pid.kg</code> is one step of a PID controller. The target provides two functions, declared with <code>.extern</code> in the module file <code>board.kg</code> (<code>adc::.extern("read_adc";"int -&gt; float")</code> and <code>pwm::.extern("write_pwm";"int float -&gt; int")</code>, exported as <code>adc</code> and <code>pwm</code>). <code>pid.kg</code> loads the module with <code>.l("board")</code> and calls <code>board.adc(channel)</code> and <code>board.pwm(channel;duty)</code>. The first argument of <code>.extern</code> is the C symbol; the name a program uses is the key in <code>export</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>kp::2.0
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>ki::0.5
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>kd::0.1
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>dt::0.01
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>lo::0.0
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>hi::1.0
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>integ::0.0
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>prev::0.0
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>.l("board")
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>clamp::{(x|lo)&amp;hi}
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>step::{[e u];e::x-board.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+kd*(e-prev)%dt);prev::e;board.pwm(0;u);u}
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>.entry("step";"float -&gt; float")
+</code></pre></div>
+<p>(Both files also carry a comment at the top. The listings omit it.) A global defined with <code>::</code> at the top level is either a constant or, if a function assigns it, state: <code>buf</code>, <code>pos</code>, <code>integ</code> and <code>prev</code> are state, and become fields of a C struct.</p>
+<h2 id="check-a-program">Check a program<a class="headerlink" href="#check-a-program" title="Permanent link">&para;</a></h2>
+<p>The tools are in the engine, so <code>kg check</code>, <code>kg compile c</code> and <code>kg fpga source</code> do the same as the <code>kgpy</code> commands, with no Python installed; this page writes <code>kgpy</code>.</p>
+<p><code>kgpy check</code> checks files against the profile without running them. It exits 0 when every file is inside, 1 when one is outside and 2 when one cannot be read.</p>
+<!-- check-docs: link examples -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>check<span class="w"> </span>examples/embedded/mavg.kg<span class="w"> </span>examples/embedded/pid.kg<span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">examples/embedded/mavg.kg: inside the static profile (1 function, 1 entry, 0 externs, 2 globals)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="go">examples/embedded/pid.kg: inside the static profile (2 functions, 1 entry, 2 externs, 8 globals)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="go">0</span>
+</code></pre></div>
+<p>A program outside the profile gets every problem reported, each with its position, the rule it breaks (the word in brackets) and a hint:</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>bad.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">&gt; f::{y#x}</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">&gt; .entry("f";"float[4] int -&gt; float[4]")</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="gp">$ </span>kgpy<span class="w"> </span>check<span class="w"> </span>bad.kg<span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="go">bad.kg:1:5: static error: the count of n#a (Take) is not a compile-time constant: the result length would depend on run-time data [const-count]</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="go">  f::{y#x}</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="go">      ^^^</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="go">  hint: the count must be a literal, #a or ^a, or a global that no function assigns</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="go">1 static error in 1 file</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="go">1</span>
+</code></pre></div>
+<p><code>-v</code> lists what the checker found: the entries, the externs, the globals with their types, and each function with the argument types it was checked for. <code>--int64</code> checks integer constants against a 64-bit <code>kg_int</code>.</p>
+<h2 id="run-it-under-the-interpreter">Run it under the interpreter<a class="headerlink" href="#run-it-under-the-interpreter" title="Permanent link">&para;</a></h2>
+<p>The same file runs under <code>kgpy</code>. <code>klongpy.static.load_program</code> loads it at strict level 2 and <code>call_entry</code> calls an entry the way compiled code is called: the arguments and the result are checked against the <code>.entry</code> signature. An extern is a Python function bound by name; the stand-in is looked up at each call.</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>run_mavg.py<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">&gt; from klongpy.static import load_program, call_entry</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="go">&gt; klong = load_program("examples/embedded/mavg.kg")</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">&gt; for x in (4.0, 8.0, 12.0, 16.0, 20.0):</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="go">&gt;     print("%g" % call_entry(klong, "step", x))</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="gp">$ </span>python<span class="w"> </span>run_mavg.py
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="go">1</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="go">3</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="go">6</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="go">10</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="go">14</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>run_pid.py<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="go">&gt; from klongpy.static import load_program, call_entry</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="go">&gt; klong = load_program("examples/embedded/pid.kg", externs={</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="go">&gt;     "read_adc": lambda channel: 0.3,</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="go">&gt;     "write_pwm": lambda channel, duty: 0,</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="go">&gt; })</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="go">&gt; for _ in range(3):</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="go">&gt;     print("%g" % call_entry(klong, "step", 0.31))</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="gp">$ </span>python<span class="w"> </span>run_pid.py
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="go">0.12005</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="go">0.0201</span>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="go">0.02015</span>
+</code></pre></div>
+<p>A stand-in gets one positional argument per parameter (a Python <code>int</code>, a <code>float</code>, a <code>str</code>, or a numpy array of the declared shape) and returns a value of the declared result type. A wrong type, shape or number of arguments is an error that names the extern. Calling an extern that has no stand-in is a system error. The details are on the <a href="../static-profile/#running-a-static-program-under-kgpy">static profile page</a>.</p>
+<p>These results are the ones the compiled code must reproduce. They are the reference side of the differential tests described <a href="#differences-from-the-interpreter">below</a>.</p>
+<h2 id="emit-c">Emit C<a class="headerlink" href="#emit-c" title="Permanent link">&para;</a></h2>
+<p><code>kgpy compile c FILE... -o DIR</code> writes <code>DIR/&lt;prefix&gt;.c</code>, <code>DIR/&lt;prefix&gt;.h</code> and a copy of the runtime header <code>DIR/klong_rt.h</code>, and prints a size report. The prefix is the file's stem made into a C identifier; <code>--prefix NAME</code> chooses another.</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>compile<span class="w"> </span>c<span class="w"> </span>examples/embedded/mavg.kg<span class="w"> </span>-o<span class="w"> </span>mavg-c
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">examples/embedded/mavg.kg: wrote mavg-c/mavg.c, mavg.h and klong_rt.h</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="go">size report for mavg (kg_int 32 bits, kg_float 32 bits)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="go">  constants          16 bytes (static const data; flash on a microcontroller)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="go">  sizeof(mavg_t)  20 bytes (20 state, 0 array locals and temporaries)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="go">  deepest call chain 2 C function(s): mavg_step &gt; kg_step__1</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="go">  stack estimate     68 bytes (scalars, loop counters and call frames along that chain; externs not counted)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="go">  C source           43 lines</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="gp">$ </span>ls<span class="w"> </span>mavg-c
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="go">klong_rt.h</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="go">mavg.c</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="go">mavg.h</span>
+</code></pre></div>
+<p>The generated header declares a visible instance struct, the entry prototypes and, for a program that uses externs, the prototypes of the functions the target must define:</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gp">$ </span>grep<span class="w"> </span>-n<span class="w"> </span><span class="s1">'^struct\|^    kg_\|^void\|^size_t\|^kg_'</span><span class="w"> </span>mavg-c/mavg.h
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="go">20:struct mavg {</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="go">21:    kg_float g_buf[4]; /* state buf: float[4] */</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="go">22:    kg_int g_pos; /* state pos: int */</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="go">29:void mavg_init(mavg_t *p);</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="go">31:size_t mavg_size(void);</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="go">34:kg_float mavg_step(mavg_t *p, kg_float x); /* entry step: float -&gt; float */</span>
+</code></pre></div>
+<p>All storage is in the instance. The caller decides where it lives (a static, a heap block, external RAM) and may keep several instances; <code>&lt;P&gt;_init</code> sets the state to its initial values, <code>&lt;P&gt;_size()</code> returns <code>sizeof</code> for a host that allocates it itself, and <code>&lt;P&gt;_SIZE</code> is the same as a macro. Array arguments are <code>const T *</code> and an array result is a trailing <code>T *out</code>. The names <code>init</code>, <code>t</code>, <code>size</code> and <code>storage.t</code> cannot be entry names. One instance must not be entered from two threads at once.</p>
+<p>The size report says what the program costs. Constants are <code>static const</code> tables (flash on a microcontroller). The instance is the state plus the storage of array temporaries. The stack figure is an estimate along the deepest call chain and does not count the externs.</p>
+<h3 id="the-pid_t-clash">The <code>pid_t</code> clash<a class="headerlink" href="#the-pid_t-clash" title="Permanent link">&para;</a></h3>
+<p>The type for <code>pid.kg</code> would be <code>pid_t</code>, which POSIX already defines, so a hosted build that includes <code>&lt;sys/types.h&gt;</code> before the header fails. Choose another prefix:</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>compile<span class="w"> </span>c<span class="w"> </span>examples/embedded/pid.kg<span class="w"> </span>-o<span class="w"> </span>pid-c<span class="w"> </span>--prefix<span class="w"> </span>pidc
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="go">examples/embedded/pid.kg: wrote pid-c/pidc.c, pidc.h and klong_rt.h</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="go">size report for pidc (kg_int 32 bits, kg_float 32 bits)</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="go">  constants          0 bytes (static const data; flash on a microcontroller)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="go">  sizeof(pidc_t)  8 bytes (8 state, 0 array locals and temporaries)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="go">  deepest call chain 3 C function(s): pidc_step &gt; kg_step__1 &gt; kg_clamp__0</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="go">  stack estimate     108 bytes (scalars, loop counters and call frames along that chain; externs not counted)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="go">  C source           55 lines</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="gp">$ </span>grep<span class="w"> </span>-n<span class="w"> </span><span class="s1">'pidc_t\|read_adc\|write_pwm'</span><span class="w"> </span>pid-c/pidc.h
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="go">24:typedef struct pidc pidc_t;</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="go">29:void pidc_init(pidc_t *p);</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="go">30:/* sizeof(pidc_t), for a host that allocates the instance itself. */</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="go">34:kg_float pidc_step(pidc_t *p, kg_float x); /* entry step: float -&gt; float */</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="go">37:kg_float read_adc(kg_int a0); /* Klong name board.adc: int -&gt; float */</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="go">38:kg_int write_pwm(kg_int a0, kg_float a1); /* Klong name board.pwm: int float -&gt; int */</span>
+</code></pre></div>
+<p>An extern appears in the header as a prototype under its C symbol (<code>read_adc</code>, the first argument of <code>.extern</code>), and the comment gives the Klong name (<code>board.adc</code>: the module's file name and the key it exports) and the signature.</p>
+<h3 id="other-options">Other options<a class="headerlink" href="#other-options" title="Permanent link">&para;</a></h3>
+<p><code>--int64</code> and <code>--float64</code> choose the widths of <code>kg_int</code> and <code>kg_float</code> (the defaults are <code>int32_t</code> and <code>float</code>). <code>--line-directives</code> adds <code>#line</code> directives so that a debugger or a compiler error points at the Klong source. <code>--dump-ir</code> prints the typed intermediate form of the program. The compiler stops with the checker's messages if the program is outside the profile.</p>
+<h2 id="build-it">Build it<a class="headerlink" href="#build-it" title="Permanent link">&para;</a></h2>
+<p>The runtime is one header, <code>klong_rt.h</code>. The generated <code>.c</code> includes it and defines <code>KG_RT_IMPLEMENTATION</code> before doing so, which is what makes it define the weak default <code>kg_trap</code> (and, freestanding, the weak <code>memcpy</code> and <code>memset</code>) in that one translation unit; another file that includes the header gets only declarations.</p>
+<h3 id="on-the-host">On the host<a class="headerlink" href="#on-the-host" title="Permanent link">&para;</a></h3>
+<p>A minimal <code>main</code> for <code>mavg</code>: allocate the instance statically, initialise it, call the entry.</p>
+<!-- check-docs: continue; requires-cmd clang -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>main_mavg.c<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="go">&gt; #include &lt;stdio.h&gt;</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="go">&gt; #include "mavg.h"</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="go">&gt; static mavg_t mavg;</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="go">&gt; int main(void) {</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="go">&gt;     const float in[] = {4.0f, 8.0f, 12.0f, 16.0f, 20.0f};</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="go">&gt;     mavg_init(&amp;mavg);</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="go">&gt;     for (int i = 0; i &lt; 5; i++)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="go">&gt;         printf("%g\n", (double)mavg_step(&amp;mavg, in[i]));</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="go">&gt;     printf("sizeof %zu, mavg_size() %zu\n", sizeof(mavg_t), mavg_size());</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="go">&gt;     return 0;</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="go">&gt; }</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="gp">$ </span>clang<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-Werror<span class="w"> </span>-pedantic<span class="w"> </span>-Imavg-c<span class="w"> </span>main_mavg.c<span class="w"> </span>mavg-c/mavg.c<span class="w"> </span>-o<span class="w"> </span>mavg_host
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="gp">$ </span>./mavg_host
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="go">1</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="go">3</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="go">6</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="go">10</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="go">14</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="go">sizeof 20, mavg_size() 20</span>
+</code></pre></div>
+<p>The five values are those of the interpreter above, and <code>sizeof</code> is the <code>sizeof(mavg_t)</code> in the size report. The generated code compiles without a warning under <code>-std=c99 -Wall -Wextra -Werror -pedantic</code>.</p>
+<h3 id="externs-and-the-linker">Externs and the linker<a class="headerlink" href="#externs-and-the-linker" title="Permanent link">&para;</a></h3>
+<p>An extern is an undefined symbol in the object file. The program that uses it must define it with the prototype in the header. Here the externs return constants, as the Python stand-ins did:</p>
+<!-- check-docs: continue; requires-cmd clang -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>main_pid.c<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="go">&gt; #include &lt;stdio.h&gt;</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="go">&gt; #include "pidc.h"</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="go">&gt; static pidc_t pid;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="go">&gt; kg_float read_adc(kg_int channel) { (void)channel; return 0.3f; }</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="go">&gt; kg_int write_pwm(kg_int channel, kg_float duty) { (void)channel; (void)duty; return 0; }</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="go">&gt; int main(void) {</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="go">&gt;     pidc_init(&amp;pid);</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="go">&gt;     for (int i = 0; i &lt; 3; i++)</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="go">&gt;         printf("%g\n", (double)pidc_step(&amp;pid, 0.31f));</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="go">&gt;     return 0;</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="go">&gt; }</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="gp">$ </span>clang<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-Werror<span class="w"> </span>-pedantic<span class="w"> </span>-Ipid-c<span class="w"> </span>main_pid.c<span class="w"> </span>pid-c/pidc.c<span class="w"> </span>-o<span class="w"> </span>pid_host
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="gp">$ </span>./pid_host
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="go">0.12005</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="go">0.0201</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="go">0.02015</span>
+</code></pre></div>
+<p>Without the two definitions the link fails with undefined <code>read_adc</code> and <code>write_pwm</code>. The name a program uses for an extern (<code>board.adc</code>) is not used in C: the target defines the C symbol.</p>
+<h3 id="freestanding">Freestanding<a class="headerlink" href="#freestanding" title="Permanent link">&para;</a></h3>
+<p>With <code>-ffreestanding -nostdlib -DKG_FREESTANDING</code> the generated file needs no C library and includes no header beyond <code>&lt;stdint.h&gt;</code> and <code>&lt;stddef.h&gt;</code>. The only symbols it leaves undefined are the externs the program declared. <code>nm -u</code> shows them:</p>
+<!-- check-docs: continue; requires-cmd clang nm -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gp">$ </span>clang<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-Werror<span class="w"> </span>-pedantic<span class="w"> </span>-ffreestanding<span class="w"> </span>-nostdlib<span class="w"> </span>-DKG_FREESTANDING<span class="w"> </span>-Imavg-c<span class="w"> </span>-c<span class="w"> </span>mavg-c/mavg.c<span class="w"> </span>-o<span class="w"> </span>mavg_free.o
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="gp">$ </span>nm<span class="w"> </span>-u<span class="w"> </span>mavg_free.o<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">' '</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="go">0</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="gp">$ </span>clang<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-Werror<span class="w"> </span>-pedantic<span class="w"> </span>-ffreestanding<span class="w"> </span>-nostdlib<span class="w"> </span>-DKG_FREESTANDING<span class="w"> </span>-Ipid-c<span class="w"> </span>-c<span class="w"> </span>pid-c/pidc.c<span class="w"> </span>-o<span class="w"> </span>pidc_free.o
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="gp">$ </span>nm<span class="w"> </span>-u<span class="w"> </span>pidc_free.o<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-e<span class="w"> </span><span class="s1">'s/^[ U]*//'</span><span class="w"> </span>-e<span class="w"> </span><span class="s1">'s/^_//'</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="go">read_adc</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="go">write_pwm</span>
+</code></pre></div>
+<p><code>mavg</code> has no undefined symbol and <code>pidc</code> has its two externs. Two things to know:</p>
+<ul>
+<li><code>memcpy</code> and <code>memset</code> are defined in the generated file, weakly, because a compiler may emit calls to them even under <code>-nostdlib</code>. A real C library, or your own definitions, take precedence. On a target without a hardware instruction for an operation (64-bit division on a 32-bit core, soft-float arithmetic) the compiler may also call its runtime library (compiler-rt or libgcc); those helpers are the other possible undefined symbols.</li>
+<li><code>kg_pow</code> is computed inside the header in this mode, to about 1e-6 relative error for <code>float</code> and 1e-13 for <code>double</code>; with a C library it is <code>powf</code> or <code>pow</code>. Only a program that uses float <code>^</code> needs <code>-lm</code> on a hosted build.</li>
+</ul>
+<h2 id="policies">Policies<a class="headerlink" href="#policies" title="Permanent link">&para;</a></h2>
+<p>The runtime has a few switches, all set with <code>-D</code> when the generated file is compiled.</p>
+<table>
+<thead>
+<tr>
+<th>Switch</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KG_BOUNDS</code></td>
+<td><code>1</code></td>
+<td>An index out of range calls <code>kg_trap(KG_TRAP_BOUNDS, line)</code>. <code>0</code> removes the check; an out-of-range index is then undefined behaviour. A constant index is checked at compile time either way. A negative index counts from the end, as in KlongPy</td>
+</tr>
+<tr>
+<td><code>KG_DIV0</code></td>
+<td><code>ieee</code></td>
+<td><code>ieee</code>: float <code>x%y</code> and <code>x!y</code> with a zero divisor give inf or nan. <code>trap</code>: they call <code>kg_trap(KG_TRAP_DIV0, line)</code>. Integer division by zero (<code>:%</code>, <code>!</code>) always traps</td>
+</tr>
+<tr>
+<td><code>KG_FREESTANDING</code></td>
+<td>off</td>
+<td>No C library (see above)</td>
+</tr>
+<tr>
+<td><code>KG_NO_MEM_BUILTINS</code></td>
+<td>off</td>
+<td>Do not define <code>memcpy</code> and <code>memset</code> even when freestanding</td>
+</tr>
+<tr>
+<td><code>KG_NO_DEFAULT_TRAP</code></td>
+<td>off</td>
+<td>Leave out the default <code>kg_trap</code>, so that a missing definition is a link error</td>
+</tr>
+</tbody>
+</table>
+<p>Integer arithmetic wraps at the width of <code>kg_int</code>, computed unsigned so that there is no undefined behaviour. <code>--int64</code> and <code>--float64</code> on the command line choose widths; the header refuses to be included with the other widths defined.</p>
+<p><code>kg_trap(int code, int line)</code> is called with <code>KG_TRAP_BOUNDS</code> (1) or <code>KG_TRAP_DIV0</code> (2) and the line of the Klong source. The default is weak and loops forever. A program that defines its own, in any file other than the generated one, replaces it. If it returns, the operation that trapped gives 0 (an index out of range reads or writes item 0), so memory stays safe, and the values computed after a trap are unspecified.</p>
+<p>A small program shows the policies. It reads a constant table, divides, and adds one to an int:</p>
+<!-- check-docs: continue; requires-cmd clang -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>policy.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="go">&gt; tab::[1.0 2.0 3.0]</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="go">&gt; at::{tab@x}</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="go">&gt; ratio::{x%y}</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="go">&gt; inc::{x+1}</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="go">&gt; .entry("at";"int -&gt; float")</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="go">&gt; .entry("ratio";"float float -&gt; float")</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="go">&gt; .entry("inc";"int -&gt; int")</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="gp">$ </span>kgpy<span class="w"> </span>compile<span class="w"> </span>c<span class="w"> </span>policy.kg<span class="w"> </span>-o<span class="w"> </span>policy-c
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="go">policy.kg: wrote policy-c/policy.c, policy.h and klong_rt.h</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="go">size report for policy (kg_int 32 bits, kg_float 32 bits)</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="go">  constants          12 bytes (static const data; flash on a microcontroller)</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="go">  sizeof(policy_t)  4 bytes (0 state, 0 array locals and temporaries)</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="go">  deepest call chain 2 C function(s): policy_ratio &gt; kg_ratio__1</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="go">  stack estimate     64 bytes (scalars, loop counters and call frames along that chain; externs not counted)</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="go">  C source           58 lines</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>main_policy.c<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a><span class="go">&gt; #include &lt;stdio.h&gt;</span>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a><span class="go">&gt; #include &lt;stdlib.h&gt;</span>
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a><span class="go">&gt; #include "policy.h"</span>
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="go">&gt; static policy_t p;</span>
+<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="go">&gt; void kg_trap(int code, int line) {</span>
+<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a><span class="go">&gt;     printf("trap %d at policy.kg line %d\n", code, line);</span>
+<a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a><span class="go">&gt;     exit(1);</span>
+<a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a><span class="go">&gt; }</span>
+<a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a><span class="go">&gt; int main(void) {</span>
+<a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a><span class="go">&gt;     policy_init(&amp;p);</span>
+<a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a><span class="go">&gt;     printf("at(-1)        %g\n", (double)policy_at(&amp;p, -1));</span>
+<a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a><span class="go">&gt;     printf("ratio(1;0)    %g\n", (double)policy_ratio(&amp;p, 1.0f, 0.0f));</span>
+<a id="__codelineno-11-31" name="__codelineno-11-31" href="#__codelineno-11-31"></a><span class="go">&gt;     printf("inc(2^31-1)   %d\n", (int)policy_inc(&amp;p, 2147483647));</span>
+<a id="__codelineno-11-32" name="__codelineno-11-32" href="#__codelineno-11-32"></a><span class="go">&gt;     printf("at(3)         ");</span>
+<a id="__codelineno-11-33" name="__codelineno-11-33" href="#__codelineno-11-33"></a><span class="go">&gt;     fflush(stdout);</span>
+<a id="__codelineno-11-34" name="__codelineno-11-34" href="#__codelineno-11-34"></a><span class="go">&gt;     printf("%g\n", (double)policy_at(&amp;p, 3));</span>
+<a id="__codelineno-11-35" name="__codelineno-11-35" href="#__codelineno-11-35"></a><span class="go">&gt;     return 0;</span>
+<a id="__codelineno-11-36" name="__codelineno-11-36" href="#__codelineno-11-36"></a><span class="go">&gt; }</span>
+<a id="__codelineno-11-37" name="__codelineno-11-37" href="#__codelineno-11-37"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-11-38" name="__codelineno-11-38" href="#__codelineno-11-38"></a><span class="gp">$ </span>clang<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-Werror<span class="w"> </span>-pedantic<span class="w"> </span>-Ipolicy-c<span class="w"> </span>main_policy.c<span class="w"> </span>policy-c/policy.c<span class="w"> </span>-o<span class="w"> </span>policy_ieee
+<a id="__codelineno-11-39" name="__codelineno-11-39" href="#__codelineno-11-39"></a><span class="gp">$ </span>./policy_ieee
+<a id="__codelineno-11-40" name="__codelineno-11-40" href="#__codelineno-11-40"></a><span class="go">at(-1)        3</span>
+<a id="__codelineno-11-41" name="__codelineno-11-41" href="#__codelineno-11-41"></a><span class="go">ratio(1;0)    inf</span>
+<a id="__codelineno-11-42" name="__codelineno-11-42" href="#__codelineno-11-42"></a><span class="go">inc(2^31-1)   -2147483648</span>
+<a id="__codelineno-11-43" name="__codelineno-11-43" href="#__codelineno-11-43"></a><span class="go">at(3)         trap 1 at policy.kg line 2</span>
+<a id="__codelineno-11-44" name="__codelineno-11-44" href="#__codelineno-11-44"></a><span class="gp">$ </span>clang<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-Werror<span class="w"> </span>-pedantic<span class="w"> </span>-DKG_DIV0<span class="o">=</span><span class="nb">trap</span><span class="w"> </span>-Ipolicy-c<span class="w"> </span>main_policy.c<span class="w"> </span>policy-c/policy.c<span class="w"> </span>-o<span class="w"> </span>policy_trap
+<a id="__codelineno-11-45" name="__codelineno-11-45" href="#__codelineno-11-45"></a><span class="gp">$ </span>./policy_trap
+<a id="__codelineno-11-46" name="__codelineno-11-46" href="#__codelineno-11-46"></a><span class="go">at(-1)        3</span>
+<a id="__codelineno-11-47" name="__codelineno-11-47" href="#__codelineno-11-47"></a><span class="go">trap 2 at policy.kg line 3</span>
+</code></pre></div>
+<p>The same program under the interpreter:</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>run_policy.py<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="go">&gt; from klongpy.static import load_program, call_entry</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="go">&gt; klong = load_program("policy.kg")</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="go">&gt; print(call_entry(klong, "at", -1))</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="go">&gt; print(klong("ratio(1.0;0.0)"))</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="go">&gt; print(call_entry(klong, "inc", 2147483647))</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="go">&gt; try:</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="go">&gt;     call_entry(klong, "at", 3)</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="go">&gt; except Exception as e:</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="go">&gt;     print(type(e).__name__ + ":", e)</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="gp">$ </span>python<span class="w"> </span>run_policy.py
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="go">3.0</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="go">:undefined</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="go">2147483648</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="go">KlongRangeError: index 3 out of range for list of 3</span>
+</code></pre></div>
+<p>The index and the integer wrap are the two cases where compiled code and the interpreter differ in a way the policies control. <code>call_entry</code> rejects <code>ratio(1.0;0.0)</code> because <code>:undefined</code> is not a float, so the example reads the value through <code>klong(...)</code>.</p>
+<h3 id="widths">Widths<a class="headerlink" href="#widths" title="Permanent link">&para;</a></h3>
+<p>The default build is <code>int32_t</code> and <code>float</code>, the usual choice for a 32-bit microcontroller. <code>--int64 --float64</code> builds for 64-bit integers and doubles, in which a float result is bit for bit the interpreter's.</p>
+<!-- check-docs: continue; requires-cmd clang -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>compile<span class="w"> </span>c<span class="w"> </span>examples/embedded/mavg.kg<span class="w"> </span>-o<span class="w"> </span>mavg-c64<span class="w"> </span>--int64<span class="w"> </span>--float64
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="go">examples/embedded/mavg.kg: wrote mavg-c64/mavg.c, mavg.h and klong_rt.h</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="go">size report for mavg (kg_int 64 bits, kg_float 64 bits)</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="go">  constants          32 bytes (static const data; flash on a microcontroller)</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="go">  sizeof(mavg_t)  40 bytes (40 state, 0 array locals and temporaries)</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="go">  deepest call chain 2 C function(s): mavg_step &gt; kg_step__1</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="go">  stack estimate     104 bytes (scalars, loop counters and call frames along that chain; externs not counted)</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="go">  C source           43 lines</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="gp">$ </span>clang<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-Werror<span class="w"> </span>-pedantic<span class="w"> </span>-Imavg-c64<span class="w"> </span>main_mavg.c<span class="w"> </span>mavg-c64/mavg.c<span class="w"> </span>-o<span class="w"> </span>mavg_host64
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="gp">$ </span>./mavg_host64
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="go">1</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="go">3</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="go">6</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="go">10</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="go">14</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="go">sizeof 40, mavg_size() 40</span>
+</code></pre></div>
+<h2 id="differences-from-the-interpreter">Differences from the interpreter<a class="headerlink" href="#differences-from-the-interpreter" title="Permanent link">&para;</a></h2>
+<p>A compiled program gives the interpreter's answers except in the ways below. Each is specified, and each is pinned by a test in <code>tests/static/test_differential.py</code>, which builds the generated C into a shared library and compares it with the interpreter bit for bit on random and edge inputs. The checker turns the language-level rows (the ones marked "compile error") into errors, so that no program inside the profile meets them. The <a href="../static-profile/">static profile</a> has the rules.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>KlongPy</th>
+<th>Compiled</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Integer overflow</td>
+<td>64-bit integers wrap, as numpy int64 does; <code>2147483647+1</code> is 2147483648</td>
+<td>wraps at the width of <code>kg_int</code>: <code>-2147483648</code> with <code>int32_t</code></td>
+</tr>
+<tr>
+<td>Float width</td>
+<td>doubles</td>
+<td><code>kg_float</code>: <code>float</code> by default. The tests compare a float32 result bit for bit when every operation is exact, and to 1e-5 otherwise. <code>--float64</code> is bit for bit except <code>^</code> (1e-15)</td>
+</tr>
+<tr>
+<td><code>x%0</code></td>
+<td><code>:undefined</code>, per element for arrays</td>
+<td>IEEE (inf or nan) by default, <code>kg_trap</code> under <code>KG_DIV0=trap</code></td>
+</tr>
+<tr>
+<td>Integer <code>:%</code> or <code>!</code> by zero</td>
+<td><code>:undefined</code></td>
+<td><code>kg_trap</code> always; a constant zero divisor is a compile error</td>
+</tr>
+<tr>
+<td>Index out of range</td>
+<td>a range error; a negative index counts from the end</td>
+<td><code>kg_trap(KG_TRAP_BOUNDS, line)</code>; negative indices count from the end as in KlongPy; undefined behaviour with <code>KG_BOUNDS=0</code>; a constant index out of range is a compile error</td>
+</tr>
+<tr>
+<td><code>_x</code> beyond the range of <code>kg_int</code>, or of nan</td>
+<td>saturates to the int64 range</td>
+<td>saturates to the range of <code>kg_int</code>; nan gives 0</td>
+</tr>
+<tr>
+<td><code>x~y</code> of one nan with itself</td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>+/</code> of floats</td>
+<td>numpy adds pairwise from eight items and answers <code>+0.0</code> for a sum of negative zeros</td>
+<td>adds left to right from the first item. <code>{x+y}/a</code> and <code>+\a</code> agree in both</td>
+</tr>
+<tr>
+<td><code>n{f}:*x</code> with a negative <code>n</code></td>
+<td>an error</td>
+<td>zero iterations</td>
+</tr>
+<tr>
+<td><code>kg_pow</code> freestanding</td>
+<td>libm</td>
+<td>about 1e-6 relative (float), 1e-13 (double)</td>
+</tr>
+<tr>
+<td>Comparison <code>~</code> of two scalars</td>
+<td>tolerant (relative 1e-5, absolute 1e-8); exact for two arrays</td>
+<td>the same</td>
+</tr>
+<tr>
+<td><code>^</code> result type</td>
+<td>int when the result is whole (<code>2.0^2</code> is the int 4)</td>
+<td>int only for int operands and a non-negative constant exponent, else float</td>
+</tr>
+<tr>
+<td><code>:%</code> of floats</td>
+<td>accepted (<code>7.0:%2</code> is 3)</td>
+<td>compile error: floor the operands first</td>
+</tr>
+<tr>
+<td><code>a~b</code> with different shapes</td>
+<td>0</td>
+<td>compile error</td>
+</tr>
+<tr>
+<td><code>a f'b</code> with different lengths</td>
+<td>stops at the shorter</td>
+<td>compile error</td>
+</tr>
+<tr>
+<td><code>n:+a</code> on a matrix</td>
+<td>rotates the flattened data</td>
+<td>compile error (rank 1 only)</td>
+</tr>
+<tr>
+<td>Over on one item (<code>f/[5]</code>)</td>
+<td>the item itself, whatever <code>f</code> returns</td>
+<td>the item converted to the accumulator's type</td>
+</tr>
+<tr>
+<td>A conditional with an int and a float branch</td>
+<td>the type of the branch taken</td>
+<td>float (the value is the same)</td>
+</tr>
+<tr>
+<td>A callee reading its caller's locals</td>
+<td>works (dynamic scope)</td>
+<td>compile error (<code>undefined-name</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Programs written so that no value comes near these cases (small integers, no zero divisors, indices in range) give the same answers everywhere. The tests also include random programs: a seeded generator writes functions over floats, ints, short arrays, state globals, constant tables, locals, conditionals, every adverb, amend, index, take, drop, rotate, reshape and join, with values chosen to be exact in single precision, and compares the compiled result with the interpreter's for thousands of calls.</p>
+<p>Some of the rows, run in the interpreter:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>?&gt; 2147483647+1
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>2147483648
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>?&gt; 1.0%0.0
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>:undefined
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>?&gt; _1e30
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>9223372036854775807
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>?&gt; n::-3
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>-3
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>?&gt; n{x+1}:*0
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>error: :*: count must not be negative, got -3
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>?&gt; 1.0~1.000001
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>1
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>?&gt; [1.0]~[1.000001]
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>0
+</code></pre></div>
+<h2 id="hardware-experimental">Hardware (experimental)<a class="headerlink" href="#hardware-experimental" title="Permanent link">&para;</a></h2>
+<p><code>kgpy fpga source</code> writes the same programs as HLS C++ for an FPGA kernel, and <code>.fpga</code> calls the built kernel from Klong. This is experimental and has run on one Alveo U250 card. The flow, its settings and the measured results are on <a href="../hardware/">Klong functions as FPGA hardware</a>.</p>
+<h2 id="on-a-pico">On a Pico<a class="headerlink" href="#on-a-pico" title="Permanent link">&para;</a></h2>
+<p>The <a href="../native/pico-bench/">Pico firmware</a> links the C compiled from <code>examples/embedded/mavg.kg</code>, <code>pid.kg</code> and <code>fir.kg</code> as <code>.c.mavg</code>, <code>.c.pid</code> and <code>.c.fir</code>. Run <code>.c.check()</code> to compare compiled moving average and PID with the board interpreter. FIR's interpreted input exceeds the heap on this image, so the check compares compiled FIR against desktop reference values stored in flash. Each result row contains a pass flag, the number of values, interpreter and compiled times in microseconds, and the largest relative difference in parts per billion. An interpreter time of <code>-1</code> marks the use of a reference.</p>
+<p>Both boards passed all three checks using the same <a href="../native/pico-bench/#rc1-on-two-rp2040-boards">sealed RC1 image</a> on November 20, 2026. The ranges show the two board timings.</p>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Values</th>
+<th>Interpreter</th>
+<th>Compiled C</th>
+<th>Largest difference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mavg.kg</code>, one step per value</td>
+<td>64</td>
+<td>23,047–23,098 µs</td>
+<td>197–198 µs</td>
+<td>0 ppb</td>
+</tr>
+<tr>
+<td><code>pid.kg</code>, one step per value</td>
+<td>32</td>
+<td>39,484–40,833 µs</td>
+<td>344–345 µs</td>
+<td>101 ppb</td>
+</tr>
+<tr>
+<td><code>fir.kg</code>, 256 samples through 16 taps</td>
+<td>241</td>
+<td>Flash reference</td>
+<td>6,395–6,397 µs</td>
+<td>216 ppb</td>
+</tr>
+</tbody>
+</table>
+<p>The earlier November 18, 2026 measurements used a different firmware image on two RP2040 Picos (Cortex-M0+ at 125 MHz).</p>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Values</th>
+<th>Interpreter</th>
+<th>Compiled C</th>
+<th>Largest difference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mavg.kg</code>, one step per value</td>
+<td>64</td>
+<td>21.2 ms</td>
+<td>0.198 ms</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>pid.kg</code>, one step per value</td>
+<td>32</td>
+<td>34.7 ms</td>
+<td>0.344 ms</td>
+<td>101 parts per billion</td>
+</tr>
+<tr>
+<td><code>fir.kg</code>, 256 samples through 16 taps</td>
+<td>241</td>
+<td>does not fit</td>
+<td>6.4 ms</td>
+<td>216 parts per billion</td>
+</tr>
+</tbody>
+</table>
+<p>In that run compiled moving average and PID were about 100 times faster than the corresponding interpreted steps. The output comparisons used single precision in compiled C and double precision in the interpreter.</p>
+<h2 id="what-has-not-been-done">What has not been done<a class="headerlink" href="#what-has-not-been-done" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The three examples were also linked into a separate ESP32-P4 diagnostic image. Its on-device check remains pending.</li>
+<li>Compile-only checks with Apple clang 21 on an Apple M-series desktop covered <code>thumbv6m-none-eabi</code>, <code>thumbv7em-none-eabihf</code>, <code>armv7m</code>, big-endian <code>armebv7m</code>, <code>i386</code> and <code>aarch64</code>. They used freestanding C with <code>-Werror</code> and checked that undefined symbols were limited to declared externs and compiler-rt helpers. The test also attempts <code>riscv32</code> when the compiler supports it.</li>
+<li>There is no WebAssembly build. The emitted C is meant to build with <code>--target=wasm32 -ffreestanding -nostdlib</code> and its externs to become imports, but that is not tested.</li>
+<li>A constant index table is stored as <code>kg_int</code>. <code>fir.kg</code>'s table is 15.4 KB of its 15.5 KB of constants at 32 bits; storing it in the smallest type that holds it would make it about 3.9 KB. Not done.</li>
+<li>The tests need a C compiler and skip without one. Set <code>KG_TEST_CC</code> to choose it and <code>KG_TEST_SANITIZE=undefined</code> to run them under UBSan.</li>
+</ul>
+<p>Reference programs, with the results the interpreter gives and the size of the generated code, are in <code>examples/embedded/</code> (<code>mavg</code>, <code>pid</code> and <code>fir</code>, with <code>.expect</code> files).</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../static-profile/">Static profile</a> for the rules of the subset.</li>
+<li><a href="../compiler-roadmap/">Compiler Notes</a> for what compiles today and what is planned.</li>
+<li><a href="../native/">Native runtime</a> and <a href="../native/porting/">Porting to a board</a> for running Klong itself on a microcontroller, without generating C.</li>
+<li><a href="../roadmap/">Roadmap</a> for what is planned and not available.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

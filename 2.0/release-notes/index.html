@@ -1,0 +1,3367 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/release-notes/">
+      
+      
+        <link rel="prev" href="../migrating-to-v2/">
+      
+      
+        <link rel="next" href="../from-numpy/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Release Notes - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#release-notes" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Release Notes
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#headline-additions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Headline additions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Headline additions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-klong-and-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static Klong and C
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strict-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strict modes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#language-additions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Language additions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#structured-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structured errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repl-and-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REPL and command line
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kdb-ipc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        kdb+ IPC
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behaviour-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviour changes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Behaviour changes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#syntax-that-changed-meaning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Syntax that changed meaning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parser
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operators
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calling-a-value-that-is-not-a-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calling a value that is not a function
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#names-with-a-dot-and-dictionary-literals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Names with a dot, and dictionary literals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#libraries-and-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Libraries and modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removed-switches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removed switches
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messages-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messages changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command line
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ipc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IPC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-server-files-and-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web server, files and examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operators-and-the-parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operators and the parser
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Libraries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Torch backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#headline-additions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Headline additions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Headline additions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-klong-and-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static Klong and C
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strict-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strict modes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#language-additions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Language additions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#structured-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structured errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repl-and-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REPL and command line
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kdb-ipc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        kdb+ IPC
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behaviour-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviour changes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Behaviour changes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#syntax-that-changed-meaning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Syntax that changed meaning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parser
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operators
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calling-a-value-that-is-not-a-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calling a value that is not a function
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#names-with-a-dot-and-dictionary-literals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Names with a dot, and dictionary literals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#libraries-and-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Libraries and modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removed-switches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removed switches
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messages-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messages changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command line
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ipc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IPC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-server-files-and-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web server, files and examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operators-and-the-parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operators and the parser
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Libraries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Torch backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="release-notes">Release Notes<a class="headerlink" href="#release-notes" title="Permanent link">&para;</a></h1>
+<p>These notes describe the changes in version 2 from the pure-Python 0.7 and v1 line. The older examples use the 0.7 behavior where stated. <a href="../whats-new-v2/">What's New in v2</a> · <a href="../migrating-to-v2/">Migrating to v2</a></p>
+<h2 id="20">2.0<a class="headerlink" href="#20" title="Permanent link">&para;</a></h2>
+<h3 id="headline-additions">Headline additions<a class="headerlink" href="#headline-additions" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../what-runs-where/">One interpreter, written in Rust</a>, behind two commands: <code>kgpy</code> (hosted in Python) and <code>kg</code> (no Python). The same interpreter runs on <a href="../native/">microcontroller boards</a>.</li>
+<li><a href="../fast_columnar_database/">Column tables and embedded DuckDB</a> in both desktop commands. Tables support compound keys and keyed updates, and SQL can query live Klong tables or a persistent DuckDB file.</li>
+<li><a href="../what-runs-where/#native-metal">Native Metal on macOS</a> for supported array operations and reverse-mode gradients. The Python host also supports device arrays and autograd through its PyTorch backend.</li>
+<li><a href="../language-additions/#modules">Modules</a>: the <code>export</code> variable, <code>.l</code> as the one loader, and qualified names <code>a.b</code>.</li>
+<li>Errors as values: <code>.try</code> catches an error and <code>.err</code> raises one. <code>.seed</code> makes <code>.rn</code> repeatable and <code>.now</code> gives the time.</li>
+<li>The <a href="../conformance/">conformance suite</a>: more than 2,000 cases that every build of the interpreter must pass.</li>
+<li>The <a href="../static-profile/">static profile</a> and <a href="../embedded/">compiling Klong to C</a>.</li>
+<li><a href="../hardware/">FPGA kernels</a>, experimental.</li>
+<li><a href="../strict/">Strict modes</a>, levels 0, 1 and 2.</li>
+<li>The <a href="../lint/">linter</a>, <code>kgpy lint</code>.</li>
+<li><a href="../errors/">Structured errors</a> with a position, a kind and the source line.</li>
+<li><a href="../language-additions/">Language additions</a>: destructuring, named parameters, dictionary literals, calls with too few arguments, <code>.fmt</code>, <code>.pf</code> and <code>.grad</code>.</li>
+<li>kdb+-protocol <a href="../ipc_capabilities/">IPC</a>, tested against PeachQ.</li>
+<li>A <a href="../repl/">REPL</a> with multi-line entry, history, completion and <code>it</code>.</li>
+</ul>
+<h4 id="one-interpreter">One interpreter<a class="headerlink" href="#one-interpreter" title="Permanent link">&para;</a></h4>
+<p><strong>One Rust interpreter.</strong> The parser, evaluator, linter, static checker and compilers run in both desktop commands. <code>kgpy</code> adds NumPy and PyTorch arrays, Python callables, pandas and Arrow interchange, web services and FPGA card bindings. <a href="../what-runs-where/">What Runs Where</a></p>
+<p><strong>The standalone <code>kg</code> command.</strong> A v2 wheel installs it next to <code>kgpy</code>. It runs files, expressions and a REPL. <code>kg --capabilities</code> emits one JSON object for scripts and tools. A function that needs Python reports that it needs <code>kgpy</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$ kg -e '.py("math")'
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>1:1: name error: .py needs kgpy (the Python-hosted command)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  .py("math")
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ^^^^^^^^^^^
+</code></pre></div>
+<p><strong>The tools are in the interpreter.</strong> <code>lint</code>, <code>check</code>, <code>compile c</code>, <code>fpga source</code> and <code>ast</code> are the same Rust code under <code>kg</code> and <code>kgpy</code>, and they print the same text.</p>
+<p><strong>There is no pure-Python version of 2.</strong> <code>import klongpy</code> needs its compiled extension, and the error says how to get it: a wheel carries it, and a source tree builds it with <code>pip install -e .</code>, which needs a Rust toolchain. The Python modules of the old implementation (<code>klongpy.parser</code>, <code>klongpy.lexer</code>, <code>klongpy.compiler</code>, <code>klongpy.monads</code>, <code>klongpy.dyads</code> and <code>klongpy.adverbs</code>) do not exist. The Python API (<code>KlongInterpreter</code>, the error classes, the backends) is kept. Version 2 needs Python 3.11 to 3.14, where 0.7 accepted 3.9 and later; the wheel is one <code>abi3</code> file per platform.</p>
+<h4 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">&para;</a></h4>
+<p><strong>New: modules, <code>.l</code> as the one loader and qualified names.</strong> A file that assigns the variable <code>export</code>, a dictionary written as a literal, is a module. <code>.l("geom")</code> runs it in a scope of its own, once, and binds the read-only dictionary it exported to the file's stem; <code>.l("geom";:g)</code> binds it to <code>g</code>, and <code>.l("geom";["sq"])</code> binds the entries named as plain names. <code>.l</code> returns the module. <code>a.b</code> is <code>a@"b"</code> for reading, writing and calling on any dictionary. A bare name is searched in the directory of the file that contains the <code>.l</code>, then in <code>KLONGPATH</code>, then in the bundled library, and a local file that shadows a library file gives a warning. See <a href="../language-additions/#modules">Modules</a>; <code>examples/modules</code> is a program of twelve files.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq(v)::{v*v}\nexport:::{;"sq";sq}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>geom.kg
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="gp">$ </span>kgpy<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.l("geom");geom.sq(4)'</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="go">16</span>
+</code></pre></div>
+<h4 id="static-klong-and-c">Static Klong and C<a class="headerlink" href="#static-klong-and-c" title="Permanent link">&para;</a></h4>
+<p><strong>New: a subset of Klong that compiles to C.</strong> <a href="../static-profile/">The static profile</a> is the part of the language in which every type, shape and call target is known before the program runs. <code>check FILE...</code> checks files against it without running them, and <code>compile c FILE... -o DIR</code> compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. <code>adc::.extern("read_adc";"int -&gt; float")</code> returns a function the target provides, kept in a module file and used as <code>read.adc(3)</code>, and <code>.entry("name";"float -&gt; float")</code> declares one the host calls. Under KlongPy an extern is a Python function (<code>klong.externs["read_adc"] = f</code>, keyed by C symbol), and <code>klongpy.static.load_program</code> and <code>call_entry</code> run a program the way the compiled one is called. A program that uses neither is unaffected. See <a href="../embedded/">Compiling Klong to C</a>.</p>
+<p><strong><code>.entry</code> and <code>.extern</code> have the same checks under <code>kg</code> and <code>kgpy</code>.</strong> A program of the static profile loads unchanged, and an extern resolves to a host function registered under its C symbol. Fixed-point programs (<code>.fixed</code>) run under <code>kgpy</code>; under <code>kg</code> <code>.fixed</code> is a system error.</p>
+<p><strong>Compiled C on two RP2040 Picos.</strong> On both boards, the compiled moving average and PID controller matched the on-device interpreter across 64 and 32 outputs respectively, within the checks’ numeric tolerance. The interpreted FIR workload exceeded the Pico heap. The compiled FIR matched 241 reference values stored in flash. <a href="../embedded/#on-a-pico">On a Pico</a></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>?&gt; adc::.extern("read_adc";"int -&gt; float")
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>:nilad
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>?&gt; .entry("f";"-&gt; int")
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>error: .entry: the function f is not defined
+</code></pre></div>
+<p><strong>Experimental: <code>.fpga</code> calls a function of the static profile as FPGA hardware.</strong> <code>fir::.fpga("fir.kg")</code> binds the kernels of an image built with <code>kgpy fpga build fir.kg</code> for an Alveo U250 and <code>fir.run(x)</code> runs on the card, with the arguments checked against the <code>.entry</code> signature, an extra leading dimension meaning several calls, resident buffers (<code>.fpga.put</code>, <code>.fpga.get</code>, <code>.fpga.free</code>), <code>.fpga.reset</code> and <code>.fpga.info</code>. <code>KLONG_FPGA=sim</code> runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use <code>.fpga</code>, and nothing of it is imported at start. This is experimental: it has been run on one Alveo U250 with two images. The strategy kernel (a streaming kernel) is about ten times faster than the same program as C on a 32-thread CPU, and <code>fir</code> (a wrapped kernel) is slower than numpy. See <a href="../hardware/">Klong functions as FPGA hardware</a>.</p>
+<h4 id="strict-modes">Strict modes<a class="headerlink" href="#strict-modes" title="Permanent link">&para;</a></h4>
+<p>The default stays level 0, which behaves as before. See <a href="../strict/">Strict mode</a> for the rules.</p>
+<p><strong><code>.strict(n)</code> sets level <code>n</code>.</strong> <code>.strict(2)</code> and <code>.strict(0)</code> were accepted and silently set level 1, because the extra argument was dropped. The level is one of 0, 1 and 2, and anything else is an error. <code>.strict()</code> is still level 1, and <code>.unsafe()</code> is level 0. Each returns the level.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>?&gt; .strict(2)
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>?&gt; .strict(0)
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>0
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>?&gt; .strict(3)
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>error: the strict level must be 0, 1 or 2
+</code></pre></div>
+<p><strong><code>kgpy --strict[=N]</code> and <code>KlongInterpreter(strict=N)</code> choose the level.</strong> There was no flag and no constructor argument; the level could only be set from Klong code. Bare <code>--strict</code> is level 1. Files loaded with <code>.l</code> run at the level of the session.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$ kgpy --strict=2 -e 'a+1'
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>&lt;expr&gt;:1:1: name error: undefined: a
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  a+1
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  ^
+</code></pre></div>
+<p><strong>At level 1, <code>1::5</code> is a syntax error, and a read in a function reports the read.</strong> The left side of <code>::</code> that is not a name was accepted and stored a meaningless entry. A function that read a name that was not defined was told to declare it in the parameter list, which is advice for an assignment. The message is now <code>undefined: a</code>. Level 1 also turns the parser's warnings into errors, as <a href="../errors/#syntax-warnings">Errors</a> lists.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>?&gt; .strict(1)
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>1
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>?&gt; 1::5
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>error: cannot assign: the left side of :: must be a name
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>?&gt; f::{a+1}
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>:nilad
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>?&gt; f()
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>error: undefined: a
+</code></pre></div>
+<p><strong>Level 2 is new.</strong> Reading an undefined name is a name error with a "did you mean" hint, <code>:foo</code> is always the symbol, a declared local read before it is assigned is an error, and a call with more arguments than the function takes is an arity error.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>?&gt; a+1
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>error: cannot apply + (Plus) to symbol and integer
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>?&gt; .strict(2)
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>2
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>?&gt; c+1
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>error: undefined: c
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>?&gt; foo::5
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>5
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>?&gt; :foo
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>:foo
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>?&gt; {x+y}(1;2;3)
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>error: the function takes 2 arguments, got 3
+</code></pre></div>
+<p><strong>There is no <code>global:</code> prefix.</strong> The <code>.strict()</code> documentation promised that a function could create a global with <code>[global:counter]</code>. Nothing implemented it; <code>[global:counter]</code> was an ordinary locals list holding the names <code>global</code> and <code>counter</code>. The promise is deleted. To change a global from a function, define it first at the top level; to create one from inside a function, use <code>.E</code>.</p>
+<h4 id="language-additions">Language additions<a class="headerlink" href="#language-additions" title="Permanent link">&para;</a></h4>
+<p>See <a href="../language-additions/">Language additions</a> for the forms. These are the changes in behaviour that come with them, apart from the ones in <a href="#syntax-that-changed-meaning">Syntax that changed meaning</a>.</p>
+<p><strong>New: <code>.try</code> and <code>.err</code>, errors as values.</strong> <code>.try(f;args)</code> applies a function to a list of arguments and gives <code>[1 result]</code>, or <code>[0 e]</code> when it raises an error. <code>e</code> is a dictionary with <code>kind</code>, <code>message</code>, <code>source</code>, <code>line</code> and <code>col</code>. <code>.err(kind;message)</code> raises an error of that kind, and <code>.err(e)</code> raises again what <code>.try</code> caught. They are the same on every target. A function literal with no parameters, <code>{work()}</code>, is a function where <code>.try</code>, <code>.async</code> and <code>.timer</code> want one, and inside the evaluated forms <code>[;...]</code> and <code>:{;...}</code>; a second argument of <code>.try</code> that is not a list is a type error. See <a href="../system-functions/#try"><code>.try</code></a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>?&gt; .try({x+1};[1])
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[1 2]
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>?&gt; ((.try({x+"a"};[1]))@1)@"kind"
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>"type"
+</code></pre></div>
+<p><strong>New: <code>.seed</code> and <code>.now</code>.</strong> <code>.seed(n)</code> seeds the random number generator, and the draws of <code>.rn</code> that follow are the same on every machine and target. In 0.7 <code>.rn</code> drew from NumPy's generator, so <code>np.random.seed</code> made it repeat; NumPy's seed no longer reaches <code>.rn</code>, and <code>.seed(42);.rn()</code> is 0.1941059175341826. <code>.now()</code> is the time in seconds since 1970.</p>
+<p><strong>A function with named parameters is lexically scoped.</strong> <code>f(a;b)::{...}</code> resolves a free name in its own frame and then in the globals of its file or module, never in the locals of its caller. A classic function (<code>{x+y}</code>, or one with a <code>[t]</code> locals list) keeps dynamic scope, and so does a function it calls. A function that read its caller's local through a named-parameter form must be given the value as an argument.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>?&gt; t::9
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>9
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>?&gt; g(a)::{t+a}
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>:monad
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>?&gt; f::{[t];t::5;g(1)}
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>:nilad
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>?&gt; f()
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>10
+</code></pre></div>
+<p><strong>New: <code>.fmt</code>, <code>.pf</code> and <code>.grad</code>.</strong> <code>.fmt(template;args)</code> and <code>.pf(template;args)</code> format text with <code>{}</code> placeholders, and <code>.grad(f;x)</code> is the ASCII name of <code>x∇f</code>. A template with no placeholders needs no arguments, as in <code>.pf("done")</code>. A width with a leading zero, such as <code>{:05}</code>, is a range error, because a width pads with spaces. See <a href="../language-additions/#formatted-text">Language Additions</a>.</p>
+<p><strong>New: <code>.split</code>, <code>.join</code>, <code>.words</code>, <code>.trim</code> and <code>.num</code>.</strong> Five system functions for text, the same under <code>kg</code> and <code>kgpy</code>: <code>.split(s;sep)</code> and its inverse <code>.join(list;sep)</code>, <code>.words(s)</code>, <code>.trim(s)</code>, and <code>.num(s)</code>, which reads a number from the whole string and gives <code>:undefined</code> for anything else, where <code>.rs</code> stops after the first object. See <a href="../language-additions/#strings">Language Additions</a>.</p>
+<p><strong>New: <code>.json</code> and <code>.unjson</code>.</strong> <code>.json(x)</code> is the JSON text of a value and <code>.unjson(s)</code> the value of JSON text; neither needs a package. <code>null</code> reads as <code>:undefined</code>, and text that is not exactly one JSON value is a range error with its position. See <a href="../language-additions/#json">JSON</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>?&gt; .json(:{;"a";[1 2]})
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>"{""a"":[1,2]}"
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>?&gt; .unjson("{""a"":[1,2],""b"":null}")
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>:{["a" [1 2]] ["b" :undefined]}
+</code></pre></div>
+<p><strong>The gradient operators accept a projection that leaves one argument open.</strong> With <code>f(a;b)::{a*b}</code>, <code>3∇f(2;)</code> is the derivative of <code>a*2</code> at 3.</p>
+<p><strong><code>.table</code> takes a dictionary of columns, and <code>#</code> of a store is its number of entries.</strong></p>
+<!-- check-docs: requires duckdb pandas -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>?&gt; .py("klongpy.db")
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>1
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>?&gt; .table(:{;"a";[1 2];"b";[3 4]})
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>a b
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>1 3
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>2 4
+</code></pre></div>
+<p><strong><code>.l</code> looks next to the file that calls it first.</strong> <code>.l("common.kg")</code> looks in the directory of the file that contains the <code>.l</code>, then in the directories of <code>KLONGPATH</code>, then in the bundled library, so <code>kgpy path/to/prog.kg</code> can load its neighbours from any current directory. See <a href="../system-functions/#l"><code>.l</code></a>.</p>
+<p><strong>A destructuring at the start of a function declares its names as locals.</strong> <code>{[s k]::x;s+k}</code> needs no locals list at any strict level, and does not change a global named <code>s</code>.</p>
+<p><strong>A dictionary literal inside a dictionary or list literal is a dictionary.</strong> It was stored as an unusable call object. A list literal that holds one is copied each time it is evaluated, as a dictionary literal is.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>?&gt; d:::{["GET" :{["/" 2]}]}
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>:{["GET" :{["/" 2]}]}
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>?&gt; d@"GET"
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>:{["/" 2]}
+</code></pre></div>
+<p><strong><code>d,d2</code> merges two dictionaries.</strong> It raised a Python <code>KeyError</code>. The entries of <code>d2</code> are copied into <code>d</code>, which changes in place, and an entry of <code>d2</code> replaces one with the same key. A right operand that is not a pair or a dictionary is still an error.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>?&gt; a:::{["x" 1]}
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>:{["x" 1]}
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>?&gt; b:::{["y" 2]}
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>:{["y" 2]}
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>?&gt; a,b
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>:{["x" 1] ["y" 2]}
+</code></pre></div>
+<p><strong>Python callers can pass arguments by name, and a named-parameter function takes any number of them.</strong> <code>KGFnWrapper</code> ignored keyword arguments. <code>klong['f'](1, 2, d=4, c=3)</code> passes parameters by name, for a function written with named parameters or with <code>x</code>, <code>y</code> and <code>z</code>. Too few, too many, an unknown or a repeated name raises <code>KlongArityError</code>.</p>
+<p><strong>A Python function given to Klong takes any parameter names and any number of parameters.</strong> Before, a function assigned to a name, held in a dictionary or passed as a callback took at most three parameters, named <code>x</code>, <code>y</code> and <code>z</code>, and any other name failed with a Python <code>TypeError</code>. Now <code>klong['f'] = lambda a, b, c, d: ...</code> makes <code>f(1;2;3;4)</code> call it with the arguments by position. A function whose parameters are all among <code>x</code>, <code>y</code> and <code>z</code> is called as before. Optional parameters, <code>*args</code> and callables without a signature are accepted, and a call with the wrong number of arguments is a <code>KlongArityError</code>, where an extra argument to an <code>x</code>, <code>y</code>, <code>z</code> function used to be dropped. See <a href="../python_integration/#the-parameter-rule">Python Integration</a>.</p>
+<h4 id="structured-errors">Structured errors<a class="headerlink" href="#structured-errors" title="Permanent link">&para;</a></h4>
+<p>Transcripts on this page and on <a href="../migrating-to-v2/">Migrating to v2</a> often show a REPL error as <code>error: MESSAGE</code>, the message alone. <a href="../errors/#reading-an-error">Reading an error</a> describes the full form with position and source line.</p>
+<p><strong>Errors are <code>KlongError</code> classes with a position.</strong> Every error KlongPy raises on purpose is a <code>KlongError</code> (<code>KlongTypeError</code>, <code>KlongRangeError</code> and so on, listed in <a href="../errors/">Errors</a>), and an exception from NumPy inside an operator is reported as one, naming the operator. A Klong error that replaces a Python one is also an instance of the old class, so <code>except IndexError</code> and <code>except ValueError</code> still catch it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>?&gt; 1+"a"
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>error: cannot apply + (Plus) to integer and string
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>?&gt; [1 2 3]@3
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>error: index 3 out of range for list of 3
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>?&gt; [1 2 3]+[1 2]
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>error: cannot apply + (Plus) to list of 3 and list of 2
+</code></pre></div>
+<p>The old messages were NumPy's, such as <code>ufunc 'add' did not contain a loop with signature matching types ...</code>, and <code>index 3 is out of bounds for axis 0 with size 3</code>.</p>
+<h4 id="repl-and-command-line">REPL and command line<a class="headerlink" href="#repl-and-command-line" title="Permanent link">&para;</a></h4>
+<p><strong>A multi-line entry is one entry.</strong> When a bracket, string or comment is left open, the REPL prompts with <code>..</code> and reads on. Before, each line was evaluated alone, so <code>f::{</code> was an error. Piped input does the same.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>?&gt; f::{
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>.. x+1
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>.. }
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>:monad
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>?&gt; f(2)
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>3
+</code></pre></div>
+<p><strong><code>it</code> holds the last result.</strong> <code>it</code> was an undefined name.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>?&gt; 1+2
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>3
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>?&gt; it*2
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>6
+</code></pre></div>
+<p><strong>Persistent history and tab completion are built in.</strong> Line editing existed in 0.7; history (<code>~/.kgpy_history</code>, or <code>KGPY_HISTORY</code>) and tab completion now come from <code>readline</code>, so <code>rlwrap</code> is not needed. See <a href="../repl/">the REPL</a>.</p>
+<p><strong>Both commands report their version.</strong> Run <code>kg --version</code> or <code>kgpy --version</code>.</p>
+<p><strong>A file run stays up while it serves or is connected.</strong> <code>kgpy file.kg</code> ends after its last line unless an IPC server (<code>.srv</code>) is listening, a connection opened with <code>.cli</code> is open, a web server (<code>.web</code>) is listening or a WebSocket connection (<code>.ws</code>) is open. A timer alone does not keep it up. <code>.x</code> in a callback (a timer, a request or a hook) exits the process with its status. See <a href="../repl/#options">the command line</a>.</p>
+<p><strong>Tooling has subcommands.</strong> <code>kgpy lint</code>, <code>kgpy check</code>, <code>kgpy compile c</code>, <code>kgpy fpga source</code>, <code>kgpy fpga build</code>, <code>kgpy fpga status</code> and <code>kgpy ast</code> check, compile and build programs without running them; running a file, <code>-e</code>, <code>-l</code>, <code>-s</code> and <code>-t</code> are as in 0.7. See <a href="../repl/#command-line">the command line</a>.</p>
+<h4 id="kdb-ipc">kdb+ IPC<a class="headerlink" href="#kdb-ipc" title="Permanent link">&para;</a></h4>
+<p><strong>The wire protocol is kdb+ IPC.</strong> <code>.srv</code> and <code>.cli</code> used pickled Python objects, which let a peer run code in your process when a message was unpickled. It is now the kdb+ protocol, and a q client can talk to a <code>.srv</code>. The pickle protocol was removed: a 0.7 and a 2.0 process cannot exchange IPC messages, so upgrade both ends. See <a href="../ipc_capabilities/#protocol-and-security">the protocol</a>.</p>
+<p><strong>Tables and functions cross the connection.</strong> Both desktop hosts send and receive keyed and unkeyed tables. Echo tests against PeachQ cover typed empty columns, symbols, timestamps and nulls. A function literal travels as source, preserving its parameter names and arity between Klong peers. A projection travels as an opaque value. <a href="../ipc_capabilities/#types-across-the-wire">Types across the wire</a> · <a href="../ipc_capabilities/#how-functions-cross-the-wire">How functions cross the wire</a></p>
+<p><strong>A numpy <code>datetime64</code> or <code>timedelta64</code> can be sent.</strong> It goes as a kdb+ timestamp or timespan, in nanoseconds (a date is nanoseconds since 2000-01-01), and <code>NaT</code> is the null. It used to be a type error on the sending side. It arrives as the integer, as every kdb+ temporal does, so the receiver of <code>2000-01-02</code> sees 86400000000000. A numpy unit is converted to nanoseconds, a calendar unit (years, months) of a timedelta is refused, and a value outside the range of a kdb+ temporal is a range error.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>server?&gt; .py("numpy")
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>1
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>server?&gt; .pyf("numpy";"datetime64")
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>1
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>server?&gt; .srv(8888)
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>1
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>client?&gt; f::.cli(8888)
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>remote[localhost:8888]:fn
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>client?&gt; f("datetime64(""2000-01-02"")")
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>86400000000000
+</code></pre></div>
+<h3 id="behaviour-changes">Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Permanent link">&para;</a></h3>
+<p>These changes can alter what an existing program does or prints. The old behaviour is that of 0.7.</p>
+<h4 id="syntax-that-changed-meaning">Syntax that changed meaning<a class="headerlink" href="#syntax-that-changed-meaning" title="Permanent link">&para;</a></h4>
+<p>These inputs were accepted by 0.7 and ran without an error, and now mean something else. <a href="../lint/"><code>kgpy lint</code></a> and <a href="../strict/">strict mode</a> point at some of them.</p>
+<p><strong><code>[a b]::v</code> binds the names.</strong> A list of names on the left of <code>::</code> used to be accepted, to evaluate the right side and to bind nothing. It is now a <a href="../language-additions/#destructuring">destructuring</a>: <code>a</code> and <code>b</code> are set to the members of <code>v</code>, so a name that already held a value changes. <code>a::5;[a b]::[1 2];a</code> was 5 and is 1. A list on the left that is not a list of distinct plain names (nested, repeated, <code>x y z</code>, empty) still binds nothing at strict level 0, now with a warning, and is a syntax error at level 1 and 2. A wrong number of members is a <code>shape</code> error, and a right side that is not a list is a <code>type</code> error.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>?&gt; a::5
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>5
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>?&gt; [a b]::[1 2]
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>[1 2]
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>?&gt; a
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>1
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>?&gt; [a b]::[1 2 3]
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>error: cannot destructure 3 values into 2 names
+</code></pre></div>
+<p><strong><code>f(a;b)::{...}</code> defines <code>f</code>.</strong> It used to evaluate the call <code>f(a;b)</code> and define nothing, so <code>f</code> stayed undefined. If <code>f</code>, <code>a</code> and <code>b</code> existed, it called <code>f</code> and threw the result away. It is now a definition with <a href="../language-additions/#named-parameters">named parameters</a>, and it is not limited to three: <code>f(a;b;c;d)::{...}</code> is allowed.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>?&gt; f(a;b)::{a+b}
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>:dyad
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>?&gt; f(1;2)
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>3
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>?&gt; g(a;b;c;d)::{a+b+c+d}
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>:fn/4
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>?&gt; g(1;2;3;4)
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>10
+</code></pre></div>
+<p>A function of four or more parameters displays as <code>:fn/N</code> (here <code>:fn/4</code>), the form IPC uses; zero to three keep <code>:nilad</code>, <code>:monad</code>, <code>:dyad</code> and <code>:triad</code>.</p>
+<p><strong><code>d@"k"</code> returns the value.</strong> On a dictionary, <code>d@k</code> returned the dictionary itself when <code>k</code> was a string, symbol or real number, and raised a Python <code>KeyError</code> for a missing integer key. It is now the same as <code>d?k</code> for every key: the value, or <code>:undefined</code> when the key is missing. <code>d@[k1 k2]</code> is the list of values. <code>$d</code> was Python's text for a dictionary, <code>{'a': 1}</code>, and is now the Klong form. See <a href="../language-additions/#dictionaries">Dictionaries</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>?&gt; d:::{["a" 1] ["b" 2]}
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>:{["a" 1] ["b" 2]}
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>?&gt; d@"a"
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>1
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>?&gt; d@"zz"
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>:undefined
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>?&gt; d@["a" "b"]
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>[1 2]
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>?&gt; $d
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>":{[""a"" 1] [""b"" 2]}"
+</code></pre></div>
+<p><strong>The arity of <code>{-x}</code> is one.</strong> A function's arity is the highest of <code>x</code>, <code>y</code> and <code>z</code> its body uses, wherever it uses them. It was the highest used outside a monad or a call, so <code>{-x}</code>, <code>{#x}</code> and <code>{g(x+1)}</code> counted as having no arguments, and <code>{y}</code> as having one. The display, calls from Python, projections and the choice of monad or dyad under an adverb all follow the arity. <code>f::{-x}</code> displays as <code>:monad</code>, where it displayed as <code>:nilad</code>, and <code>klong['f'](5)</code> from Python is -5, where it raised an arity error. A written call such as <code>f(5)</code> worked before and still does. The arguments of a nested function literal do not count toward the enclosing function. See <a href="../language-additions/#how-many-arguments-a-function-takes">How many arguments a function takes</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>?&gt; f::{-x}
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>:monad
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>?&gt; f(5)
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>-5
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>?&gt; g::{#x}
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>:monad
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>?&gt; h::{x+z}
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>:triad
+</code></pre></div>
+<p><strong><code>{y}(1)</code> is a projection, not <code>:y</code>.</strong> <code>{y}</code> has two arguments now. A call with one of them used to bind it to <code>x</code> and return the unbound <code>y</code> as the symbol <code>:y</code>. It now gives a projection that waits for the second argument, the same value as <code>{y}(1;)</code> with the empty slot, and <code>p(5)</code> completes it. A call with every argument, <code>{y}(1;2)</code>, is 2.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>?&gt; {y}(1;2)
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>2
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>?&gt; p::{y}(1)
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>:monad
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>?&gt; p(5)
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>5
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>?&gt; q::{y}(1;)
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>:monad
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>?&gt; q(5)
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>5
+</code></pre></div>
+<p><strong>A call with too few arguments is a projection.</strong> <code>r::{x+y};s::r(1)</code> used to give a value that looked like a function and could never be completed: <code>s(10)</code> returned it unchanged. A call with fewer arguments than the function takes is now a projection over the missing trailing arguments, <code>r(1)</code> being the same as <code>r(1;)</code>, for functions of <code>x</code>, <code>y</code> and <code>z</code> and for functions with named parameters. It is allowed at every strict level; too many arguments is still an arity error at level 2. A function applied to too few values by <code>@</code> or an adverb gives a projection in the same way, so <code>{x+y}'[1 2 3]</code> is a list of three projections. Three things follow from one rule for all of them:</p>
+<ul>
+<li>A projection is shown by the number of arguments it still takes. <code>{x+y}(1;)</code> displayed as <code>:dyad</code> and is <code>:monad</code>.</li>
+<li>A written call that leaves a slot empty and has fewer arguments than the function takes leaves the trailing arguments open as well. For a function <code>g</code> of three arguments, <code>h::g(1;)</code> waits for two arguments, where <code>h(2)</code> used to run <code>g</code> without its third.</li>
+<li>A projection made inside a function holds the values its arguments had there. <code>mk::{[a];a::x*2;r(a;)};p::mk(5);p(10)</code> is 20; it used to look <code>a</code> up when <code>p</code> was called, long after <code>mk</code> had returned, and fail. At top level a projection still evaluates its argument expressions each time it is completed, as before: <code>a::1;p::r(a;);a::5;p(10)</code> is 15.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>?&gt; r::{x+y}
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>:dyad
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>?&gt; s::r(1)
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>:monad
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>?&gt; s(10)
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>11
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>?&gt; g::{x,y,z}
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>:triad
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>?&gt; h::g(1)
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>:dyad
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>?&gt; h(2;3)
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>[1 2 3]
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>?&gt; {x(10)}'{r(x)}'[1 2 3]
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>[11 12 13]
+</code></pre></div>
+<p><strong>A projection of a projection fills the first open slot.</strong> <code>f::{x,y,z};p::f(1;;);q::p(;3);q(2)</code> ran <code>f</code> without its middle argument, because each call went on from the slot where the one before it stopped. It is <code>[1 2 3]</code>. A projection called with too few arguments, <code>p(2;)</code> or <code>p(2)</code>, is a projection again; it used to run the function with the open slot unbound when written as a statement.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>?&gt; f::{x,y,z}
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>:triad
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>?&gt; p::f(1;;)
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>:dyad
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>?&gt; q::p(;3)
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>:monad
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>?&gt; q(2)
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>[1 2 3]
+</code></pre></div>
+<p><strong><code>:undefined</code> written in a program is the undefined value.</strong> It used to be the symbol named <code>undefined</code>, which prints the same and is a different value, so <code>u::1%0;u~:undefined</code> was 0. It is 1, and <code>:_:undefined</code> is 1.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>?&gt; u::1%0
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>:undefined
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>?&gt; u~:undefined
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>1
+</code></pre></div>
+<p><strong><code>x</code>, <code>y</code> and <code>z</code> can be assigned at strict levels 1 and 2.</strong> <code>h::{x::7};h(1)</code> was <code>undefined variable: x</code> at level 1 and 2. The arguments are locals of the call, as named parameters are, and the caller's value is not changed.</p>
+<h4 id="parser">Parser<a class="headerlink" href="#parser" title="Permanent link">&para;</a></h4>
+<p><strong>A string or character that looks like punctuation is a string or character.</strong> <code>"{"</code>, <code>";"</code>, <code>")"</code>, <code>":["</code>, <code>0c{</code> and the like were taken for the opener, separator or closer they spell. <code>"{"</code> was a syntax error, <code>";"</code> at the start of a statement was an empty statement, <code>f(")")</code> was a syntax error and <code>["[" 1 2]</code> was the nested list <code>[[1 2]]</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>?&gt; "{"
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>"{"
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>?&gt; ";"
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>";"
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>?&gt; ["[" 1 2]
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>["[" 1 2]
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>?&gt; f::{x};f(")")
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>")"
+</code></pre></div>
+<p><strong>Whitespace before the <code>;</code> of a conditional is accepted.</strong> <code>:[1 ;"a";"b"]</code> was a syntax error.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>?&gt; :[0 ;"a" ;"b"]
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>"b"
+</code></pre></div>
+<p><strong>Input that is left over is reported.</strong> <code>1 2 3</code> evaluates <code>1</code> and drops the rest, as it always did, and now also warns. The same holds for a closer with nothing open, a missing operand, and an unterminated string, list, dictionary or comment. Under <code>.strict(1)</code> these are syntax errors. See <a href="../errors/#syntax-warnings">Syntax warnings</a> for each case.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>?&gt; 1 2 3
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>1
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>?&gt; .strict(1)
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>1
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>?&gt; 1 2 3
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>error: unexpected '2' after the end of the expression
+</code></pre></div>
+<h4 id="operators">Operators<a class="headerlink" href="#operators" title="Permanent link">&para;</a></h4>
+<p><strong>A symbol held as data is not looked up as a variable.</strong> It stays a symbol when it passes through an adverb, <code>@</code>, a projection or a callback. <code>{x}'[:foo :bar]</code> gave <code>[5 :bar]</code> when <code>foo</code> was 5. To pass the values of variables, build the list from values with <code>[;a;b]</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>?&gt; foo::5
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>5
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>?&gt; {x}'[:foo :bar]
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>[:foo :bar]
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>?&gt; {x}'[;foo;:bar]
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>[5 :bar]
+</code></pre></div>
+<p><strong>Amend (<code>:=</code>) checks its index and keeps the value.</strong> A string amended at <code>#a</code> appends; a larger index is a range error (it used to change nothing); a negative index counts from the end. A real put into an integer list turns the list into reals (the value was truncated). An index out of range in a list is a range error, not a NumPy <code>IndexError</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>?&gt; "abc":="x",3
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>"abcx"
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>?&gt; "abc":="x",-1
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>"abx"
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>?&gt; [1 2 3]:=2.5,1
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>[1.0 2.5 3.0]
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>?&gt; [1 2 3]:=1,5
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>error: :=: index 5 out of range for length 3
+</code></pre></div>
+<p><strong>Group lists its groups in the order the values first appear, and range keeps mixed values apart.</strong> <code>=[3 1 3 2 1]</code> listed the group of 1 first, and <code>=[10 "10" 10]</code> was a <code>TypeError</code>. <code>?[10 "10" 10]</code> was <code>[10]</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>?&gt; =[3 1 3 2 1]
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>[[0 2] [1 4] [3]]
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>?&gt; =[10 "10" 10]
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>[[0 2] [1]]
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>?&gt; ?[10 "10" 10]
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>[10 "10"]
+</code></pre></div>
+<p><strong>Take on a list of lists takes rows.</strong> <code>5#[[1 2] [3 4]]</code> gave <code>[[1 2 1 2] [3 4 3 4]]</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>?&gt; 5#[[1 2] [3 4]]
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>[[1 2] [3 4] [1 2] [3 4] [1 2]]
+</code></pre></div>
+<p><strong>Two operators are equal when they are the same operator.</strong> <code>[:+]~[:+]</code> was 0 because the two operator objects were compared by identity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>?&gt; [:+]~[:+]
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>1
+</code></pre></div>
+<p><strong>Division by zero in a list gives <code>:undefined</code> for that element.</strong> <code>%</code>, <code>:%</code> and <code>!</code> gave <code>inf</code>, or 0 for <code>!</code>, in a list. A scalar already gave <code>:undefined</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>?&gt; [1 2 0]%[1 0 1]
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>[1.0 :undefined 0.0]
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>?&gt; [5 6]![0 2]
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>[:undefined 0]
+</code></pre></div>
+<p><strong>Each on a symbol passes the symbol.</strong> <code>f'x</code> with a symbol <code>x</code> is <code>f(x)</code>. The symbol was taken for the string of its name and iterated over its characters.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>?&gt; s:::foo
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>:foo
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>?&gt; {x}'s
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>:foo
+</code></pre></div>
+<p><strong>A monad applied to a conditional or an evaluated list gets the value.</strong> <code>-:[0;2;3]</code> applied the monad to the condition and was 0; the conditional gives 2 or 3 and the monad applies to that, so it is -3. In the same way <code>#[;a;b;c]</code> was the size of <code>a</code> and is 3. A function call whose argument is a conditional was not affected.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>?&gt; -:[0;2;3]
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>-3
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>?&gt; -:[1;2;3]
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>-2
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>?&gt; a::[7 8 9]
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>[7 8 9]
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>?&gt; #[;a;1;2]
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>3
+</code></pre></div>
+<h4 id="calling-a-value-that-is-not-a-function">Calling a value that is not a function<a class="headerlink" href="#calling-a-value-that-is-not-a-function" title="Permanent link">&para;</a></h4>
+<p>Before: <code>name(args)</code> returned the value of <code>name</code> and dropped the arguments when <code>name</code> held a number, a string, a list or a dictionary, at every strict level. A definition written without its braces, <code>avg::(+/x)%#x</code>, made <code>avg</code> the number 1.0, and <code>avg([3 3 3 4 5 7])</code> printed 1.0.</p>
+<p>Now:</p>
+<ul>
+<li>The call is a <code>type</code> error that names the callee and what it holds, with the source span of the call.</li>
+<li>It applies to every written call (<code>a(1)</code>, <code>a()</code>, <code>a(1;2)</code>, a name inside a function, <code>x(1)</code> on a parameter that holds a value) and to a name given to an adverb (<code>a'[1 2]</code>, <code>a/[1 2]</code>).</li>
+<li>A function, a projection, an operator, a Python function brought in with <code>.py</code> or <code>.pyf</code>, an IPC connection from <code>.cli</code> and a database from <code>.db</code> are called as before.</li>
+<li>A name that is not defined is still <code>undefined function</code>. A symbol that names a function is still called through (<code>g:::f;g(2)</code>).</li>
+<li>A dictionary is read with <code>d@k</code>; <code>d(k)</code> gave the dictionary and now fails.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>?&gt; avg::1.0
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>1.0
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>?&gt; avg([3 3 3 4 5 7])
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>error: cannot call avg: it is a float, not a function
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>?&gt; avg::{(+/x)%#x}
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>:monad
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>?&gt; avg([3 3 3 4 5 7])
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>4.166666666666667
+</code></pre></div>
+<p>Fix: a function literal passed as an argument is evaluated where it stands, so <code>ap::{x()}</code> called as <code>ap({7})</code> calls the number 7 and now fails. Pass the function by name, <code>g::{7};ap(g)</code>.</p>
+<h4 id="names-with-a-dot-and-dictionary-literals">Names with a dot, and dictionary literals<a class="headerlink" href="#names-with-a-dot-and-dictionary-literals" title="Permanent link">&para;</a></h4>
+<p><strong>A name with a dot is a qualified name, not a variable.</strong> In 0.7 <code>a.b::5</code> defined a variable named <code>a.b</code>. Now <code>a.b</code> is <code>a@"b"</code>, so <code>a</code> must be a dictionary, and a program that wrote dotted names as variables fails with a name error that says so. Use a plain name or an entry of a dictionary. <a href="../lint/#w021-abv-where-a-is-not-a-dictionary"><code>kgpy lint</code></a> finds these writes (W021).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>?&gt; a.b::5
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>error: a is not defined (a.b means a@"b")
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>?&gt; a:::{}
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>:{}
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>?&gt; a.b::5
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>5
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>?&gt; a
+<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>:{["b" 5]}
+</code></pre></div>
+<p><strong>The dictionary literal rejects more.</strong> An operator or a function as a key, and an entry of the plain literal that is not exactly <code>[key value]</code>, are syntax errors found before the program runs. They were accepted: <code>:{[1 2 3]}</code> was the entry <code>1:2</code>, and <code>:{[1]}</code> was an <code>IndexError</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>?&gt; :{[1 2 3]}
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>error: each entry of a dictionary literal must be a [key value] pair
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>?&gt; :{[+ 1]}
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>error: an operator cannot be a dictionary key
+</code></pre></div>
+<h4 id="libraries-and-modules">Libraries and modules<a class="headerlink" href="#libraries-and-modules" title="Permanent link">&para;</a></h4>
+<p><strong><code>csv</code> and <code>nstat</code> are modules, and <code>mgmt</code> is a new one.</strong> <code>.l("csv")</code> binds the module to the file's name, so <code>csv.read</code> works as before; its helper names are private. <code>.l("nstat")</code> binds only <code>nstat</code>, where 0.7 put <code>mu</code>, <code>sd</code> and the rest in the global scope, so write <code>nstat.mu(v)</code>. <code>mgmt</code> is new in version 2: <code>mgmt.add</code>, and its settings in the dictionary <code>mgmt.cfg</code> (<code>mgmt.cfg.pi</code>, <code>mgmt.cfg.ct</code>, <code>mgmt.cfg.probe</code>, <code>mgmt.cfg.trap</code>). On a node the three names that <code>mgmt</code> installs are <code>.mgmt.run</code>, <code>.mgmt.job</code> and <code>.mgmt.r</code>.</p>
+<p><strong>Dotted helper names in the other libraries are renamed</strong>, because a dotted name is now a qualified name:</p>
+<table>
+<thead>
+<tr>
+<th>Library</th>
+<th>0.7</th>
+<th>Now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>math</code></td>
+<td><code>pi0.5</code>, <code>pi1.5</code></td>
+<td><code>pihalf</code>, <code>pi3half</code></td>
+</tr>
+<tr>
+<td><code>math</code></td>
+<td><code>e.tlr</code>, <code>ln.tlr</code>, <code>ln.apx</code>, <code>ln.big</code></td>
+<td><code>etlr</code>, <code>lntlr</code>, <code>lnapx</code>, <code>lnbig</code></td>
+</tr>
+<tr>
+<td><code>math</code></td>
+<td><code>sin.tlr</code>, <code>sin.pos</code>, <code>gln.c</code></td>
+<td><code>sintlr</code>, <code>sinpos</code>, <code>glnc</code></td>
+</tr>
+<tr>
+<td><code>nstat</code></td>
+<td><code>rss.set</code>, <code>rse.set</code>, <code>mse.set</code>, <code>r2.set</code></td>
+<td><code>nstat.rssset</code>, <code>nstat.rseset</code>, <code>nstat.mseset</code>, <code>nstat.r2set</code></td>
+</tr>
+<tr>
+<td><code>nstat</code></td>
+<td>the lognormal family <code>ln.pdf</code>, <code>ln.cdf</code>, <code>ln.qf</code>, <code>ln.mu</code>, <code>ln.M</code>, <code>ln.mo</code>, <code>ln.var</code>, <code>ln.skew</code></td>
+<td><code>nstat.lnorm.pdf</code>, <code>nstat.lnorm.cdf</code>, <code>nstat.lnorm.qf</code>, <code>nstat.lnorm.mu</code>, <code>nstat.lnorm.M</code>, <code>nstat.lnorm.mo</code>, <code>nstat.lnorm.var</code>, <code>nstat.lnorm.skew</code></td>
+</tr>
+<tr>
+<td><code>nstat</code></td>
+<td><code>F.pdf.n</code>, <code>F.pdf.d</code></td>
+<td>private helpers <code>Fpdfn</code>, <code>Fpdfd</code> of <code>nstat.F.pdf</code></td>
+</tr>
+<tr>
+<td><code>help</code></td>
+<td><code>help.add</code>, <code>op.db</code></td>
+<td><code>helpadd</code>, <code>opdb</code></td>
+</tr>
+</tbody>
+</table>
+<p>Its functions are <code>nstat.mu</code>, <code>nstat.sd</code> and the rest, and each distribution family is a dictionary inside it, as in <code>nstat.n.cdf(x;m;s)</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>?&gt; .l("nstat");nstat.n.cdf(0;0;1)
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>0.5
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>?&gt; n::5
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>5
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>?&gt; n.cdf(0;0;1)
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>error: n.cdf: n is not a dictionary (it is integer)
+</code></pre></div>
+<h4 id="removed-switches">Removed switches<a class="headerlink" href="#removed-switches" title="Permanent link">&para;</a></h4>
+<p><strong>There is no engine switch and no parser switch.</strong> The Rust interpreter is the only one. <code>KLONGPY_ENGINE</code>, <code>KLONGPY_PARSER</code> and <code>KLONGPY_IPC</code> were switches of pre-releases of version 2 (0.7 had none); they have no effect. <code>KlongInterpreter(parser=...)</code> is a <code>TypeError</code>, as any unknown keyword is. The old reading of the text that the parser switch gave is not available: <code>a::5;[a b]::[1 2];a</code> is 1.</p>
+<h4 id="messages-changed">Messages changed<a class="headerlink" href="#messages-changed" title="Permanent link">&para;</a></h4>
+<p>A program that matches on message text needs the new text.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>?&gt; 1 f
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>error: undefined function: f
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>?&gt; 1.2.3
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>error: malformed number '1.2.3'
+</code></pre></div>
+<p>These were <code>undefined: f</code> and a <code>ValueError</code> from <code>float()</code>. Some texts name the kind of an operand now, where they gave its value: <code>5.2$3</code> reports <code>got integer</code>, and a list as a dictionary key reports <code>a list cannot be a dictionary key</code>. The error carries its position, its kind and the source: see <a href="../errors/#reading-an-error">Reading an error</a>.</p>
+<h4 id="command-line">Command line<a class="headerlink" href="#command-line" title="Permanent link">&para;</a></h4>
+<p><strong>Errors go to stderr, with the position and a caret.</strong> At the REPL they were printed on stdout as <code>Error: (args...)</code>. A file run or <code>-e</code> printed a Python traceback; a traceback is now printed only with <code>-v</code> or <code>--traceback</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>$ kgpy -e '1+"a"'
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>&lt;expr&gt;:1:2: type error: cannot apply + (Plus) to integer and string
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>  1+"a"
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>   ^
+</code></pre></div>
+<p><strong>Exit status.</strong> <code>kgpy file.kg</code> and <code>-e</code> exit with 1 after an error. Piped stdin exits 1 if any entry failed. <code>-t</code> runs every line, reports each failing line and exits after the last, with 1 if any failed; it no longer starts the REPL afterwards. Ctrl-C ends a file run with <code>interrupted</code> and status 130, and SIGTERM ends one that is waiting for a server or a connection with <code>terminated</code> and status 143. A file that cannot be opened is <code>system error: cannot open ...</code>. See <a href="../errors/#the-command-line">the command line</a>.</p>
+<h4 id="ipc">IPC<a class="headerlink" href="#ipc" title="Permanent link">&para;</a></h4>
+<p><strong>The pickle protocol is removed.</strong> A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with <code>handshake timed out</code>. A Python object that has no kdb+ form (a set, a complex number, <code>None</code>) was carried by pickle and is now a type error on the sending side. Python <code>bytes</code> and <code>bytearray</code> cross as a kdb+ byte vector and arrive as an integer array. An integer beyond 64 bits was carried by pickle and is now <code>range error: integer does not fit 64 bits</code> on the sending side. See <a href="../ipc_capabilities/#07-peers">0.7 peers</a>.</p>
+<p><strong>An error on the server comes back as a Klong error and the connection stays open.</strong> It used to drop the connection (<code>connection lost</code>), and the next call failed with a Python <code>AttributeError</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>server?&gt; .srv(8888)
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>1
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>client?&gt; f::.cli(8888)
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a>remote[localhost:8888]:fn
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>client?&gt; f("[1 2 3]@10")
+<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>error: index 10 out of range for list of 3
+<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a>client?&gt; f("1+1")
+<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a>2
+</code></pre></div>
+<p><strong><code>.srv</code> raises when it cannot listen.</strong> A second <code>.srv</code> on a port that is in use returned 0 and did nothing. It raises <code>cannot listen on 0.0.0.0:8888: ...</code> followed by the system's reason. <code>.srv</code> on a server that is already running still returns 0.</p>
+<p><strong>A synchronous call to the process's own server is an error.</strong> The call would block the loop that has to answer it, so it is a <code>system</code> error that names <code>.async</code>. Use <code>.async(f;callback)</code>, or call from another process.</p>
+<p><strong>A call waits 30 seconds.</strong> A call with no answer raises an error that contains <code>timed out</code>, closes the connection and fails every call waiting on it. Change the limit with <code>.clit</code>. See <a href="../ipc_capabilities/#closing-timeouts-and-clit">Closing, Timeouts and <code>.clit</code></a>.</p>
+<h4 id="web-server-files-and-examples">Web server, files and examples<a class="headerlink" href="#web-server-files-and-examples" title="Permanent link">&para;</a></h4>
+<p><strong>A web handler that returns a dictionary sends a response.</strong> In 0.7 the dictionary was converted to Python's text and sent as the body. The keys <code>"status"</code>, <code>"type"</code> and <code>"body"</code> now choose the status, the content type and the body, and any other key is a type error. A handler that returns text is as before. See <a href="../web_server/#the-response">The response</a>.</p>
+<p><strong>A handler that fails answers 500, not 400.</strong> The body is <code>handler failed</code>, and one line with the route and the error goes to stderr. It was 400 with the body <code>Invalid request</code>, and nothing said why. A body that cannot be read is still 400.</p>
+<p><strong>A <code>HEAD</code> request to a GET route is answered as the GET, without a body.</strong></p>
+<p><strong>Handlers run on the Klong loop.</strong> A handler can start a timer, make an IPC call and call <code>.webc</code>. <code>.webc</code> in a handler completes the reply, stops the server and lets the run end. See <a href="../web_server/#where-a-handler-runs">Where a handler runs</a>.</p>
+<p><strong>A program that waits for its own server on the Klong loop gets a 503, not a hang.</strong> A blocking HTTP request from Klong code to the program's own <code>.web</code> server (<code>urlopen</code> through <code>.pyf</code>) waited for ever, because the Klong loop that had to answer was the one waiting. The server now answers such a request, after one second, with status 503 and a body that says why, and writes one line to stderr. Slow handlers and clients in other processes are not affected. See <a href="../web_server/#where-a-handler-runs">Where a handler runs</a>.</p>
+<p><strong><code>.rls()</code> strips the line end from each line.</strong> The lines kept their <code>\n</code>.</p>
+<p><strong><code>.compile</code>, <code>.compilex</code> and <code>.cmodes</code> are removed.</strong> They wrapped <code>torch.compile</code>, which needs a C++ compiler and cannot read a function that the interpreter runs. Calling a removed function is the ordinary undefined-function error. The torch backend's <code>.export(fn;input;path)</code> runs the function once and every tensor operation it executes is recorded with <code>torch.export</code> (non-strict). To compile a function, export it and compile the exported program with torch: <code>torch.compile(torch.export.load(path).module())</code>.</p>
+<p><strong>The two broker examples are removed.</strong> <code>examples/stocks</code> had a feed from Polygon and one from Alpaca, and both needed an account. A simulated price feed replaces them: a seeded random walk, a server that publishes each trade to the clients subscribed to its symbol, and a consumer that computes a volume-weighted average price and a moving average. It needs only <code>pip install klongpy</code>. See <a href="https://github.com/briangu/klongpy/tree/main/examples/stocks/feed"><code>examples/stocks/feed</code></a>.</p>
+<p><strong>The example programs are written in version 2 forms.</strong> They use named parameters, destructuring, evaluated dictionaries and <code>.pf</code> where those read better, and keep the classic forms where those are better Klong. Their output is the same.</p>
+<h3 id="fixes">Fixes<a class="headerlink" href="#fixes" title="Permanent link">&para;</a></h3>
+<p>These were crashes, hangs or wrong results in 0.7 on features that existed then.</p>
+<h4 id="operators-and-the-parser">Operators and the parser<a class="headerlink" href="#operators-and-the-parser" title="Permanent link">&para;</a></h4>
+<p><strong><code>&amp;[]</code> is <code>[]</code> on the NumPy backend.</strong> Where of an empty list was a type error, although the manual says it returns nil and the torch backend and the interpreter on boards did. <code>d_k</code> on a dictionary, the wrong order for removing a key, now says in a hint that the key goes on the left, <code>k_d</code>.</p>
+<p><strong>An adverb that does not touch its verb is a syntax error when the text is parsed.</strong> It used to fail with a <code>KeyError</code> when it was evaluated, so a function that contained one only failed when called.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>?&gt; {1 '2}
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>error: adverb ' must directly follow its verb
+</code></pre></div>
+<p><strong>A dictionary literal entry that is not a <code>[key value]</code> pair is a syntax error.</strong> It was an <code>IndexError</code> or <code>TypeError</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>?&gt; :{1}
+<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>error: each entry of a dictionary literal must be a [key value] pair
+</code></pre></div>
+<p><strong>Iterate, scan-iterate and split check their counts.</strong> A count that is negative or not a whole number looped without end; split sizes of 0 raised a <code>ZeroDivisionError</code>. Whole-number reals such as <code>2.0</code> are accepted.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>?&gt; (-1){x+1}:*0
+<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>error: :*: count must not be negative, got -1
+<a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>?&gt; 2.0{x+1}:*0
+<a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a>2
+<a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a>?&gt; 0:#[1 2 3]
+<a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a>error: :#: segment sizes must be positive, got 0
+</code></pre></div>
+<p><strong>Form (<code>:$</code>) gives <code>:undefined</code> for text that does not convert.</strong> It raised a <code>ValueError</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>?&gt; 1:$"x"
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>:undefined
+<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a>?&gt; [1 1]:$["12" "x"]
+<a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a>[12 :undefined]
+</code></pre></div>
+<p><strong>Several operators that crashed or looped now return a value or a Klong error.</strong> <code>$[1 2 3]</code> recursed until Python stopped it. <code>|5</code> was a <code>TypeError</code>. <code>&amp;/"abc"</code> and <code>+/"abc"</code> failed on a string; they now give <code>0ca</code> and a type error. <code>[2 2]:^[]</code> and <code>5:^[]</code> raised a <code>ZeroDivisionError</code>. A dictionary joined with something that is not a two-member list was silently ignored.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>?&gt; $[1 2 3]
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>["1" "2" "3"]
+<a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a>?&gt; |5
+<a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a>5
+<a id="__codelineno-47-5" name="__codelineno-47-5" href="#__codelineno-47-5"></a>?&gt; &amp;/"abc"
+<a id="__codelineno-47-6" name="__codelineno-47-6" href="#__codelineno-47-6"></a>0ca
+<a id="__codelineno-47-7" name="__codelineno-47-7" href="#__codelineno-47-7"></a>?&gt; +/"abc"
+<a id="__codelineno-47-8" name="__codelineno-47-8" href="#__codelineno-47-8"></a>error: cannot apply +/ (Plus-Over) to string
+<a id="__codelineno-47-9" name="__codelineno-47-9" href="#__codelineno-47-9"></a>?&gt; [2 2]:^[]
+<a id="__codelineno-47-10" name="__codelineno-47-10" href="#__codelineno-47-10"></a>error: :^: cannot fill a non-empty shape from an empty source
+<a id="__codelineno-47-11" name="__codelineno-47-11" href="#__codelineno-47-11"></a>?&gt; :{[1 2]},[1 2 3]
+<a id="__codelineno-47-12" name="__codelineno-47-12" href="#__codelineno-47-12"></a>error: ,: a dictionary can only be joined with a tuple (a list of two members) or a dictionary
+</code></pre></div>
+<p><strong>Take with a number or a symbol on the right repeats it.</strong> <code>3#7</code> was a Python <code>TypeError</code>, and <code>2#:foo</code> took two characters of the string <code>"foo"</code>. An atom is repeated, and <code>0#7</code> is the empty list.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>?&gt; 3#7
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a>[7 7 7]
+<a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a>?&gt; (-3)#7
+<a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a>[7 7 7]
+<a id="__codelineno-48-5" name="__codelineno-48-5" href="#__codelineno-48-5"></a>?&gt; 0#7
+<a id="__codelineno-48-6" name="__codelineno-48-6" href="#__codelineno-48-6"></a>[]
+<a id="__codelineno-48-7" name="__codelineno-48-7" href="#__codelineno-48-7"></a>?&gt; 2#:foo
+<a id="__codelineno-48-8" name="__codelineno-48-8" href="#__codelineno-48-8"></a>[:foo :foo]
+</code></pre></div>
+<p><strong><code>^</code> with a list operand follows one rule.</strong> Integers wrap in 64 bits for a non-negative integer exponent, and a negative exponent or any float gives floats. Two integer scalars stay exact, so <code>2^64</code> is exact and <code>[2 3]^64</code> wraps. The rule is the same for <code>list^scalar</code>, <code>scalar^list</code> and <code>list^list</code>; see <a href="../differences/#numbers">Numbers</a>.</p>
+<p><strong>Integers beyond 64 bits are exact.</strong> An operand outside the 64-bit range made <code>+ - * &lt; &gt; | &amp;</code> fail with a Python <code>OverflowError</code>, although the language already made such integers (<code>2^64</code>, a long literal). The operation is now done on exact integers, in a list as well as on a scalar, and a result that fits in 64 bits again is an ordinary integer. Operands that are both inside 64 bits keep their wrap-around, as before: <code>9223372036854775807+1</code> is <code>-9223372036854775808</code>. <code>^</code> of two integer scalars with a non-negative exponent is exact as well (<code>10^400</code>; a result beyond about a million bits is a range error), and <code>!</code> is an error for such an operand.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>?&gt; 1+9223372036854775808
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>9223372036854775809
+<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>?&gt; [1 2]+9223372036854775808
+<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a>[9223372036854775809 9223372036854775810]
+<a id="__codelineno-49-5" name="__codelineno-49-5" href="#__codelineno-49-5"></a>?&gt; 9223372036854775808*3
+<a id="__codelineno-49-6" name="__codelineno-49-6" href="#__codelineno-49-6"></a>27670116110564327424
+<a id="__codelineno-49-7" name="__codelineno-49-7" href="#__codelineno-49-7"></a>?&gt; 9223372036854775807+1
+<a id="__codelineno-49-8" name="__codelineno-49-8" href="#__codelineno-49-8"></a>-9223372036854775808
+<a id="__codelineno-49-9" name="__codelineno-49-9" href="#__codelineno-49-9"></a>?&gt; 7^22
+<a id="__codelineno-49-10" name="__codelineno-49-10" href="#__codelineno-49-10"></a>3909821048582988049
+<a id="__codelineno-49-11" name="__codelineno-49-11" href="#__codelineno-49-11"></a>?&gt; 10^100000000
+<a id="__codelineno-49-12" name="__codelineno-49-12" href="#__codelineno-49-12"></a>error: cannot apply ^ (Power) to integer and integer
+</code></pre></div>
+<p><strong>A recursive call through <code>.f</code> has its own locals.</strong> <code>.f</code> called itself without declaring the function's locals, so the inner call changed the outer call's variable. <code>f::{[t];t::x;:[x&lt;2;t;t+.f(x-1)]};f(3)</code> was 3, where the same function written with its own name gives 6.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>?&gt; f::{[t];t::x;:[x&lt;2;t;t+.f(x-1)]}
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a>:monad
+<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a>?&gt; f(3)
+<a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a>6
+</code></pre></div>
+<p><strong>A Python function with optional parameters gets every argument.</strong> A function brought in with <code>.py</code> or <code>.pyf</code> was called with its required parameters only, so <code>linspace(0;1;5)</code> made 50 points and <code>arange(2;8)</code> was <code>[0 1]</code>. It now gets each argument written. It is displayed by its required parameters, as before.</p>
+<h4 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h4>
+<p>On an AMD EPYC 7773X, finding distinct IDs among one million resident integers with 64 dense IDs fell from 29.73 ms to 2.80 ms against the preceding v2 build. Through Python, a 100,000-step Klong loop ran in 13.64 ms on RC1 and 5.72 s on v1. Returning a writable running sum of one million integers took 1.019 ms on RC1 and 0.753 ms on v1. On an Apple M2 Ultra, the native scan used 8.02 MB of peak interpreter heap, down from 16.02 MB. Group counts for a million integers supplied from Python took 48.63 ms on RC1 and 35.39 ms on v1. <a href="../performance/">Runtime benchmarks</a></p>
+<p>All 232 cases in the strict release acceptance selection passed. On the default-placement Linux feed, the worst batch acknowledgement took 15.76 ms on <code>kg</code> and 76.24 ms on <code>kgpy</code>, within the 100 ms budget. Against PeachQ 0.92, the Linux wheel passed both controlled-placement series and all three default-placement series on the median bounds. At default placement, median as-of p99 ratios were 1.043×, 1.069× and 1.243× against a 1.25× bound, with one individual pair at 1.353×. <a href="../performance/#streaming-tables-and-queries">Streaming measurements</a></p>
+<p><strong>Indexing and appending are faster.</strong> Indexing a vector or a string by an integer vector is a whole-array operation, so <code>x@&lt;x</code> sorts in about the time of the grade. Appending a number to a vector and <code>^</code> on integer arrays are faster, most of all on the torch backend. <a href="../performance/">Performance</a> has the measurements and says which rows predate the change.</p>
+<h4 id="system-functions">System functions<a class="headerlink" href="#system-functions" title="Permanent link">&para;</a></h4>
+<p><strong><code>.sys</code> runs a shell command and returns its exit status.</strong> It tried to start a program named by the whole string.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>?&gt; .sys("exit 3")
+<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a>3
+</code></pre></div>
+<p><strong><code>.timer</code> checks its arguments.</strong> The interval may be a real number such as <code>0.5</code>. A negative or non-numeric interval, or a callback that is not a function, is an error; they were a returned string or a <code>ValueError</code>. An error in a callback is logged in one line and cancels the timer, and a callback that is not a function says what a callback must be.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>?&gt; .timer("t";-1;{1})
+<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a>error: y must be a non-negative number
+</code></pre></div>
+<p><strong><code>.pyc</code> passes positional arguments.</strong> A Python function that takes its arguments by position lost them when called through <code>.pyc</code>. <code>hypot(3;4)</code> gave 0.0.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>?&gt; .pyf("math";"hypot")
+<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>1
+<a id="__codelineno-53-3" name="__codelineno-53-3" href="#__codelineno-53-3"></a>?&gt; .pyc("hypot";[3 4];:{})
+<a id="__codelineno-53-4" name="__codelineno-53-4" href="#__codelineno-53-4"></a>5.0
+</code></pre></div>
+<p><strong><code>.rs</code> checks its argument.</strong> A value that is not a string is a type error, and empty text gives <code>:undefined</code>.</p>
+<p><strong><code>.l</code>, <code>kgpy lint</code>, <code>kgpy check</code> and <code>kgpy compile c</code> look for a file in one order.</strong> The directory of the file that contains the <code>.l</code> (the working directory at the prompt), then the directories of <code>KLONGPATH</code> (default <code>.:lib</code> on Unix and <code>.;lib</code> on Windows), then the package library. A bare name is the same for classic files and modules, and a local file that shadows a library file gives a warning.</p>
+<p><strong><code>.unjson</code> keeps every integer of a list exact.</strong> <code>.unjson("[9223372036854775808,0.5]")</code> turned the large integer into a float, because the list became a float array. A list that holds an integer beyond 64 bits is now a list of objects, as it is when it holds only integers.</p>
+<p><strong>A SQL result of one row and one string column displays, and a SQL or store error names its cause once.</strong> The word <code>error</code> was printed twice. A module that needs an extra says which: <code>klongpy.db needs the db extra, which is not installed (no module named duckdb): pip install "klongpy[db]"</code>; the same holds for <code>klongpy.web</code> and the torch backend.</p>
+<p><strong><code>.webc</code> stops a web server.</strong> <code>.webc(h)</code> returned 0 and left the server running, because it did not recognise the handle that <code>.web</code> returns. It returns 1 and stops the server. See <a href="../web_server/">the web server</a>.</p>
+<p><strong>A missing key in a <code>.kvs</code> store is <code>:undefined</code>.</strong> It raised an error carrying the key as its message, where <a href="../table_and_key_value_stores/">the key-value store page</a> says <code>:undefined</code>.</p>
+<!-- check-docs: requires duckdb pandas -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>?&gt; .py("klongpy.db")
+<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a>1
+<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>?&gt; kvs::.kvs("/tmp/kvs-missing")
+<a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a>/tmp/kvs-missing:kvs
+<a id="__codelineno-54-5" name="__codelineno-54-5" href="#__codelineno-54-5"></a>?&gt; kvs?"nothing"
+<a id="__codelineno-54-6" name="__codelineno-54-6" href="#__codelineno-54-6"></a>:undefined
+</code></pre></div>
+<p><strong><code>.db</code> accepts a dictionary literal that holds tables.</strong> <code>.db(:{["T" T]})</code> built a database whose queries failed with <code>'Database' object has no attribute 'user'</code>. It now works like <code>.db(:{},"T",,T)</code>.</p>
+<!-- check-docs: requires duckdb pandas -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a>?&gt; .py("klongpy.db")
+<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a>1
+<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a>?&gt; T::.table([["a" [1 2 3]] ["b" [4 5 6]]])
+<a id="__codelineno-55-4" name="__codelineno-55-4" href="#__codelineno-55-4"></a>a b
+<a id="__codelineno-55-5" name="__codelineno-55-5" href="#__codelineno-55-5"></a>1 4
+<a id="__codelineno-55-6" name="__codelineno-55-6" href="#__codelineno-55-6"></a>2 5
+<a id="__codelineno-55-7" name="__codelineno-55-7" href="#__codelineno-55-7"></a>3 6
+<a id="__codelineno-55-8" name="__codelineno-55-8" href="#__codelineno-55-8"></a>?&gt; db::.db(:{["T" T]})
+<a id="__codelineno-55-9" name="__codelineno-55-9" href="#__codelineno-55-9"></a>:db
+<a id="__codelineno-55-10" name="__codelineno-55-10" href="#__codelineno-55-10"></a>?&gt; db("select sum(a) from T")
+<a id="__codelineno-55-11" name="__codelineno-55-11" href="#__codelineno-55-11"></a>6.0
+</code></pre></div>
+<h4 id="libraries">Libraries<a class="headerlink" href="#libraries" title="Permanent link">&para;</a></h4>
+<p><strong><code>fft</code> and <code>eigenv</code> work.</strong> <code>fft</code> in <code>math.kg</code> and <code>eigenv</code> in <code>eigenv.kg</code> raised errors. <code>eigenv</code> needed two operators to accept more than they did: amend in depth (<code>:-</code>) with a real value joined to integer indices, and join (<code>,</code>) of lists of different shape. Both do now. The library computes with its own sine and cosine, so <code>fft</code> is accurate to about four decimals, not to the last digit of a double.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a>?&gt; .l("math.kg");0
+<a id="__codelineno-56-2" name="__codelineno-56-2" href="#__codelineno-56-2"></a>0
+<a id="__codelineno-56-3" name="__codelineno-56-3" href="#__codelineno-56-3"></a>?&gt; fft([1.0 0.0 0.0 0.0])
+<a id="__codelineno-56-4" name="__codelineno-56-4" href="#__codelineno-56-4"></a>[[1.0 0.0] [1.0 0.0] [1.0 0.0] [1.0 0.0]]
+<a id="__codelineno-56-5" name="__codelineno-56-5" href="#__codelineno-56-5"></a>?&gt; .l("eigenv.kg");0
+<a id="__codelineno-56-6" name="__codelineno-56-6" href="#__codelineno-56-6"></a>0
+<a id="__codelineno-56-7" name="__codelineno-56-7" href="#__codelineno-56-7"></a>?&gt; eigenv([[2.0 1.0 0.0] [1.0 2.0 1.0] [0.0 1.0 2.0]];4)
+<a id="__codelineno-56-8" name="__codelineno-56-8" href="#__codelineno-56-8"></a>[[3.4143 1.9998 0.5859] [[0.4993 -0.7073 0.5004] [0.7073 -0.0008 -0.7069] [0.5004 0.7069 0.4999]]]
+</code></pre></div>
+<h4 id="torch-backend">Torch backend<a class="headerlink" href="#torch-backend" title="Permanent link">&para;</a></h4>
+<p><strong>Torch scalar arithmetic uses float32.</strong> A scalar now agrees with the matching element of a default tensor, and <code>(0.1+0.2)=0.3</code> is 1 on torch and 0 on NumPy. Explicit float64 arrays keep their width on devices that support it. <code>point∇function</code>, <code>.grad</code> and <code>point∂function</code> evaluate the function in float64 on the CPU and return float32. <code>.try</code> accepts a tensor as its argument list, <code>.float</code> converts a tensor, and <code>a.b</code> on a tensor is a type error. <a href="../torch_backend/">PyTorch Backend and Autograd</a></p>
+<p><strong>The optimizers are in the package.</strong> <code>SGDOptimizer</code> and <code>AdamOptimizer</code> are in <code>klongpy.optimizers</code>, so a <code>pip install</code> has them, and they work on Apple MPS, where the gradient of <code>x^2</code> at 0 is 0 and not NaN. See <a href="../torch_backend/#optimizers">Optimizers</a>.</p>
+<p><strong><code>.bkf</code> functions accept scalars and <code>.gradcheck</code> accepts a constant matrix.</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

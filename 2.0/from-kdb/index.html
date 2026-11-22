@@ -1,0 +1,3696 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/from-kdb/">
+      
+      
+        <link rel="prev" href="../from-numpy/">
+      
+      
+        <link rel="next" href="../python_integration/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Klong for q users - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#klong-for-q-users" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Klong for q users
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-carries-over" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What carries over
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-different" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is different
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What is different">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-leading-minus-is-a-verb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A leading minus is a verb
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calls-and-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calls and indexing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-booleans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No booleans
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nulls-undefined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nulls: :undefined
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#find-group-and-the-dyad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Find, group and the dyad ?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scan-with-a-seed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scan with a seed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strings-characters-and-symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strings, characters and symbols
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dictionaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dictionaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#division" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Division
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#translation-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Translation table
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Translation table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lists
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#finding-grouping-and-dictionaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finding, grouping and dictionaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arithmetic-conditions-and-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arithmetic, conditions and functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adverbs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adverbs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tables-and-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tables and queries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#talking-to-q-ipc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Talking to q: IPC
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Talking to q: IPC">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#addresses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Addresses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-klong-program-calls-a-q-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A Klong program calls a q process
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-q-process-calls-a-klong-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A q process calls a Klong server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#types-across-the-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types across the connection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#between-two-klongpy-interpreters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Between two KlongPy interpreters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-missing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is missing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-carries-over" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What carries over
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-different" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is different
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What is different">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-leading-minus-is-a-verb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A leading minus is a verb
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calls-and-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calls and indexing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-booleans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No booleans
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nulls-undefined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nulls: :undefined
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#find-group-and-the-dyad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Find, group and the dyad ?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scan-with-a-seed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scan with a seed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strings-characters-and-symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strings, characters and symbols
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dictionaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dictionaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#division" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Division
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#translation-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Translation table
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Translation table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lists
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#finding-grouping-and-dictionaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finding, grouping and dictionaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arithmetic-conditions-and-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arithmetic, conditions and functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adverbs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adverbs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tables-and-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tables and queries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#talking-to-q-ipc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Talking to q: IPC
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Talking to q: IPC">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#addresses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Addresses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-klong-program-calls-a-q-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A Klong program calls a q process
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-q-process-calls-a-klong-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A q process calls a Klong server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#types-across-the-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types across the connection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#between-two-klongpy-interpreters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Between two KlongPy interpreters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-missing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is missing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="klong-for-q-users">Klong for q users<a class="headerlink" href="#klong-for-q-users" title="Permanent link">&para;</a></h1>
+<p>This page is for people who know q and want to read or write Klong. It maps the idioms, lists the differences that cause mistakes, and describes how a KlongPy program and a q process talk to each other over the kdb+ IPC protocol.</p>
+<p>The q examples on this page were checked with <a href="https://www.timestored.com/peachq/">PeachQ</a> 0.92, a third-party open-source implementation of q. PeachQ is not kdb+: where the page says what q prints, it means what PeachQ 0.92 printed, and the page makes no claim about kdb+ beyond that. Conditions: every q result shown is from PeachQ 0.92. The Klong examples run at <a href="../strict/">strict level 2</a>, except the sessions that need a q process.</p>
+<p>kdb+ is a trademark of KX. KlongPy's IPC is an independent implementation, written from public documentation and Apache-licensed client code. It speaks the kdb+ IPC protocol and interoperates with q processes; it is not a KX product and uses no KX code.</p>
+<p>If you have not used Klong at all, read the <a href="../tutorial/">tutorial</a> first or alongside this page. The <a href="../operators/">operator reference</a> is the lookup table.</p>
+<h2 id="what-carries-over">What carries over<a class="headerlink" href="#what-carries-over" title="Permanent link">&para;</a></h2>
+<p>Klong and q are both array languages in the APL line, and the shape of a program is the same.</p>
+<ul>
+<li>Evaluation is right to left and there is no operator precedence. <code>2*3+4</code> is 14 in both.</li>
+<li>A verb is a monad or a dyad by position. <code>-x</code> negates and <code>a-b</code> subtracts.</li>
+<li>Adverbs modify verbs: <code>'</code> each, <code>/</code> over, <code>\</code> scan. <code>+/x</code> sums, <code>+\x</code> is the running sum.</li>
+<li>A function takes its arguments as <code>x</code>, <code>y</code> and <code>z</code>, and its rank is the highest of them that its body uses.</li>
+<li>Lists are the basic data type, and most verbs apply to every element of a list.</li>
+<li>Strings are lists of characters, symbols are atoms, and a dictionary maps keys to values.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">q)</span><span class="il">2</span><span class="o">*</span><span class="il">3</span><span class="o">+</span><span class="il">4</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="il">14</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">q)</span><span class="p">{</span><span class="n">x</span><span class="o">+</span><span class="n">z</span><span class="p">}[</span><span class="il">1</span><span class="p">;</span><span class="il">2</span><span class="p">;</span><span class="il">3</span><span class="p">]</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="il">4</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>?&gt; 2*3+4
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>14
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>?&gt; {x+z}(1;2;3)
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>4
+</code></pre></div>
+<p>Klong is smaller than q. It has integers, floats (doubles), characters, strings, symbols, lists, dictionaries and functions. It has no boolean, no temporal types, no typed nulls, no q-sql and no namespaces. A file is a <a href="../language-additions/#modules">module</a>, a dictionary of the names it exports, and <code>a.b</code> reads the entry <code>b</code> of <code>a</code>.</p>
+<h2 id="what-is-different">What is different<a class="headerlink" href="#what-is-different" title="Permanent link">&para;</a></h2>
+<h3 id="a-leading-minus-is-a-verb">A leading minus is a verb<a class="headerlink" href="#a-leading-minus-is-a-verb" title="Permanent link">&para;</a></h3>
+<p>In q, <code>-1+2</code> is 1: the <code>-1</code> is read as a number. In Klong a leading <code>-</code> is the negate monad and applies to everything to its right, so <code>-1+2</code> is <code>-(1+2)</code>, which is -3. A negative number is written inside a list (<code>[-1 2]</code>) or in parentheses. <a href="../lint/">Lint</a> warns about the trap as W010.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">q)</span><span class="o">-</span><span class="il">1</span><span class="o">+</span><span class="il">2</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="il">1</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="gp">q)</span><span class="p">(</span><span class="o">-</span><span class="il">1</span><span class="p">)</span><span class="o">+</span><span class="il">2</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="il">1</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>?&gt; -1+2
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>-3
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>?&gt; (-1)+2
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>1
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>?&gt; [-1 2]
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>[-1 2]
+</code></pre></div>
+<p>The same rule makes a slice from the end <code>(-2)#y</code> or <code>(0-2)#y</code>, not <code>-2#y</code>.</p>
+<h3 id="calls-and-indexing">Calls and indexing<a class="headerlink" href="#calls-and-indexing" title="Permanent link">&para;</a></h3>
+<p>Square brackets build lists in Klong. They never index or call. A call is <code>f(a;b)</code>, indexing is <code>a@i</code>, and applying a function with <code>@</code> works too: <code>f@x</code>. A one-argument call needs no space and a space before the parenthesis is a <a href="../lint/">lint</a> warning (W014).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">q)</span><span class="p">{</span><span class="n">x</span><span class="o">+</span><span class="n">y</span><span class="p">}[</span><span class="il">1</span><span class="p">;</span><span class="il">2</span><span class="p">]</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="il">3</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="gp">q)</span><span class="il">3</span><span class="w"> </span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="o">@</span><span class="il">1</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="il">1</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>?&gt; f(a;b)::{a+b}
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>:dyad
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>?&gt; f(1;2)
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>3
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>?&gt; [3 1 2]@1
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>1
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>?&gt; f(1;)@10
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>11
+</code></pre></div>
+<p>A call with fewer arguments than the function takes is a projection, as in q. Klong writes the missing argument as an empty slot or leaves it off: <code>f(1;)</code> and <code>f(1)</code> both give a projection. A call with too many arguments drops the extras at strict levels 0 and 1 and is an arity error at level 2.</p>
+<p>Assignment is <code>::</code> everywhere. In q, <code>::</code> inside a function assigns a global; in Klong it is plain assignment, and a name that is not a parameter, not declared as a local (<code>{[t];...}</code>) and not already global becomes a local of that call at level 0 and is an error at strict levels 1 and 2. A global is created by assigning at the top level. Outside functions, <code>d:::{...}</code> is the assignment <code>d::</code> followed by the dictionary literal <code>:{...}</code>. See <a href="../strict/">strict mode</a>.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>?&gt; total::0
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>0
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>?&gt; bump(n)::{total::total+n}
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>:monad
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>?&gt; bump(5)
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>5
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>?&gt; total
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>5
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>?&gt; scaled(n)::{[t];t::n*2;t+1}
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>:monad
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>?&gt; scaled(5)
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>11
+</code></pre></div>
+<p>Klong has <a href="../language-additions/#named-parameters">named parameters</a>, <code>f(a;b;c;d)::{...}</code>, with no limit on their number. The q names <code>x y z</code> also work in a bare <code>{...}</code>: <code>{x+y}</code> is a dyad, and it is the short form to give an adverb. <a href="../language-additions/#destructuring">Destructuring</a> takes the place of q's <code>a:x 0;b:x 1</code>.</p>
+<h3 id="no-booleans">No booleans<a class="headerlink" href="#no-booleans" title="Permanent link">&para;</a></h3>
+<p>Comparisons return the integers 0 and 1. There is no <code>1b</code>, and no boolean vector type; the verbs that take a mask (<code>&amp;</code>, <code>~</code>) take 0 and 1. The conditional is <code>:[c;a;b]</code>, where q has <code>$[c;a;b]</code>. An else-if chain is <code>:[c1;a:|c2;b;d]</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">q)</span><span class="il">3</span><span class="o">&gt;</span><span class="il">2</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="mb">1b</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="gp">q)</span><span class="o">$</span><span class="p">[</span><span class="il">1</span><span class="o">&lt;</span><span class="il">2</span><span class="p">;</span><span class="s2">"yes"</span><span class="p">;</span><span class="s2">"no"</span><span class="p">]</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s2">"yes"</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>?&gt; 3&gt;2
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>1
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>?&gt; :[1&lt;2;"yes";"no"]
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>"yes"
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>?&gt; sign(n)::{:[n&lt;0;"neg":|n=0;"zero";"pos"]}
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>:monad
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>?&gt; sign'[-5 0 7]
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>["neg" "zero" "pos"]
+</code></pre></div>
+<p>A condition is false for 0, for an empty list and for an empty string; everything else is true.</p>
+<h3 id="nulls-undefined">Nulls: <code>:undefined</code><a class="headerlink" href="#nulls-undefined" title="Permanent link">&para;</a></h3>
+<p>q has a typed null for each type (<code>0N</code>, <code>0n</code>) and infinities (<code>0w</code>). Klong has one undefined value, written <code>:undefined</code>. It is what a division by zero gives, what a missing dictionary key gives, and what a failed conversion gives. Test for it with the <code>:_</code> monad.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="gp">q)</span><span class="il">1</span><span class="o">%</span><span class="il">0</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="m">0w</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="gp">q)</span><span class="il">0</span><span class="o">%</span><span class="il">0</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="m">0n</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="gp">q)</span><span class="p">(</span><span class="ss">`a`b</span><span class="o">!</span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="p">)</span><span class="ss">`zz</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="m">0N</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>?&gt; 1%0
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>:undefined
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>?&gt; :_(1%0)
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>1
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>?&gt; d:::{[:a 1] [:b 2]}
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>:{[:a 1] [:b 2]}
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>?&gt; d@:zz
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>:undefined
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>?&gt; :_d@:zz
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>1
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>?&gt; 1:$"x"
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>:undefined
+</code></pre></div>
+<p>A list that holds <code>:undefined</code> can be printed and indexed, but arithmetic on it is an error. Nulls are not translated over IPC: see <a href="#types-across-the-connection">the type table</a>.</p>
+<h3 id="find-group-and-the-dyad">Find, group and the dyad <code>?</code><a class="headerlink" href="#find-group-and-the-dyad" title="Permanent link">&para;</a></h3>
+<p>q's <code>x?y</code> returns the index of the first match, or the count of <code>x</code> when there is none. Klong's <code>x?y</code> returns the list of all matching indices, empty when there is none. Use <code>*</code> on the result for the first match.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gp">q)</span><span class="il">3</span><span class="w"> </span><span class="il">1</span><span class="w"> </span><span class="il">3</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">1</span><span class="o">?</span><span class="il">3</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="il">0</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="gp">q)</span><span class="il">3</span><span class="w"> </span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="o">?</span><span class="il">5</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="il">3</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>?&gt; z::[3 1 3 2 1]
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[3 1 3 2 1]
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>?&gt; z?3
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>[0 2]
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>?&gt; z?7
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>[]
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>?&gt; *z?3
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>0
+</code></pre></div>
+<p><code>=z</code> is group, and it returns only the lists of indices, ordered by the first appearance of each value: <code>=[3 1 3 2 1]</code> is <code>[[0 2] [1 4] [3]]</code>. q's <code>group</code> returns a dictionary keyed by the values. <code>?z</code> is q's <code>distinct</code>, in order of first appearance, not sorted. For a random number use <code>.rn()</code>.</p>
+<h3 id="scan-with-a-seed">Scan with a seed<a class="headerlink" href="#scan-with-a-seed" title="Permanent link">&para;</a></h3>
+<p>A scan with a seed keeps the seed in Klong. q's does not.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gp">q)</span><span class="il">10</span><span class="w"> </span><span class="o">+\</span><span class="w"> </span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">3</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="il">11</span><span class="w"> </span><span class="il">13</span><span class="w"> </span><span class="il">16</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>?&gt; 10+\[1 2 3]
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[10 11 13 16]
+</code></pre></div>
+<h3 id="strings-characters-and-symbols">Strings, characters and symbols<a class="headerlink" href="#strings-characters-and-symbols" title="Permanent link">&para;</a></h3>
+<p>A Klong string is a list of characters, like a q string, but a one-character string is still a string: <code>"a"</code> is a string of length 1 and the character is written <code>0ca</code>. In q <code>"a"</code> is a character atom, which matters over IPC (see below). A symbol is written <code>:abc</code> where q writes <code>`abc</code>, and a list of symbols is <code>[:a :b :c]</code>. A symbol held as data is never looked up as a variable.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>?&gt; #"a"
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>1
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>?&gt; [:a :b :c]
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>[:a :b :c]
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>?&gt; foo::5
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>5
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>?&gt; {x}'[:foo :bar]
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>[:foo :bar]
+</code></pre></div>
+<p>A list literal holds what is written in it. To evaluate expressions inside a list, start it with a semicolon: <code>[;1+1;2+2]</code> is q's <code>(1+1;2+2)</code>.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>?&gt; [;1+1;2+2]
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>[2 4]
+</code></pre></div>
+<h3 id="dictionaries">Dictionaries<a class="headerlink" href="#dictionaries" title="Permanent link">&para;</a></h3>
+<p>A dictionary literal lists <code>[key value]</code> pairs. Lookup is <code>d@k</code> or <code>d?k</code>, and a missing key gives <code>:undefined</code>. <code>d@[k1 k2]</code> looks up several keys. Joining a pair or another dictionary with <code>,</code> adds entries, and it changes the dictionary in place (q's <code>,</code> returns a new one). A dictionary literal whose keys and values are expressions is <code>:{;k;v;...}</code>. See <a href="../language-additions/#dictionaries">Language Additions</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="gp">q)</span><span class="nv">d</span><span class="o">:</span><span class="ss">`a`b</span><span class="o">!</span><span class="il">1</span><span class="w"> </span><span class="il">2</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="gp">q)</span><span class="n">d</span><span class="o">,</span><span class="ss">`c`d</span><span class="o">!</span><span class="il">3</span><span class="w"> </span><span class="il">4</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">a</span><span class="o">|</span><span class="w"> </span><span class="il">1</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="n">b</span><span class="o">|</span><span class="w"> </span><span class="il">2</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="n">c</span><span class="o">|</span><span class="w"> </span><span class="il">3</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="n">d</span><span class="o">|</span><span class="w"> </span><span class="il">4</span>
+</code></pre></div>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>?&gt; d:::{[:a 1] [:b 2]}
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>:{[:a 1] [:b 2]}
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>?&gt; e::d
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>:{[:a 1] [:b 2]}
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>?&gt; d,:{[:c 3] [:d 4]}
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>:{[:a 1] [:b 2] [:c 3] [:d 4]}
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>?&gt; e
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>:{[:a 1] [:b 2] [:c 3] [:d 4]}
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>?&gt; d@[:a :zz]
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>[1 :undefined]
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>?&gt; *'d
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>[:a :b :c :d]
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>?&gt; {x@1}'d
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>[1 2 3 4]
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>?&gt; :{;:x;1+1;:y;2*3}
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>:{[:x 2] [:y 6]}
+</code></pre></div>
+<h3 id="division">Division<a class="headerlink" href="#division" title="Permanent link">&para;</a></h3>
+<p><code>%</code> is float division in both languages. <code>x div y</code> is <code>x:%y</code> and <code>x mod y</code> is <code>x!y</code>, with one difference for negative numbers: Klong truncates toward zero where q floors. <code>(-7):%2</code> is -3 in Klong and -4 in q, and <code>(-7)!2</code> is -1 in Klong and 1 in q.</p>
+<h2 id="translation-table">Translation table<a class="headerlink" href="#translation-table" title="Permanent link">&para;</a></h2>
+<p>Each group is one table of q expressions, their Klong forms and the q result (from PeachQ 0.92), followed by the Klong expressions run in a session. The Klong blocks continue each other, so the variables set in the first are available in the others. The q expressions use these definitions:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nv">x</span><span class="o">:</span><span class="il">3</span><span class="w"> </span><span class="il">1</span><span class="w"> </span><span class="il">2</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nv">y</span><span class="o">:</span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">3</span><span class="w"> </span><span class="il">4</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="nv">z</span><span class="o">:</span><span class="il">3</span><span class="w"> </span><span class="il">1</span><span class="w"> </span><span class="il">3</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">1</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="nv">w</span><span class="o">:</span><span class="p">(</span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="p">;</span><span class="il">3</span><span class="w"> </span><span class="il">4</span><span class="w"> </span><span class="il">5</span><span class="p">)</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="nv">m</span><span class="o">:</span><span class="p">(</span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">3</span><span class="p">;</span><span class="il">4</span><span class="w"> </span><span class="il">5</span><span class="w"> </span><span class="il">6</span><span class="p">)</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="nv">d</span><span class="o">:</span><span class="ss">`a`b</span><span class="o">!</span><span class="il">1</span><span class="w"> </span><span class="il">2</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="nv">b</span><span class="o">:</span><span class="mb">10110b</span>
+</code></pre></div>
+<p>Where the Klong result differs from the q result in a table:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>q</th>
+<th>Klong</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>avg x</code></td>
+<td><code>2f</code></td>
+<td><code>2.0</code></td>
+</tr>
+<tr>
+<td><code>group z</code></td>
+<td>a dictionary from value to positions</td>
+<td>the list of position lists <code>[[0 2] [1 4] [3]]</code></td>
+</tr>
+<tr>
+<td><code>z?3</code></td>
+<td><code>0</code>, the first position</td>
+<td><code>[0 2]</code>, all positions</td>
+</tr>
+<tr>
+<td><code>z?7</code></td>
+<td><code>5</code>, the count when not found</td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td><code>d`zz</code></td>
+<td><code>0N</code></td>
+<td><code>:undefined</code></td>
+</tr>
+<tr>
+<td><code>1%0</code></td>
+<td><code>0w</code></td>
+<td><code>:undefined</code></td>
+</tr>
+<tr>
+<td><code>-1+2</code></td>
+<td><code>1</code></td>
+<td><code>-3</code>, a leading minus is a verb</td>
+</tr>
+<tr>
+<td><code>3&gt;2</code></td>
+<td><code>1b</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>10 +\ 1 2 3</code></td>
+<td><code>11 13 16</code></td>
+<td><code>[10 11 13 16]</code>, the seed is included</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lists">Lists<a class="headerlink" href="#lists" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>q</th>
+<th>Klong</th>
+<th>Result in q</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>til 5</code></td>
+<td><code>!5</code></td>
+<td><code>0 1 2 3 4</code></td>
+</tr>
+<tr>
+<td><code>count x</code></td>
+<td><code>#x</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>sum x</code></td>
+<td><code>+/x</code></td>
+<td><code>6</code></td>
+</tr>
+<tr>
+<td><code>sums x</code></td>
+<td><code>+\x</code></td>
+<td><code>3 4 6</code></td>
+</tr>
+<tr>
+<td><code>avg x</code></td>
+<td><code>(+/x)%#x</code></td>
+<td><code>2f</code></td>
+</tr>
+<tr>
+<td><code>where b</code></td>
+<td><code>&amp;b</code></td>
+<td><code>0 2 3</code></td>
+</tr>
+<tr>
+<td><code>iasc x</code></td>
+<td><code>&lt;x</code></td>
+<td><code>1 2 0</code></td>
+</tr>
+<tr>
+<td><code>x@iasc x</code></td>
+<td><code>x@&lt;x</code></td>
+<td><code>1 2 3</code></td>
+</tr>
+<tr>
+<td><code>x@idesc x</code></td>
+<td><code>x@&gt;x</code></td>
+<td><code>3 2 1</code></td>
+</tr>
+<tr>
+<td><code>distinct z</code></td>
+<td><code>?z</code></td>
+<td><code>3 1 2</code></td>
+</tr>
+<tr>
+<td><code>reverse x</code></td>
+<td><code>\|x</code></td>
+<td><code>2 1 3</code></td>
+</tr>
+<tr>
+<td><code>first x</code></td>
+<td><code>*x</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>2#y</code></td>
+<td><code>2#y</code></td>
+<td><code>1 2</code></td>
+</tr>
+<tr>
+<td><code>2_y</code></td>
+<td><code>2_y</code></td>
+<td><code>3 4</code></td>
+</tr>
+<tr>
+<td><code>-2#y</code></td>
+<td><code>(-2)#y</code></td>
+<td><code>3 4</code></td>
+</tr>
+<tr>
+<td><code>neg x</code></td>
+<td><code>-x</code></td>
+<td><code>-3 -1 -2</code></td>
+</tr>
+<tr>
+<td><code>x,y</code></td>
+<td><code>x,y</code></td>
+<td><code>3 1 2 1 2 3 4</code></td>
+</tr>
+<tr>
+<td><code>raze w</code></td>
+<td><code>,/w</code></td>
+<td><code>1 2 3 4 5</code></td>
+</tr>
+<tr>
+<td><code>count each w</code></td>
+<td><code>#'w</code></td>
+<td><code>2 3</code></td>
+</tr>
+<tr>
+<td><code>flip m</code></td>
+<td><code>+m</code></td>
+<td><code>1 4</code> / <code>2 5</code> / <code>3 6</code></td>
+</tr>
+<tr>
+<td><code>2 3#til 6</code></td>
+<td><code>[2 3]:^!6</code></td>
+<td><code>0 1 2</code> / <code>3 4 5</code></td>
+</tr>
+</tbody>
+</table>
+<p>The same expressions in KlongPy:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>?&gt; x::[3 1 2]
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[3 1 2]
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>?&gt; y::[1 2 3 4]
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>[1 2 3 4]
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>?&gt; z::[3 1 3 2 1]
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>[3 1 3 2 1]
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>?&gt; w::[[1 2] [3 4 5]]
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>[[1 2] [3 4 5]]
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>?&gt; m::[[1 2 3] [4 5 6]]
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>[[1 2 3] [4 5 6]]
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>?&gt; d:::{[:a 1] [:b 2]}
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a>:{[:a 1] [:b 2]}
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a>?&gt; b::[1 0 1 1 0]
+<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a>[1 0 1 1 0]
+<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a>?&gt; !5
+<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a>[0 1 2 3 4]
+<a id="__codelineno-20-17" name="__codelineno-20-17" href="#__codelineno-20-17"></a>?&gt; #x
+<a id="__codelineno-20-18" name="__codelineno-20-18" href="#__codelineno-20-18"></a>3
+<a id="__codelineno-20-19" name="__codelineno-20-19" href="#__codelineno-20-19"></a>?&gt; +/x
+<a id="__codelineno-20-20" name="__codelineno-20-20" href="#__codelineno-20-20"></a>6
+<a id="__codelineno-20-21" name="__codelineno-20-21" href="#__codelineno-20-21"></a>?&gt; +\x
+<a id="__codelineno-20-22" name="__codelineno-20-22" href="#__codelineno-20-22"></a>[3 4 6]
+<a id="__codelineno-20-23" name="__codelineno-20-23" href="#__codelineno-20-23"></a>?&gt; (+/x)%#x
+<a id="__codelineno-20-24" name="__codelineno-20-24" href="#__codelineno-20-24"></a>2.0
+<a id="__codelineno-20-25" name="__codelineno-20-25" href="#__codelineno-20-25"></a>?&gt; &amp;b
+<a id="__codelineno-20-26" name="__codelineno-20-26" href="#__codelineno-20-26"></a>[0 2 3]
+<a id="__codelineno-20-27" name="__codelineno-20-27" href="#__codelineno-20-27"></a>?&gt; &lt;x
+<a id="__codelineno-20-28" name="__codelineno-20-28" href="#__codelineno-20-28"></a>[1 2 0]
+<a id="__codelineno-20-29" name="__codelineno-20-29" href="#__codelineno-20-29"></a>?&gt; x@&lt;x
+<a id="__codelineno-20-30" name="__codelineno-20-30" href="#__codelineno-20-30"></a>[1 2 3]
+<a id="__codelineno-20-31" name="__codelineno-20-31" href="#__codelineno-20-31"></a>?&gt; x@&gt;x
+<a id="__codelineno-20-32" name="__codelineno-20-32" href="#__codelineno-20-32"></a>[3 2 1]
+<a id="__codelineno-20-33" name="__codelineno-20-33" href="#__codelineno-20-33"></a>?&gt; ?z
+<a id="__codelineno-20-34" name="__codelineno-20-34" href="#__codelineno-20-34"></a>[3 1 2]
+<a id="__codelineno-20-35" name="__codelineno-20-35" href="#__codelineno-20-35"></a>?&gt; |x
+<a id="__codelineno-20-36" name="__codelineno-20-36" href="#__codelineno-20-36"></a>[2 1 3]
+<a id="__codelineno-20-37" name="__codelineno-20-37" href="#__codelineno-20-37"></a>?&gt; *x
+<a id="__codelineno-20-38" name="__codelineno-20-38" href="#__codelineno-20-38"></a>3
+<a id="__codelineno-20-39" name="__codelineno-20-39" href="#__codelineno-20-39"></a>?&gt; 2#y
+<a id="__codelineno-20-40" name="__codelineno-20-40" href="#__codelineno-20-40"></a>[1 2]
+<a id="__codelineno-20-41" name="__codelineno-20-41" href="#__codelineno-20-41"></a>?&gt; 2_y
+<a id="__codelineno-20-42" name="__codelineno-20-42" href="#__codelineno-20-42"></a>[3 4]
+<a id="__codelineno-20-43" name="__codelineno-20-43" href="#__codelineno-20-43"></a>?&gt; (-2)#y
+<a id="__codelineno-20-44" name="__codelineno-20-44" href="#__codelineno-20-44"></a>[3 4]
+<a id="__codelineno-20-45" name="__codelineno-20-45" href="#__codelineno-20-45"></a>?&gt; -x
+<a id="__codelineno-20-46" name="__codelineno-20-46" href="#__codelineno-20-46"></a>[-3 -1 -2]
+<a id="__codelineno-20-47" name="__codelineno-20-47" href="#__codelineno-20-47"></a>?&gt; x,y
+<a id="__codelineno-20-48" name="__codelineno-20-48" href="#__codelineno-20-48"></a>[3 1 2 1 2 3 4]
+<a id="__codelineno-20-49" name="__codelineno-20-49" href="#__codelineno-20-49"></a>?&gt; ,/w
+<a id="__codelineno-20-50" name="__codelineno-20-50" href="#__codelineno-20-50"></a>[1 2 3 4 5]
+<a id="__codelineno-20-51" name="__codelineno-20-51" href="#__codelineno-20-51"></a>?&gt; #'w
+<a id="__codelineno-20-52" name="__codelineno-20-52" href="#__codelineno-20-52"></a>[2 3]
+<a id="__codelineno-20-53" name="__codelineno-20-53" href="#__codelineno-20-53"></a>?&gt; +m
+<a id="__codelineno-20-54" name="__codelineno-20-54" href="#__codelineno-20-54"></a>[[1 4] [2 5] [3 6]]
+<a id="__codelineno-20-55" name="__codelineno-20-55" href="#__codelineno-20-55"></a>?&gt; [2 3]:^!6
+<a id="__codelineno-20-56" name="__codelineno-20-56" href="#__codelineno-20-56"></a>[[0 1 2] [3 4 5]]
+</code></pre></div>
+<h3 id="finding-grouping-and-dictionaries">Finding, grouping and dictionaries<a class="headerlink" href="#finding-grouping-and-dictionaries" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>q</th>
+<th>Klong</th>
+<th>Result in q</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>group z</code></td>
+<td><code>=z</code></td>
+<td><code>3\| 0 2</code> / <code>1\| 1 4</code> / <code>2\| ,3</code></td>
+</tr>
+<tr>
+<td><code>z?3</code></td>
+<td><code>z?3</code></td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>z?7</code></td>
+<td><code>z?7</code></td>
+<td><code>5</code></td>
+</tr>
+<tr>
+<td><code>d`a</code></td>
+<td><code>d@:a</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>d`zz</code></td>
+<td><code>d@:zz</code></td>
+<td><code>0N</code></td>
+</tr>
+</tbody>
+</table>
+<p>The same expressions in KlongPy:</p>
+<!-- check-docs: strict 2; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>?&gt; =z
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>[[0 2] [1 4] [3]]
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>?&gt; z?3
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>[0 2]
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>?&gt; z?7
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>[]
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>?&gt; d@:a
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>1
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>?&gt; d@:zz
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>:undefined
+</code></pre></div>
+<h3 id="arithmetic-conditions-and-functions">Arithmetic, conditions and functions<a class="headerlink" href="#arithmetic-conditions-and-functions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>q</th>
+<th>Klong</th>
+<th>Result in q</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>7 mod 3</code></td>
+<td><code>7!3</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>7 div 2</code></td>
+<td><code>7:%2</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>7%2</code></td>
+<td><code>7%2</code></td>
+<td><code>3.5</code></td>
+</tr>
+<tr>
+<td><code>3&gt;2</code></td>
+<td><code>3&gt;2</code></td>
+<td><code>1b</code></td>
+</tr>
+<tr>
+<td><code>1%0</code></td>
+<td><code>1%0</code></td>
+<td><code>0w</code></td>
+</tr>
+<tr>
+<td><code>-1+2</code></td>
+<td><code>-1+2</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>(-1)+2</code></td>
+<td><code>(-1)+2</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>$[1&lt;2;"yes";"no"]</code></td>
+<td><code>:[1&lt;2;"yes";"no"]</code></td>
+<td><code>"yes"</code></td>
+</tr>
+<tr>
+<td><code>f:{x+y};f[1;2]</code></td>
+<td><code>f(a;b)::{a+b};f(1;2)</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>x@1</code></td>
+<td><code>x@1</code></td>
+<td><code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p>The same expressions in KlongPy:</p>
+<!-- check-docs: strict 2; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>?&gt; 7!3
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>1
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>?&gt; 7:%2
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>3
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>?&gt; 7%2
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>3.5
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>?&gt; 3&gt;2
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>1
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>?&gt; 1%0
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>:undefined
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>?&gt; -1+2
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>-3
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>?&gt; (-1)+2
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>1
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a>?&gt; :[1&lt;2;"yes";"no"]
+<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a>"yes"
+<a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a>?&gt; f(a;b)::{a+b};f(1;2)
+<a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a>3
+<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a>?&gt; x@1
+<a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a>1
+</code></pre></div>
+<h3 id="adverbs">Adverbs<a class="headerlink" href="#adverbs" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>q</th>
+<th>Klong</th>
+<th>Result in q</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{x*2} each x</code></td>
+<td><code>{x*2}'x</code></td>
+<td><code>6 2 4</code></td>
+</tr>
+<tr>
+<td><code>max x</code></td>
+<td><code>\|/x</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>min x</code></td>
+<td><code>&amp;/x</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>10 +/ 1 2 3</code></td>
+<td><code>10+/[1 2 3]</code></td>
+<td><code>16</code></td>
+</tr>
+<tr>
+<td><code>10 +\ 1 2 3</code></td>
+<td><code>10+\[1 2 3]</code></td>
+<td><code>11 13 16</code></td>
+</tr>
+<tr>
+<td><code>3 {x*2}/ 1</code></td>
+<td><code>3{x*2}:*1</code></td>
+<td><code>8</code></td>
+</tr>
+<tr>
+<td><code>({x div 2}/) 100</code></td>
+<td><code>{x:%2}:~100</code></td>
+<td><code>0</code></td>
+</tr>
+</tbody>
+</table>
+<p>The same expressions in KlongPy:</p>
+<!-- check-docs: strict 2; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>?&gt; {x*2}'x
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[6 2 4]
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>?&gt; |/x
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>3
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>?&gt; &amp;/x
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>1
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>?&gt; 10+/[1 2 3]
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>16
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>?&gt; 10+\[1 2 3]
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>[10 11 13 16]
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>?&gt; 3{x*2}:*1
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>8
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>?&gt; {x:%2}:~100
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>0
+</code></pre></div>
+<h2 id="tables-and-queries">Tables and queries<a class="headerlink" href="#tables-and-queries" title="Permanent link">&para;</a></h2>
+<p>Both desktop commands provide column tables and run SQL strings through DuckDB. Use <code>.index(t;["col"])</code> to set a key and <code>.insert</code> to upsert. Pass named tables to <code>.db</code> for live queries, or give <code>.db</code> a path to open a persistent DuckDB file. Use SQL <code>GROUP BY</code> for q-sql <code>by</code>, and translate splayed or partitioned files to a format DuckDB can read. <a href="../fast_columnar_database/">Columnar tables and SQL</a></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="gp">q)</span><span class="nv">t</span><span class="o">:</span><span class="p">([]</span><span class="w"> </span><span class="nv">sym</span><span class="o">:</span><span class="ss">`a`b`a`b`a</span><span class="p">;</span><span class="w"> </span><span class="nv">px</span><span class="o">:</span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">3</span><span class="w"> </span><span class="il">4</span><span class="w"> </span><span class="il">5</span><span class="p">)</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="gp">q)</span><span class="ow">exec</span><span class="w"> </span><span class="ow">sum</span><span class="w"> </span><span class="n">px</span><span class="w"> </span><span class="ow">by</span><span class="w"> </span><span class="n">sym</span><span class="w"> </span><span class="ow">from</span><span class="w"> </span><span class="n">t</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="n">a</span><span class="o">|</span><span class="w"> </span><span class="il">9</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="n">b</span><span class="o">|</span><span class="w"> </span><span class="il">6</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="gp">q)</span><span class="ow">exec</span><span class="w"> </span><span class="n">px</span><span class="w"> </span><span class="ow">from</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="nb">where</span><span class="w"> </span><span class="n">px</span><span class="o">&gt;</span><span class="il">2</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="il">3</span><span class="w"> </span><span class="il">4</span><span class="w"> </span><span class="il">5</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="gp">q)</span><span class="ow">exec</span><span class="w"> </span><span class="ow">sum</span><span class="w"> </span><span class="n">px</span><span class="w"> </span><span class="ow">from</span><span class="w"> </span><span class="n">t</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="il">15</span>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="gp">q)</span><span class="nb">cols</span><span class="w"> </span><span class="n">t</span>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="ss">`sym`px</span>
+</code></pre></div>
+<!-- check-docs: requires duckdb pandas; strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>?&gt; .py("klongpy.db")
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>1
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>?&gt; t::.table([["sym" ["a" "b" "a" "b" "a"]] ["px" [1 2 3 4 5]]])
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>sym px
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>  a  1
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>  b  2
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>  a  3
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>  b  4
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>  a  5
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>?&gt; .schema(t)
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>["sym" "px"]
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>?&gt; t?"px"
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>[1 2 3 4 5]
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a>?&gt; db::.db(:{;"t";t})
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a>:db
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>?&gt; db("select sym, sum(px) as s from t group by sym order by sym")
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a>[["a" 9.0] ["b" 6.0]]
+<a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a>?&gt; db("select px from t where px&gt;2")
+<a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a>[3 4 5]
+<a id="__codelineno-25-20" name="__codelineno-25-20" href="#__codelineno-25-20"></a>?&gt; db("select sum(px) from t")
+<a id="__codelineno-25-21" name="__codelineno-25-21" href="#__codelineno-25-21"></a>15.0
+</code></pre></div>
+<p>A query returns Klong values. One column can give a list, several columns can give rows, and one cell gives a scalar. <code>t,"qty",,[10 20 30 40 50]</code> adds a column. This example uses the legacy Python adapter for table display. The built-in <code>.db</code> preserves integer sums exactly.</p>
+<h2 id="timers">Timers<a class="headerlink" href="#timers" title="Permanent link">&para;</a></h2>
+<p>q's <code>.z.ts</code> runs once per <code>\t</code> interval. Klong has <code>.timer(name;seconds;callback)</code>: a timer is a value, there may be many, and the callback's result decides whether it runs again (1 to continue, 0 to stop). <code>.timerc(t)</code> cancels one. The interval may be fractional. See <a href="../timer/">Timers</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nv">n</span><span class="o">:</span><span class="il">0</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="nf">.z.ts</span><span class="o">:</span><span class="p">{</span><span class="nv">n</span><span class="o">+::</span><span class="il">1</span><span class="p">;</span><span class="nb">show</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="ow">if</span><span class="p">[</span><span class="n">n</span><span class="o">&gt;=</span><span class="il">3</span><span class="p">;</span><span class="nb">system</span><span class="s2">"t 0"</span><span class="p">]}</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="nb">system</span><span class="s2">"t 200"</span>
+</code></pre></div>
+<p>That q script prints <code>1</code>, <code>2</code> and <code>3</code>, one per line, and then stops the timer. The Klong version prints the same:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>n::0
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>cb::{n::n+1;.p(n);:[n&lt;3;1;0]}
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>th::.timer("t";0.2;cb)
+</code></pre></div>
+<p>Run it with <code>kgpy -l file.kg</code>, which stays in the REPL while the timer fires. <code>kgpy file.kg</code> runs the file and exits without waiting for a timer, so it prints nothing for this program.</p>
+<h2 id="talking-to-q-ipc">Talking to q: IPC<a class="headerlink" href="#talking-to-q-ipc" title="Permanent link">&para;</a></h2>
+<p>KlongPy's <code>.srv</code>, <code>.cli</code>, <code>.clid</code>, <code>.clic</code>, <code>.clit</code> and <code>.async</code> speak the kdb+ IPC protocol. A Klong program can connect to a q process, and a q process can connect to a Klong server. The full description, including how functions cross the wire, is in <a href="../ipc_capabilities/">IPC Capabilities</a>. This section is what a q user needs.</p>
+<p>Limits: no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including <code>.py</code> and <code>.sys</code>. The other limits (message size, compression) are in <a href="../ipc_capabilities/#protocol-and-security">IPC Capabilities</a>.</p>
+<p>The examples use PeachQ 0.92. Both desktop commands have live PeachQ coverage. Set <code>KLONG_TEST_PEACHQ</code> to its executable for the tests in <code>tests/test_ipc_peachq.py</code>, <code>tests/test_native_ipc.py</code> and <code>tests/v2</code>.</p>
+<h3 id="addresses">Addresses<a class="headerlink" href="#addresses" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>q</th>
+<th>Klong</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hopen `:localhost:8888</code></td>
+<td><code>.cli("localhost:8888")</code> or <code>.cli(8888)</code></td>
+<td>connect to a port, on localhost for the bare integer</td>
+</tr>
+<tr>
+<td><code>hopen `:host:8888:user:pw</code></td>
+<td><code>.cli("host:8888:user:pw")</code></td>
+<td>with a user name and password, in clear text</td>
+</tr>
+<tr>
+<td><code>q -p 8888</code></td>
+<td><code>.srv(8888)</code> or <code>kgpy -s 8888</code></td>
+<td>listen on a port</td>
+</tr>
+<tr>
+<td></td>
+<td><code>.srv(0)</code></td>
+<td>stop listening and drop the clients</td>
+</tr>
+<tr>
+<td><code>hclose h</code></td>
+<td><code>.clic(h)</code></td>
+<td>close a connection</td>
+</tr>
+</tbody>
+</table>
+<h3 id="a-klong-program-calls-a-q-process">A Klong program calls a q process<a class="headerlink" href="#a-klong-program-calls-a-q-process" title="Permanent link">&para;</a></h3>
+<p><code>.cli</code> returns a function. Call it with a string to evaluate q source in the q process, or with a symbol and arguments to call a function that is defined there by name. A string is source text in the language of the process that receives it. The result comes back as a Klong value.</p>
+<p>Start a q process that listens on port 8888, for example <code>q -p 8888</code>, and then, in a Klong session:</p>
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>?&gt; h::.cli("localhost:8888")
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>remote[localhost:8888]:fn
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>?&gt; h("1+1")
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>2
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>?&gt; h("til 5")
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>[0 1 2 3 4]
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>?&gt; h("`a`b!1 2")
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>:{[:a 1] [:b 2]}
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>?&gt; h("mean:{(sum x)%count x}")
+<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>:undefined
+<a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>?&gt; h(:mean,,[1 2 3 4])
+<a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a>2.5
+<a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a>?&gt; h("mean 1 2 3 4")
+<a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a>2.5
+</code></pre></div>
+<p><code>h(:mean,,[1 2 3 4])</code> is q's <code>h(</code>mean;1 2 3 4)<code>: the callee as a symbol, then its arguments. The</code>,,<code>wraps the list so that it is one argument. With two arguments write</code>h(:add,3,4)<code>. Assigning in q returns the generic null, which arrives as</code>:undefined`.</p>
+<p>An error in q comes back as a Klong error of kind <code>remote</code> whose message is the text of the q signal. The connection stays open.</p>
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>?&gt; h("nosuch")
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>error: nosuch
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>?&gt; h("1+`a")
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>error: type
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>?&gt; h("1 2 3 + 4 5")
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>error: length
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>?&gt; h("1+1")
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>2
+</code></pre></div>
+<p>A table from q stays a table on both desktop hosts. The example loads <code>klongpy.db</code> for pandas-backed display. <code>.clid</code> gives the remote context as a dictionary for reading and writing q variables.</p>
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>?&gt; .py("klongpy.db")
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>1
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>?&gt; T::h("([] a:1 2 3; b:1.5 2.5 3.5)")
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>a   b
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>1 1.5
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>2 2.5
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>3 3.5
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>?&gt; T?"b"
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>[1.5 2.5 3.5]
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>?&gt; .schema(T)
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>["a" "b"]
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a>?&gt; d::.clid(h)
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>remote[localhost:8888]:dict
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>?&gt; d,[:foo 2]
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>remote[localhost:8888]:dict
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>?&gt; d?:foo
+<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>2
+<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>?&gt; h("foo")
+<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a>2
+<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>?&gt; .clic(h)
+<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>1
+</code></pre></div>
+<h3 id="a-q-process-calls-a-klong-server">A q process calls a Klong server<a class="headerlink" href="#a-q-process-calls-a-klong-server" title="Permanent link">&para;</a></h3>
+<p>Start the server with <code>kgpy -s 8888</code>, or call <code>.srv(8888)</code> in a program. A q client sends a string, which is Klong source, or a call by symbol. These were run against a KlongPy server that had <code>avg::{(+/x)%#x}</code>, <code>add::{x+y}</code>, <code>hello::{"hello, ",x}</code>, <code>data::[3 1 2]</code> and <code>total::100</code> defined:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="gp">q)</span><span class="nv">h</span><span class="o">:</span><span class="ow">hopen</span><span class="w"> </span><span class="ss">`:localhost</span><span class="o">:</span><span class="il">8888</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="gp">q)</span><span class="n">h</span><span class="s2">"1+1"</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="il">2</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="gp">q)</span><span class="n">h</span><span class="s2">"!5"</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="il">0</span><span class="w"> </span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">3</span><span class="w"> </span><span class="il">4</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="gp">q)</span><span class="n">h</span><span class="s2">"avg([1 2 3 4])"</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="mf">2.5</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="gp">q)</span><span class="n">h</span><span class="p">(</span><span class="ss">`avg</span><span class="p">;</span><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">3</span><span class="w"> </span><span class="il">4</span><span class="p">)</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="mf">2.5</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="gp">q)</span><span class="n">h</span><span class="p">(</span><span class="ss">`add</span><span class="p">;</span><span class="il">3</span><span class="p">;</span><span class="il">4</span><span class="p">)</span>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="il">7</span>
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="gp">q)</span><span class="n">h</span><span class="p">(</span><span class="ss">`hello</span><span class="p">;</span><span class="s2">"q"</span><span class="p">)</span>
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="s2">"hello, q"</span>
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="gp">q)</span><span class="n">h</span><span class="ss">`total</span>
+<a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a><span class="il">100</span>
+<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a><span class="gp">q)</span><span class="n">h</span><span class="s2">"data@&lt;data"</span>
+<a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="il">1</span><span class="w"> </span><span class="il">2</span><span class="w"> </span><span class="il">3</span>
+</code></pre></div>
+<p>A string sent to a KlongPy server is Klong, not q. Klong error text is returned as the q error, with the wire name first:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="gp">q)</span><span class="o">@</span><span class="p">[</span><span class="n">h</span><span class="p">;</span><span class="s2">"nosuch(1)"</span><span class="p">;{</span><span class="s2">"caught: "</span><span class="o">,</span><span class="n">x</span><span class="p">}]</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="s2">"caught: name: undefined function: nosuch"</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="gp">q)</span><span class="o">@</span><span class="p">[</span><span class="n">h</span><span class="p">;</span><span class="s2">"1+"</span><span class="p">;{</span><span class="s2">"caught: "</span><span class="o">,</span><span class="n">x</span><span class="p">}]</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="s2">"caught: parse: missing right operand for +"</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="gp">q)</span><span class="o">@</span><span class="p">[</span><span class="n">h</span><span class="p">;(</span><span class="ss">`nosuch</span><span class="p">;</span><span class="il">1</span><span class="p">);{</span><span class="s2">"caught: "</span><span class="o">,</span><span class="n">x</span><span class="p">}]</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="s2">"caught: name: symbol not found: nosuch"</span>
+</code></pre></div>
+<p>At the default strict level, text that is not Klong can come back as a value instead of an error. <code>h"til 5"</code> is the name <code>til</code> followed by a 5 that the server drops, so the answer is the symbol <code>`til</code> and the server prints a warning. Start the server at strict level 1 or 2 (<code>kgpy --strict=2 -s 8888</code>) and the same request is answered with a parse error, as it is for any program that is not valid Klong. See <a href="../strict/">strict mode</a>.</p>
+<p>Variables can be set with a symbol call, and asynchronous messages (<code>neg[h]</code>) are accepted and run in order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="gp">q)</span><span class="nb">neg</span><span class="p">[</span><span class="n">h</span><span class="p">]</span><span class="s2">"hits::hits+1"</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="gp">q)</span><span class="nb">neg</span><span class="p">[</span><span class="n">h</span><span class="p">]</span><span class="s2">"hits::hits+1"</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="gp">q)</span><span class="n">h</span><span class="s2">"hits"</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="il">2</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="gp">q)</span><span class="n">h</span><span class="p">(</span><span class="ss">`set</span><span class="p">;</span><span class="ss">`bar</span><span class="p">;</span><span class="il">7</span><span class="p">)</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="gp">q)</span><span class="n">h</span><span class="ss">`bar</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="il">7</span>
+</code></pre></div>
+<p>The server had <code>hits::0</code> defined. A one-character string is a character atom in q, so <code>h"T"</code> sends the character <code>T</code> and not a string of length 1; the server answers with that character. Write <code>h"T "</code> or <code>h enlist"T"</code> to send the name. If <code>T</code> is a <code>klongpy.db</code> table on the server, the answer is a table (type 98):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="gp">q)</span><span class="nb">type</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="ow">enlist</span><span class="s2">"T"</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="mi">98h</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="gp">q)</span><span class="nb">cols</span><span class="w"> </span><span class="n">h</span><span class="s2">"T "</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="ss">`sym`px</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="gp">q)</span><span class="p">(</span><span class="n">h</span><span class="s2">"T "</span><span class="p">)</span><span class="ss">`px</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="mf">1.5</span><span class="w"> </span><span class="mf">2.5</span><span class="w"> </span><span class="mf">3.5</span>
+</code></pre></div>
+<p>Hooks and the client's view of the connection are covered below. An open connection from a q client can be given a user name and password with <code>.srv.auth</code>; see <a href="../ipc_capabilities/#credentials-srvauth">Credentials</a>.</p>
+<h3 id="types-across-the-connection">Types across the connection<a class="headerlink" href="#types-across-the-connection" title="Permanent link">&para;</a></h3>
+<p>One table for both directions, as observed against PeachQ 0.92. The type numbers are q's (negative for an atom, positive for a vector). The full table, with the 32-bit and character details, is in <a href="../ipc_capabilities/#types-across-the-wire">IPC Capabilities</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Klong value</th>
+<th>q type the q process sees</th>
+<th>q value</th>
+<th>Klong value <code>.cli</code> returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>integer</td>
+<td><code>-7h</code>, long atom</td>
+<td>long, int, short or boolean atom</td>
+<td>integer (<code>1b</code> is <code>1</code>)</td>
+</tr>
+<tr>
+<td>float</td>
+<td><code>-9h</code>, float atom</td>
+<td>float atom</td>
+<td>float</td>
+</tr>
+<tr>
+<td>char</td>
+<td>char atom</td>
+<td>char atom (<code>"a"</code>)</td>
+<td>char (<code>0ca</code>)</td>
+</tr>
+<tr>
+<td>string</td>
+<td><code>10h</code>, char vector</td>
+<td>char vector (<code>"abc"</code>)</td>
+<td>string</td>
+</tr>
+<tr>
+<td>symbol</td>
+<td><code>-11h</code>, symbol atom</td>
+<td>symbol (<code>`abc</code>)</td>
+<td>symbol (<code>:abc</code>)</td>
+</tr>
+<tr>
+<td>integer or float array</td>
+<td><code>7h</code> or <code>9h</code>, vector</td>
+<td>long or float vector</td>
+<td>integer or float array</td>
+</tr>
+<tr>
+<td>list of symbols</td>
+<td><code>11h</code>, symbol vector</td>
+<td>symbol vector</td>
+<td>list of symbols</td>
+</tr>
+<tr>
+<td>list of strings, mixed list</td>
+<td><code>0h</code>, general list</td>
+<td>general list</td>
+<td>list (<code>(1;"ab";</code>c)<code>is</code>[1 "ab" :c]`)</td>
+</tr>
+<tr>
+<td>dictionary</td>
+<td><code>99h</code></td>
+<td>dictionary</td>
+<td>dictionary</td>
+</tr>
+<tr>
+<td>function</td>
+<td><code>100h</code>, lambda; its source text is sent</td>
+<td>function other than a lambda</td>
+<td>an opaque value, <code>:kdb-function</code>, that can be sent back</td>
+</tr>
+<tr>
+<td><code>:undefined</code></td>
+<td><code>101h</code>, the generic null</td>
+<td>generic null <code>(::)</code></td>
+<td><code>:undefined</code></td>
+</tr>
+<tr>
+<td>column table</td>
+<td><code>98h</code>, table</td>
+<td>table</td>
+<td>table with ordered columns</td>
+</tr>
+<tr>
+<td>keyed column table</td>
+<td>dictionary of key and value tables</td>
+<td>keyed table</td>
+<td>table with its key columns</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>date, time and other temporal types</td>
+<td>the underlying number (<code>2000.01.01</code> is <code>0</code>)</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td><code>0N</code>, <code>0n</code>, <code>0w</code></td>
+<td>not translated: <code>-9223372036854775808</code>, <code>nan</code>, <code>inf</code></td>
+</tr>
+<tr>
+<td>a Python object, a connection handle</td>
+<td>not sent: a type error</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>?&gt; h::.cli("localhost:8888")
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>remote[localhost:8888]:fn
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>?&gt; h("tp:{type x}")
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>:undefined
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>?&gt; h(:tp,,5)
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>-7
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>?&gt; h(:tp,,2.5)
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>-9
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>?&gt; h(:tp,,"abc")
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>10
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a>?&gt; h(:tp,,:abc)
+<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a>-11
+<a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a>?&gt; h(:tp,,[1 2 3])
+<a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a>7
+<a id="__codelineno-35-15" name="__codelineno-35-15" href="#__codelineno-35-15"></a>?&gt; h(:tp,,[1.5 2.5])
+<a id="__codelineno-35-16" name="__codelineno-35-16" href="#__codelineno-35-16"></a>9
+<a id="__codelineno-35-17" name="__codelineno-35-17" href="#__codelineno-35-17"></a>?&gt; h(:tp,,[:a :b])
+<a id="__codelineno-35-18" name="__codelineno-35-18" href="#__codelineno-35-18"></a>11
+<a id="__codelineno-35-19" name="__codelineno-35-19" href="#__codelineno-35-19"></a>?&gt; h(:tp,,["ab" "cd"])
+<a id="__codelineno-35-20" name="__codelineno-35-20" href="#__codelineno-35-20"></a>0
+<a id="__codelineno-35-21" name="__codelineno-35-21" href="#__codelineno-35-21"></a>?&gt; h(:tp,,[1 "a"])
+<a id="__codelineno-35-22" name="__codelineno-35-22" href="#__codelineno-35-22"></a>0
+<a id="__codelineno-35-23" name="__codelineno-35-23" href="#__codelineno-35-23"></a>?&gt; h(:tp,,:{[:a 1] [:b 2]})
+<a id="__codelineno-35-24" name="__codelineno-35-24" href="#__codelineno-35-24"></a>99
+<a id="__codelineno-35-25" name="__codelineno-35-25" href="#__codelineno-35-25"></a>?&gt; h(:tp,,{x+1})
+<a id="__codelineno-35-26" name="__codelineno-35-26" href="#__codelineno-35-26"></a>100
+<a id="__codelineno-35-27" name="__codelineno-35-27" href="#__codelineno-35-27"></a>?&gt; h(:tp,,1%0)
+<a id="__codelineno-35-28" name="__codelineno-35-28" href="#__codelineno-35-28"></a>101
+<a id="__codelineno-35-29" name="__codelineno-35-29" href="#__codelineno-35-29"></a>?&gt; h("0N")
+<a id="__codelineno-35-30" name="__codelineno-35-30" href="#__codelineno-35-30"></a>-9223372036854775808
+<a id="__codelineno-35-31" name="__codelineno-35-31" href="#__codelineno-35-31"></a>?&gt; h("""a""")
+<a id="__codelineno-35-32" name="__codelineno-35-32" href="#__codelineno-35-32"></a>0ca
+<a id="__codelineno-35-33" name="__codelineno-35-33" href="#__codelineno-35-33"></a>?&gt; h("2000.01.01")
+<a id="__codelineno-35-34" name="__codelineno-35-34" href="#__codelineno-35-34"></a>0
+</code></pre></div>
+<p>A function sent to q is its Klong source text, parsed by q. It runs only if that text is also valid q.</p>
+<h3 id="between-two-klongpy-interpreters">Between two KlongPy interpreters<a class="headerlink" href="#between-two-klongpy-interpreters" title="Permanent link">&para;</a></h3>
+<p>The same calls work between two KlongPy interpreters; see the example in <a href="../ipc_capabilities/#example">IPC Capabilities</a>.</p>
+<h3 id="hooks">Hooks<a class="headerlink" href="#hooks" title="Permanent link">&para;</a></h3>
+<p>q's <code>.z.po</code> and <code>.z.pc</code> run when a client opens and closes a connection, and <code>.z.pw</code> checks credentials. The Klong names are <code>.srv.o</code>, <code>.srv.c</code> and <code>.srv.auth</code>. <code>.srv.e</code> is called for an error that nobody is waiting for. There is no equivalent of q's <code>.z.pg</code> and <code>.z.ps</code>: a request is always evaluated as Klong source or as a call by name. The arguments and examples are in <a href="../ipc_capabilities/#server-callbacks">Server Callbacks</a> and <a href="../ipc_capabilities/#credentials-srvauth">Credentials</a>.</p>
+<p><code>.timer</code> replaces <code>.z.ts</code>, as shown above. A call that gets no answer in 30 seconds fails with a <code>timed out</code> error; <code>.clit(h;seconds)</code> changes the limit.</p>
+<h2 id="what-is-missing">What is missing<a class="headerlink" href="#what-is-missing" title="Permanent link">&para;</a></h2>
+<p>Compared with a q process:</p>
+<ul>
+<li>No q-sql (<code>select</code>, <code>update</code>, <code>exec</code>, <code>delete</code>) and no <code>by</code> clause; use SQL strings over <code>klongpy.db</code> tables.</li>
+<li>No typed nulls, no boolean, byte, short, int, real or temporal types. Temporal values from q arrive as plain numbers and <code>0N</code> is not null.</li>
+<li>A Klong table's key drives <code>.insert</code> upserts and maps to a keyed table over q IPC. Klong uses DuckDB SQL for table queries. q-sql attributes, enumerations, and q's splayed or partitioned file layout are outside the Klong table API.</li>
+<li>No <code>.z.pg</code>, <code>.z.ps</code>, <code>.z.pi</code> or other message handlers; see Hooks above.</li>
+<li>No true asynchronous send from Klong (q's <code>neg[h]</code>). <code>.async(f;cb)</code> sends a request and calls <code>cb</code> with the answer when it arrives; a KlongPy server does accept asynchronous messages from q clients.</li>
+<li>Nested callbacks through a q process are not supported.</li>
+<li>A function is sent as its source text. A projection arrives opaque and cannot be called by the receiver.</li>
+</ul>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../tutorial/">Tutorial</a> for the language from the first expression.</li>
+<li><a href="../from-numpy/">Klong for NumPy users</a> for the Python array side.</li>
+<li><a href="../ipc_capabilities/">IPC Capabilities</a>, <a href="../native/ipc/">IPC and timers in the native runtime</a>, <a href="../timer/">Timers</a>, <a href="../fast_columnar_database/">Columnar tables and SQL</a>.</li>
+<li><a href="../language-additions/">Language Additions</a> for destructuring, named parameters and dictionaries.</li>
+<li><a href="../strict/">Strict mode</a> and <a href="../lint/">Lint</a> for the checks that catch the q habits above.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

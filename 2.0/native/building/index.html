@@ -1,0 +1,2993 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/native/building/">
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../console/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Building and Running - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#building-and-running" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Building and Running
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install-for-everyday-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install for everyday use
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Install for everyday use">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-for-a-board" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build for a board
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-fpga-attached-to-a-board" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An FPGA attached to a board
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-kg-from-a-coding-agent-or-ci-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running kg from a coding agent or CI job
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-e" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -e
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-repl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The REPL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strict-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strict levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-embedded-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The embedded library
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature flags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory-and-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory and stack
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-conformance-suite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the conformance suite
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sizes-and-speed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizes and speed
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install-for-everyday-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install for everyday use
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Install for everyday use">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-for-a-board" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build for a board
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-fpga-attached-to-a-board" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An FPGA attached to a board
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-kg-from-a-coding-agent-or-ci-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running kg from a coding agent or CI job
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-e" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -e
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-repl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The REPL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strict-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strict levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-embedded-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The embedded library
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature flags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory-and-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory and stack
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-conformance-suite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the conformance suite
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sizes-and-speed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizes and speed
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="building-and-running">Building and Running<a class="headerlink" href="#building-and-running" title="Permanent link">&para;</a></h1>
+<p>This page covers building the native Klong runtime from source on a desktop computer, running the <code>kg</code> program (a REPL, <code>-e</code>, and files), the build options, and running the shared conformance suite against it. It is for anyone who wants to try the native runtime before putting it on a board. For what the runtime is, start with the <a href="../">overview</a>.</p>
+<p>Conditions for the measured figures: an Apple M2 Ultra desktop, 2026-11-16, <code>cargo build --release</code>. Paths are relative to the root of the KlongPy repository.</p>
+<h2 id="install-for-everyday-use">Install for everyday use<a class="headerlink" href="#install-for-everyday-use" title="Permanent link">&para;</a></h2>
+<p>From the repository root, install the desktop command into Cargo's binary directory (usually <code>~/.cargo/bin</code>). With that directory on your <code>PATH</code>, the following commands work from any directory.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cargo<span class="w"> </span>install<span class="w"> </span>--locked<span class="w"> </span>--path<span class="w"> </span>native/klong-cli
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'+/!100'</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>kg
+</code></pre></div>
+<p>The expression prints <code>4950</code>. The last command opens the REPL. Use <code>kg trades.kg</code> to run a file. At the prompt, <code>.ver()</code> shows the platform, integer and float widths, and the features the runtime advertises. For Python packages, callbacks or data frames, use <code>kgpy</code> from your Python environment.</p>
+<h3 id="build-for-a-board">Build for a board<a class="headerlink" href="#build-for-a-board" title="Permanent link">&para;</a></h3>
+<p>For the repository's Raspberry Pi Pico (RP2040) firmware, install the Pico SDK and Arm toolchain as described in <code>native/boards/pico-bench/README.md</code>, then run one command from the repository root.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>native/boards/pico-bench/build.sh
+</code></pre></div>
+<p>The script links the firmware, writes <code>native/boards/pico-bench/build/klong_pico_bench.uf2</code>, and reports flash use and the RAM available for the heap.</p>
+<p>For your own firmware, build <code>klong-ffi</code> for the processor and link the static library into your SDK application. These commands select the Pico and enable its C driver interface.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>rustup<span class="w"> </span>+stable<span class="w"> </span>target<span class="w"> </span>add<span class="w"> </span>thumbv6m-none-eabi
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cargo<span class="w"> </span>+stable<span class="w"> </span>build<span class="w"> </span>--manifest-path<span class="w"> </span>native/Cargo.toml<span class="w"> </span>--locked<span class="w"> </span>--release<span class="w"> </span>-p<span class="w"> </span>klong-ffi<span class="w"> </span>--target<span class="w"> </span>thumbv6m-none-eabi<span class="w"> </span>--no-default-features<span class="w"> </span>--features<span class="w"> </span>pico,cfun
+</code></pre></div>
+<p>The archive is <code>native/target/thumbv6m-none-eabi/release/libklong_ffi.a</code>. The board SDK supplies the clock, console and allocator. Other boards provide the same platform interface and select the Rust target for their processor. <a href="../porting/">Porting guide</a></p>
+<h3 id="an-fpga-attached-to-a-board">An FPGA attached to a board<a class="headerlink" href="#an-fpga-attached-to-a-board" title="Permanent link">&para;</a></h3>
+<p>The Pico runs Klong and owns its data. A board driver can supply a fixed-shape operation through <code>klong_extern_register</code>; a Klong program binds that symbol with <code>.extern</code>. The driver knows the physical connection and the bitstream's kernel signatures. A capability probe can select the CPU implementation when the board is alone or the loaded image lacks the kernel. Once the driver submits a request, a completion error must reach the caller before it decides whether retrying is safe.</p>
+<p>The executable example in <code>tests/v2/programs/attached/</code> routes one four-integer block in <code>route.kg</code>. The reduction in <code>energy.kg</code> runs on the CPU and compiles to an HLS kernel. The build test links the real board C ABI to the generated kernel in C simulation and counts submissions. A physical deployment supplies the board-specific transport and matching bitstream. The current <code>cfun</code> interface in <code>native/klong-ffi/include/klong.h</code> requires the default 64-bit Klong numeric widths.</p>
+<h3 id="choosing-features">Choosing features<a class="headerlink" href="#choosing-features" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Table operations</th>
+<th>SQL and persistence</th>
+<th>Attached accelerator</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Desktop <code>kg</code></td>
+<td>Included by default</td>
+<td>DuckDB included by default</td>
+<td>Optional driver and compatible kernel</td>
+</tr>
+<tr>
+<td>Table-only build</td>
+<td>Portable in-memory columns and keyed updates</td>
+<td>Omitted</td>
+<td>Independent of tables</td>
+</tr>
+<tr>
+<td>Small firmware</td>
+<td>Opt in when RAM permits</td>
+<td>Omitted</td>
+<td>Link only drivers the board uses</td>
+</tr>
+<tr>
+<td>FPGA kernel</td>
+<td>Fixed-size numeric inputs from the host</td>
+<td>Host handles queries</td>
+<td>Synthesized entry point</td>
+</tr>
+</tbody>
+</table>
+<p>A desktop install includes <code>duckdb</code>, which enables <code>tables</code>. Build a portable table CLI from the repository root with <code>cargo build --locked --manifest-path native/Cargo.toml --release -p klong-cli --no-default-features --features tables</code>. For a Pico with tables and C driver callbacks, select <code>--no-default-features --features pico,tables,cfun</code> on the <code>klong-ffi</code> build above. The same column lookup, insertion, and key-update operations run on both targets. On macOS, the desktop default also enables <code>metal</code> for native GPU arithmetic. <a href="#feature-flags">Other build flags</a></p>
+<h3 id="running-kg-from-a-coding-agent-or-ci-job">Running kg from a coding agent or CI job<a class="headerlink" href="#running-kg-from-a-coding-agent-or-ci-job" title="Permanent link">&para;</a></h3>
+<p>Run <code>kg --capabilities</code> on the executable your job will invoke. It writes one JSON object with the runtime version, platform, numeric widths, and compiled features. In a Klong program, <code>.ver()</code> returns the same data as a dictionary. A driver can probe attached devices separately.</p>
+<p>Pass a file and its arguments as an argument vector. For example, <code>["kg", "report.kg", "--date", "2026-11-19"]</code> makes <code>.a</code> equal to <code>["--date" "2026-11-19"]</code> in the script. Use <code>.p(.json(result))</code> in the file for output a caller can parse. Scripts and <code>-e</code> run without a terminal. The process exits with status 0 on success, 1 for a language error, and 2 for an unknown option. Runtime errors with a source location go to standard error.</p>
+<p>An editor or agent can send an unsaved buffer to <code>kg lint -</code> over standard input. The linter writes findings and a summary to standard output. A warning can accompany exit status 0. Use <code>kg ast -e EXPR</code> to see how the parser groups an expression. For example, a leading minus applies to the sum in <code>-1+2</code>.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s\n'</span><span class="w"> </span><span class="s1">'-1+2'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kg<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">&lt;stdin&gt;:1:1: W010 a leading - negates everything to its right: -1+... is -(1+...)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="gp">$ </span>kg<span class="w"> </span>ast<span class="w"> </span>-e<span class="w"> </span><span class="s1">'-1+2'</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="gp gp-VirtualEnv">(m "-" (d "+" (num 1)</span> <span class="go">(num 2)))</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s\n'</span><span class="w"> </span><span class="s1">'.p(.json(.a))'</span><span class="w"> </span>&gt;<span class="w"> </span>args.kg
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="gp">$ </span>kg<span class="w"> </span>args.kg<span class="w"> </span>--date<span class="w"> </span><span class="s1">'two words'</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="go">["--date","two words"]</span>
+</code></pre></div>
+<p>Use <code>kg check FILE</code> when a program needs to compile to C or an FPGA kernel. It checks the static profile. For general Klong code, run the relevant program or test after linting. <a href="../../lint/">Lint rules and exit codes</a> · <a href="../../static-profile/">Static profile</a></p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<p>The standalone desktop build needs a Rust toolchain with Cargo, a C++ compiler, and a native linker for the bundled DuckDB build. Cargo resolves the dependencies from the workspace lockfile. Python is used by the conformance runner, the scripts that talk to a board, and the tests that connect the runtime to KlongPy.</p>
+<h2 id="build">Build<a class="headerlink" href="#build" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cargo<span class="w"> </span>build<span class="w"> </span>--manifest-path<span class="w"> </span>native/Cargo.toml<span class="w"> </span>--locked<span class="w"> </span>--release
+</code></pre></div>
+<p>This builds the native workspace. Its programs in <code>native/target/release/</code> include the following.</p>
+<table>
+<thead>
+<tr>
+<th>Program</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kg</code></td>
+<td>the runtime on the desktop: a REPL, <code>-e EXPR</code>, and running a file</td>
+</tr>
+<tr>
+<td><code>klong-sim</code></td>
+<td>a simulated board with the serial console, see <a href="../console/">Serial Console and Upload</a></td>
+</tr>
+</tbody>
+</table>
+<p>The examples on this page, and on the other pages of this section, use <code>kg</code> and <code>klong-sim</code> by name. Put the release directory on your <code>PATH</code> for the shell you work in:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/native/target/release:</span><span class="nv">$PATH</span><span class="s2">"</span>
+</code></pre></div>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'1+1'</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="go">2</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'+/!100'</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="go">4950</span>
+</code></pre></div>
+<h2 id="running">Running<a class="headerlink" href="#running" title="Permanent link">&para;</a></h2>
+<p><code>kg</code> takes one of these forms.</p>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kg</code></td>
+<td>read-eval-print loop on standard input</td>
+</tr>
+<tr>
+<td><code>kg -e EXPR</code></td>
+<td>evaluate <code>EXPR</code>, print its value</td>
+</tr>
+<tr>
+<td><code>kg FILE [ARG ...]</code></td>
+<td>run a file with verbatim arguments available in <code>.a</code></td>
+</tr>
+<tr>
+<td><code>kg --capabilities</code></td>
+<td>print the installed features as JSON</td>
+</tr>
+<tr>
+<td><code>kg --dump-ast FILE</code></td>
+<td>print the canonical parse tree of a file and exit</td>
+</tr>
+<tr>
+<td><code>kg --conformance</code></td>
+<td>the runner protocol of the conformance suite: the program is read from standard input</td>
+</tr>
+</tbody>
+</table>
+<p><code>kg --help</code> (or <code>-h</code>) prints the forms and every option and exits with status 0; <code>kg --version</code> prints the version. An option that <code>kg</code> does not know prints the same text on standard error and exits with status 2. The output:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">$ </span>kg<span class="w"> </span>--help<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-n<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="go">usage: kg [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="gp">$ </span>kg<span class="w"> </span>--version<span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-d.<span class="w"> </span>-f1
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="go">kg 2</span>
+</code></pre></div>
+<p><code>klong-sim</code> has the same two options:</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span>klong-sim<span class="w"> </span>--help
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="go">usage: klong-sim [OPTIONS]</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="go">A simulated board: the real serial console on standard input and output.</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="go">  --pty                 serve a pseudo-terminal instead; the first output line is `pty: DEVICE`</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="go">  --check-complete      read one entry per line as hex digits, answer complete, incomplete or error</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="go">  --dumb                no echo, no editing</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="go">  --crlf                end output lines with CR LF</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="go">  --no-fs               a board without a file system</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="go">  --fs-bytes N          size of the RAM file system (default 8M)</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="go">  --heap-limit N        heap budget of the program (default: none)</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="go">  --stack-budget N      set the limits as a board with a task stack of N bytes would</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="go">  --stack N             native stack of the evaluating thread (default 64M)</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="go">  --strict N            strict level 0, 1 or 2</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="go">  --max-line N          longest input line</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="go">  --max-entry N         longest multi-line entry</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="go">  --max-run N           longest program sent with ^A run</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="go">  --max-file N          longest file sent with ^A put or ^A hex</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="go">  --timeout-ms N        a transfer with no byte for this long is abandoned</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="go">  -h, --help            print this text and exit</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="go">  --version             print the version and exit</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="go">Sizes take the suffixes K and M. End of input ends the program.</span>
+</code></pre></div>
+<h3 id="-e"><code>-e</code><a class="headerlink" href="#-e" title="Permanent link">&para;</a></h3>
+<p><code>-e</code> evaluates an expression and prints its value in the form the REPL uses, so a string is shown with its quotes. Output that the program writes with <code>.p</code>, <code>.d</code> and <code>.w</code> comes first. An error is printed to standard error, with the position and the source line, and the exit status is 1.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.p("sum of squares");+/{x*x}'</span><span class="s2">"'"</span><span class="s1">'!10'</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="go">sum of squares</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="go">285</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'1+"a"'</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="go">1:2: type error: cannot apply + (Plus) to integer and string</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="go">  1+"a"</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="go">   ^</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'1+"a"'</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="go">1</span>
+</code></pre></div>
+<h3 id="the-repl">The REPL<a class="headerlink" href="#the-repl" title="Permanent link">&para;</a></h3>
+<p>With no argument <code>kg</code> reads one line at a time from standard input and evaluates each line as a program. The prompt is two blanks. A value is printed after the prompt, an error goes to standard error and the loop continues. The line <code>]q</code> or the end of input leaves.</p>
+<p>There is no line editing, no history and no continuation: a definition has to fit on one line. (The <a href="../console/">serial console</a> of a board has all three.) While the REPL waits for a line it still runs timers and serves IPC connections, so a <code>kg</code> that was told <code>.srv(...)</code> is a working server.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'x::5\nx*x\n"abc"\n1%%0\n]q\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kg<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-v<span class="w"> </span><span class="s1">'^ *$'</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="go">  5</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="go">  25</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="go">  "abc"</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="go">  :undefined</span>
+</code></pre></div>
+<p>The two leading blanks are the prompt. The last prompt, before <code>]q</code>, is removed by the <code>grep</code>.</p>
+<h3 id="running-a-file">Running a file<a class="headerlink" href="#running-a-file" title="Permanent link">&para;</a></h3>
+<p><code>kg FILE</code> runs the file and prints only what the program writes. It does not print the value of the last statement. The remaining arguments are available as the list of strings <code>.a</code>. After the file has run, <code>kg</code> keeps going while there is something to wait for: a timer, a server that listens, a queued call. It exits when there is not.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>hello.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="go">&gt; greet::{.p("hello, ",x)}</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="go">&gt; greet'.a</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="gp">$ </span>kg<span class="w"> </span>hello.kg<span class="w"> </span>world<span class="w"> </span>klong
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="go">hello, world</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="go">hello, klong</span>
+</code></pre></div>
+<p>An error stops the file, is printed in the same form as above, and the status is 1. The line and column are those of the file.</p>
+<h3 id="strict-levels">Strict levels<a class="headerlink" href="#strict-levels" title="Permanent link">&para;</a></h3>
+<p><code>--strict N</code> (0, 1 or 2) sets the <a href="../../strict/">strict level</a> before the program is parsed, as <code>.strict(N)</code> does.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'zz'</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="go">:zz</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="gp">$ </span>kg<span class="w"> </span>--strict<span class="w"> </span><span class="m">2</span><span class="w"> </span>-e<span class="w"> </span><span class="s1">'zz'</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="go">1:1: name error: undefined: zz</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="go">  zz</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="go">  ^^</span>
+</code></pre></div>
+<h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
+<p>Options go before <code>FILE</code> or <code>-e</code>. Sizes accept the suffixes <code>K</code> and <code>M</code> (1024 and 1048576).</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--strict N</code></td>
+<td>strict level 0, 1 or 2</td>
+</tr>
+<tr>
+<td><code>--heap-limit BYTES</code></td>
+<td>the program may allocate at most this much above the interpreter's own state; going over is a <code>memory</code> error. The default is no limit. 16 KiB are held back so that the error can be reported</td>
+</tr>
+<tr>
+<td><code>--max-depth N</code></td>
+<td>the most nested evaluations (one Klong call is two or three) before a <code>range</code> error. The default is 512</td>
+</tr>
+<tr>
+<td><code>--steps N</code></td>
+<td>stop after about <code>N</code> function calls and adverb iterations with an <code>interrupt</code> error (a guard against a runaway loop)</td>
+</tr>
+<tr>
+<td><code>--stack BYTES</code></td>
+<td>the native stack of the thread that evaluates. The default is 64M. Three quarters of it can be used before a <code>range</code> error</td>
+</tr>
+<tr>
+<td><code>--stack-budget BYTES</code></td>
+<td>configure the limits as a board whose task has a stack of this size would, see <a href="#memory-and-stack">memory and stack</a></td>
+</tr>
+<tr>
+<td><code>--max-nest N</code></td>
+<td>the most levels of nested lists. The default is 128</td>
+</tr>
+<tr>
+<td><code>--stats</code></td>
+<td>after the run, print the peak heap, the deepest nesting and the stack used on standard error</td>
+</tr>
+<tr>
+<td><code>--bench N</code></td>
+<td>with <code>-e</code>: time <code>N</code> runs of the expression and print the best on standard error, in nanoseconds</td>
+</tr>
+<tr>
+<td><code>--memfs</code></td>
+<td>the file functions work on an empty file system in memory, not on the real files (for fuzzing)</td>
+</tr>
+<tr>
+<td><code>--fail-every N</code></td>
+<td>make every <code>N</code>th large allocation fail, to test out-of-memory handling</td>
+</tr>
+<tr>
+<td><code>-h</code>, <code>--help</code></td>
+<td>print the usage and exit with status 0</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>print the version and exit</td>
+</tr>
+</tbody>
+</table>
+<p><code>.l</code> looks first beside the file containing the load, or in the working directory at the prompt. It then searches the directories in <code>KLONGPATH</code> followed by the bundled library. <code>KLONGPATH</code> defaults to <code>.:lib</code> on Unix and <code>.;lib</code> on Windows. Separate entries with colons on Unix and semicolons on Windows.</p>
+<h2 id="the-embedded-library">The embedded library<a class="headerlink" href="#the-embedded-library" title="Permanent link">&para;</a></h2>
+<p>The twelve library files of <code>klongpy/lib</code> (<code>csv</code>, <code>edt</code>, <code>eigenv</code>, <code>help</code>, <code>huffman</code>, <code>math</code>, <code>nstat</code>, <code>print</code>, <code>set</code>, <code>spline</code>, <code>time</code>, <code>util</code>) are part of the program as text, and <code>.l</code> loads them by name. A file of the same name on the load path is used in preference. In a build with IPC the management library <code>mgmt</code> is carried too, see <a href="../management-node/">Management Node</a>.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.l("nstat");.p(nstat.mu([1 2 3 4]));.p(nstat.sd([1 2 3 4]))'</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="go">2.5</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="go">1.1180339889579018</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="go">"1.1180339889579018"</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.l("nosuch")'</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span><span class="s1">'1s/ (looked for.*//p'</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="go">1:1: system error: file does not exist: nosuch</span>
+</code></pre></div>
+<p>(The message goes on to list the places <code>.l</code> looked in; the example cuts it after the name.)</p>
+<p>(The third line is the value of the expression, which <code>-e</code> prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: <code>.l("csv")</code> peaks at about 35 KB, <code>.l("math")</code> at about 141 KB and <code>.l("nstat")</code>, which loads <code>math</code>, at about 281 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB): the functions of a loaded file are kept as the place of their text and parsed when called. <code>.mem()</code> returns <code>[in use, peak, limit]</code> in bytes. The interpreter itself is about 15 KiB after start-up, and <code>nstat</code> takes the peak over 250 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'(.mem()@0)&lt;20000'</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="go">1</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.l("nstat");(.mem()@1)&gt;250000'</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="go">1</span>
+</code></pre></div>
+<h2 id="feature-flags">Feature flags<a class="headerlink" href="#feature-flags" title="Permanent link">&para;</a></h2>
+<p>The workspace has these cargo features. They are chosen when you build, for example <code>cargo build --release --features int32,float32</code> in <code>native/klong-cli</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Crates</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>int32</code></td>
+<td><code>klong-cli</code>, <code>klong-sim</code>, <code>klong-board</code>, <code>klong-ffi</code></td>
+<td>integers are 32 bits wide and wrap at that width</td>
+</tr>
+<tr>
+<td><code>float32</code></td>
+<td>the same</td>
+<td>floats are 32 bits wide and print with the digits of a 32-bit float</td>
+</tr>
+<tr>
+<td><code>files</code></td>
+<td><code>klong-rt</code>, <code>klong-board</code>, <code>klong-ffi</code> (default on)</td>
+<td>channels, <code>.l</code> of files and the file functions; needs a file system from the platform</td>
+</tr>
+<tr>
+<td><code>lib</code></td>
+<td>the same (default on)</td>
+<td>the twelve library files as text in the program (about 42 KiB)</td>
+</tr>
+<tr>
+<td><code>timers</code></td>
+<td><code>klong-rt</code>, <code>klong-ffi</code> (default on in <code>klong-ffi</code>)</td>
+<td><code>.timer</code> and <code>.timerc</code></td>
+</tr>
+<tr>
+<td><code>ipc</code></td>
+<td><code>klong-rt</code></td>
+<td><code>.cli .clid .clic .clit .srv .async</code> and the <code>.srv.*</code> hooks, and the <code>mgmt</code> library</td>
+</tr>
+<tr>
+<td><code>compress</code></td>
+<td><code>klong-rt</code>, <code>klong-ipc</code></td>
+<td>compress large messages when sending (decompression is always there)</td>
+</tr>
+</tbody>
+</table>
+<p><code>klong</code> and <code>klong-sim</code> are built with <code>timers</code>, <code>ipc</code> and <code>compress</code> always on, and with <code>files</code> and <code>lib</code> on. The two width features are the ones you switch: <code>klong-cli</code> and <code>klong-sim</code> pass them down, so a narrow host build is</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">cd</span><span class="w"> </span>native
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>cargo<span class="w"> </span>build<span class="w"> </span>--release<span class="w"> </span>-p<span class="w"> </span>klong-cli<span class="w"> </span>--features<span class="w"> </span>int32,float32<span class="w"> </span>--target-dir<span class="w"> </span>target/narrow
+</code></pre></div>
+<p>A narrow build wraps integers at 32 bits and computes floats in 32 bits:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'2147483647+1'</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="go">2147483648</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'9223372036854775807+1'</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="go">-9223372036854775808</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.ver()@"int"'</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="go">64</span>
+</code></pre></div>
+<p>The default build is 64 bits wide, as the first two lines show: <code>2147483647+1</code> is an ordinary number and <code>9223372036854775807+1</code> wraps. In the narrow build <code>.ver()</code> reports <code>["int" 32] ["float" 32]</code>, <code>2147483647+1</code> is <code>-2147483648</code>, and <code>1%3</code> prints <code>0.33333334</code>. (This paragraph is not a checked transcript: only the default build is run for the examples.)</p>
+<p>Two integers within the build width wrap at it, with no error. As in KlongPy, an integer beyond 64 bits is exact: a long literal, a scalar <code>^</code> of two integers, and an operand beyond 64 bits in <code>+ - * % :% &lt; &gt; = | &amp;</code>. The native runtime does it with the <code>num-bigint</code> crate behind the cargo feature <code>bigint</code>, which is on for <code>klong-cli</code> (the <code>kg</code> binary) and the Python extension. A result that fits goes back to an ordinary integer; ordinary integers stay machine integers, and the feature costs <code>fib(24)</code> about 2 percent. A board build leaves the feature off (it adds 22 KB of flash on <code>thumbv6m-none-eabi</code> and <code>thumbv7em-none-eabihf</code> and 32 KB on <code>riscv32imac-unknown-none-elf</code>), and there an integer literal that does not fit the build is a <code>syntax</code> error (<code>malformed number</code>); <code>klong-board</code> and <code>klong-ffi</code> have the feature <code>bigint</code> for a build that has the flash. See <a href="../#how-it-relates-to-klongpy">How it relates to KlongPy</a>.</p>
+<p><code>strings</code> and <code>dicts</code> exist as features of <code>klong-core</code> but do not remove anything yet.</p>
+<h2 id="memory-and-stack">Memory and stack<a class="headerlink" href="#memory-and-stack" title="Permanent link">&para;</a></h2>
+<p>The runtime recurses on the native stack of the thread that evaluates, and it allocates from one heap. Both are bounded so that running out is an error at the prompt and not a crash.</p>
+<ul>
+<li><strong>Heap.</strong> <code>--heap-limit BYTES</code> gives the program a budget. A program that goes over it fails with <code>memory error: out of memory</code>, and the interpreter stays usable.</li>
+<li><strong>Recursion.</strong> Without <code>--stack-budget</code> the limit is <code>--max-depth</code>, 512 nested evaluations. A Klong call is two or three evaluations, so a function can call itself about 160 times deep with the defaults. <code>--max-depth</code> and <code>--stack</code> raise it.</li>
+<li><strong>Stack budget.</strong> <code>--stack-budget BYTES</code> sets the limits the way a board with a task stack of that size would: recursion is checked against the real stack address and a quarter of the budget is kept for leaf work. This is how you check on the desktop whether a program fits a board.</li>
+</ul>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="gp">$ </span>kg<span class="w"> </span>--heap-limit<span class="w"> </span>100K<span class="w"> </span>-e<span class="w"> </span><span class="s1">'!1000000'</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="go">1:1: memory error: out of memory</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="go">  !1000000</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="go">  ^^^^^^^^</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{:[x&lt;1;0;1+f(x-1)]};f(150)'</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="go">150</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{:[x&lt;1;0;1+f(x-1)]};f(200)'</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="go">1:17: range error: expression nested too deeply</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="go">  f::{:[x&lt;1;0;1+f(x-1)]};f(200)</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="go">                  ^^^</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="gp">$ </span>kg<span class="w"> </span>--max-depth<span class="w"> </span><span class="m">100000</span><span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{:[x&lt;1;0;1+f(x-1)]};f(5000)'</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="go">5000</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="gp">$ </span>kg<span class="w"> </span>--stack-budget<span class="w"> </span>64K<span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{:[x&lt;1;0;1+f(x-1)]};f(20)'</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="go">20</span>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="gp">$ </span>kg<span class="w"> </span>--stack-budget<span class="w"> </span>64K<span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{:[x&lt;1;0;1+f(x-1)]};f(40)'</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="go">  hint: the native stack budget of this build is used up</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a><span class="gp">$ </span>kg<span class="w"> </span>--steps<span class="w"> </span><span class="m">1000</span><span class="w"> </span>-e<span class="w"> </span><span class="s1">'{1}{x+1}:~0'</span>
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="go">1:1: interrupt error: interrupted</span>
+<a id="__codelineno-17-19" name="__codelineno-17-19" href="#__codelineno-17-19"></a><span class="go">  {1}{x+1}:~0</span>
+<a id="__codelineno-17-20" name="__codelineno-17-20" href="#__codelineno-17-20"></a><span class="go">  ^^^^^^^^^^^</span>
+</code></pre></div>
+<p>The figures in the stack-budget lines are for this 64-bit host. The span of a stack-budget error marks the evaluation that crossed the limit, and which one that is depends on how much stack each step of the build uses, so the example shows only the last line of the error, which is the same <code>range error: expression nested too deeply</code> as above with the position that this build reached; the span of a <code>--max-depth</code> error does not depend on the build. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as <code>bytes</code> less what is kept below the deepest level (a quarter by default; a board can say, <code>Config::for_stack_keep</code>: the Pico keeps 16 KiB of a 108 KiB budget), so 64 KiB gives about 57 levels and 256 KiB about 228 at the default.</p>
+<p>With <code>--stats</code> the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (<code>heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0</code> for the program below; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="gp">$ </span>kg<span class="w"> </span>--stats<span class="w"> </span>-e<span class="w"> </span><span class="s1">'+/!1000'</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-v<span class="w"> </span>-e<span class="w"> </span><span class="s1">'^heap'</span><span class="w"> </span>-e<span class="w"> </span><span class="s1">'^stack'</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="go">499500</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="go">depth: 3 nested evaluations at most</span>
+</code></pre></div>
+<p>The last line it prints is the native stack, such as <code>stack: 768 bytes of native stack at most</code>. The number depends on how <code>kg</code> was built.</p>
+<h2 id="running-the-conformance-suite">Running the conformance suite<a class="headerlink" href="#running-the-conformance-suite" title="Permanent link">&para;</a></h2>
+<p>The language is checked by the cases in <code>conformance/cases</code>, which KlongPy and the native runtime both run (see the repository's <code>conformance/README.md</code> for the case format). Each case runs a program in a fresh interpreter and compares the printed value, the console output and the kind of the error. <code>native/scripts/conformance.py</code> runs the cases that the default build declares, with the <code>kg --conformance</code> protocol, one process per case, and prints counts per file and a total.</p>
+<p>In the commands below, <code>python</code> is the interpreter you use for KlongPy, and the scripts are in the repository.</p>
+<!-- check-docs: requires-file native/target/release/kg; link native conformance -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="gp">$ </span>python<span class="w"> </span>native/scripts/conformance.py<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1<span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-c1-40
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="go">total                         2220  2220</span>
+</code></pre></div>
+<p>Run it without the <code>tail</code> to see the files. The two numbers are cases passed and cases run: 2220 of 2220 on 2026-11-19, in about three seconds. <code>--narrow</code> runs the cases that a build with <code>int32,float32</code> declares, and <code>KLONG_NATIVE</code> names the binary to test:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nv">KLONG_NATIVE</span><span class="o">=</span>native/target/narrow/release/kg<span class="w"> </span>python<span class="w"> </span>native/scripts/conformance.py<span class="w"> </span>--narrow
+</code></pre></div>
+<p>That gave 1408 of 1408 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: <code>python conformance/run.py --trees --cmd native/target/release/kg</code> reported <code>169 of 169 trees match</code>. The same suite runs through the serial console of a simulated board and of a real one, see <a href="../console/">Serial Console and Upload</a>.</p>
+<p>Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The desktop binary declares <code>bigint</code>; a build without the feature leaves it out (it wraps), and so do all builds leave out <code>torch-only</code> and <code>kgpy-only</code> (KlongPy's own), <code>desktop</code> (Python interop, databases, web) and the <code>timers</code> and <code>ipc</code> tiers, which have no cases. The narrow build also leaves out <code>float</code>, <code>string-fmt</code> and <code>width64</code>, the cases that pin 64-bit results.</p>
+<p>The native tests that need KlongPy (<code>tests/test_native_conformance.py</code>, <code>tests/test_native_ipc.py</code>, <code>tests/test_native_mgmt.py</code>) skip themselves when <code>native/target/release/kg</code> does not exist, so building the binary turns them on. On the machine of the conditions above 96 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see <a href="../ipc/">IPC and Timers</a>. <code>cargo test --release --workspace</code> in <code>native/</code> runs the Rust tests.</p>
+<h2 id="sizes-and-speed">Sizes and speed<a class="headerlink" href="#sizes-and-speed" title="Permanent link">&para;</a></h2>
+<p>Conditions: an Apple M2 Ultra desktop, 2026-11-16, nightly <code>rustc</code> 1.90.</p>
+<p><strong>Programs on the desktop</strong> (<code>ls -l</code>; the <code>release</code> profile, and the <code>min-size</code> profile that <code>cargo build --profile min-size -p klong-cli</code> selects: opt-level <code>z</code>, LTO, one code generation unit, <code>panic = "abort"</code>, stripped):</p>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th><code>kg</code> size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>release</code></td>
+<td>1,566,816 bytes</td>
+</tr>
+<tr>
+<td><code>min-size</code></td>
+<td>753,808 bytes</td>
+</tr>
+<tr>
+<td><code>min-size</code>, <code>int32,float32</code></td>
+<td>753,824 bytes</td>
+</tr>
+</tbody>
+</table>
+<p>The width features do not change the size of a 64-bit program in any useful way. They matter on 32-bit targets, where they halve the size of a value (16 to 8 bytes) and remove the 64-bit arithmetic.</p>
+<p><strong>Images for boards</strong> (<code>sh native/scripts/measure.sh</code> builds these; the numbers here are from <code>cargo +stable build -p klong-board --profile min-size --target TARGET</code> and <code>native/scripts/sections.py</code>, bytes; <code>klong-board-image</code> is the board skeleton with the console, linked but not bootable):</p>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Features</th>
+<th><code>.text</code></th>
+<th><code>.rodata</code></th>
+<th>flash</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thumbv7em-none-eabihf</code></td>
+<td><code>files</code>, <code>lib</code></td>
+<td>176,788</td>
+<td>72,656</td>
+<td>249,464</td>
+</tr>
+<tr>
+<td></td>
+<td><code>files</code>, <code>lib</code>, <code>int32</code>, <code>float32</code></td>
+<td>162,564</td>
+<td>72,440</td>
+<td>235,024</td>
+</tr>
+<tr>
+<td></td>
+<td>none</td>
+<td>167,188</td>
+<td>29,676</td>
+<td>196,884</td>
+</tr>
+<tr>
+<td><code>riscv32imac-unknown-none-elf</code></td>
+<td><code>files</code>, <code>lib</code></td>
+<td>218,990</td>
+<td>109,092</td>
+<td>328,102</td>
+</tr>
+<tr>
+<td></td>
+<td><code>files</code>, <code>lib</code>, <code>int32</code>, <code>float32</code></td>
+<td>205,518</td>
+<td>107,984</td>
+<td>313,522</td>
+</tr>
+<tr>
+<td></td>
+<td>none</td>
+<td>207,056</td>
+<td>63,664</td>
+<td>270,740</td>
+</tr>
+</tbody>
+</table>
+<p>Two cargo features of <code>klong-core</code> are on for the desktop binary (<code>klong-cli</code>, and the Python extension) and off for these images. <code>bigint</code> (exact integers beyond 64 bits, with the <code>num-bigint</code> crate) adds 22.6 KB of flash on <code>thumbv6m-none-eabi</code>, 22.3 KB on <code>thumbv7em-none-eabihf</code> and 32.4 KB on <code>riscv32imac-unknown-none-elf</code>, more than a board is given for it, so the boards keep the range error (<code>klong-board</code> has the feature <code>bigint</code> for a build with the flash). <code>diag</code> (the parser's warnings and the hints of its errors, the whole-operand text of an operator's error, the description of a function value) is left out for flash too. Measured on 2026-11-18, <code>klong-board-image</code> without either: 309,092 bytes on <code>thumbv6m-none-eabi</code>, 299,168 on <code>thumbv7em-none-eabihf</code> and 395,220 on <code>riscv32imac-unknown-none-elf</code>, which is 5.7, 6.0 and 7.5 KB more than before the behaviours that KlongPy's tests found (<code>.fmt</code> with a template alone, an index vector that holds a float, and the like) and the messages.</p>
+<p>These images have no IPC and no timers. IPC adds about 42 KB on <code>thumbv7em</code> and 59 KB on <code>riscv32imac</code>, timers 1.7 and 2.5 KB, and the <code>mgmt</code> library 12.6 KB. The firmware for the <a href="../esp32-p4/">ESP32-P4</a> is 692 KB (691,328 bytes flashed), but it is built with <code>opt-level</code> 3 and carries ESP-IDF.</p>
+<p><strong>Speed.</strong> <code>kg --bench N -e PROGRAM</code> times repeated execution in one process. The <a href="../../performance/">Performance guide</a> records the workloads, builds and hardware used in desktop comparisons. On an ESP32-P4 image tested during development, <code>fib(24)</code> took 4.2 seconds. <a href="../esp32-p4/">ESP32-P4</a></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

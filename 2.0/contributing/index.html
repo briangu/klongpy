@@ -1,0 +1,3011 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/contributing/">
+      
+      
+        <link rel="prev" href="../compiler-roadmap/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Contributing - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#contributing" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Contributing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#repository-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository layout
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Repository layout">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-klongpy-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The klongpy/ package
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-native-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The native/ workspace
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-an-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up an environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the tests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tests-that-skip-without-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests that skip without a tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-golden-parse-trees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The golden parse trees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-documentation-examples-are-checked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How documentation examples are checked
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generated-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generated files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-rule-about-torch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One rule about torch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-rust-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Rust workspace
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Rust workspace">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bare-metal-link-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bare-metal link checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-firmware-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The firmware build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conformance-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conformance runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Documentation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#versioned-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioned docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-ci-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What CI runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#repository-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository layout
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Repository layout">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-klongpy-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The klongpy/ package
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-native-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The native/ workspace
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-an-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up an environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the tests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tests-that-skip-without-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests that skip without a tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-golden-parse-trees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The golden parse trees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-documentation-examples-are-checked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How documentation examples are checked
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generated-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generated files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-rule-about-torch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One rule about torch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-rust-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Rust workspace
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Rust workspace">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bare-metal-link-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bare-metal link checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-firmware-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The firmware build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conformance-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conformance runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Documentation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#versioned-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioned docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-ci-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What CI runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h1>
+<p>This page is for someone who has cloned the repository and wants to build it, run the tests and change something. How to propose a change (discussion first, then pull request) is in <code>CONTRIBUTING.md</code> at the root of the repository. Read that first.</p>
+<h2 id="repository-layout">Repository layout<a class="headerlink" href="#repository-layout" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>klongpy/</code></td>
+<td>The Python package: the <code>kgpy</code> command, the array backends and the system functions that need Python. It hosts the engine (package layout below).</td>
+</tr>
+<tr>
+<td><code>native/</code></td>
+<td>The Rust code: the engine (the interpreter), the tools, the <code>kg</code> binary, the Python extension and the board firmware (crates below).</td>
+</tr>
+<tr>
+<td><code>conformance/</code></td>
+<td>The implementation-neutral test cases and their runner. See <a href="../conformance/">Conformance suite</a>.</td>
+</tr>
+<tr>
+<td><code>tests/</code></td>
+<td>The Python test suite, the golden parse trees and the benchmark scripts (<code>perf_*.py</code>).</td>
+</tr>
+<tr>
+<td><code>scripts/</code></td>
+<td><code>check_docs.py</code> (the documentation checker) and <code>gen_system_functions.py</code> (a generator).</td>
+</tr>
+<tr>
+<td><code>examples/</code></td>
+<td>Example programs, one directory per topic. Several have their own <code>README.md</code>.</td>
+</tr>
+<tr>
+<td><code>docs/</code></td>
+<td>These pages. Built with MkDocs; <code>mkdocs.yml</code> holds the navigation.</td>
+</tr>
+<tr>
+<td><code>.github/workflows/</code></td>
+<td><code>unittests.yml</code> and <code>gh-pages.yml</code>.</td>
+</tr>
+<tr>
+<td><code>pyproject.toml</code></td>
+<td>Package metadata, the optional extras and the pytest configuration (<code>testpaths = ["tests"]</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-klongpy-package">The <code>klongpy/</code> package<a class="headerlink" href="#the-klongpy-package" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Module or package</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interpreter.py</code>, <code>rust_engine.py</code>, <code>native_ext.py</code></td>
+<td><code>KlongInterpreter</code>, which is the adapter over the engine, and the loader of the compiled extension. The package has no parser or evaluator of its own.</td>
+</tr>
+<tr>
+<td><code>rust_host.py</code>, <code>backends/</code></td>
+<td>How the engine sees arrays that Python owns: the table of operations (<code>rust_host.py</code>, <code>backends/host_ops.py</code>) and the array backends <code>numpy_backend.py</code> and <code>torch_backend.py</code> with the <code>registry.py</code> that selects one.</td>
+</tr>
+<tr>
+<td><code>core.py</code>, <code>types.py</code>, <code>utils.py</code>, <code>writer.py</code></td>
+<td>Shared types and checks, and the output formatting.</td>
+</tr>
+<tr>
+<td><code>errors.py</code></td>
+<td>The error classes with positions.</td>
+</tr>
+<tr>
+<td><code>autograd.py</code>, <code>optimizers.py</code>, <code>sys_fn_autograd.py</code></td>
+<td>Gradients, the optimizers and the autograd system functions.</td>
+</tr>
+<tr>
+<td><code>sys_fn.py</code>, <code>sys_var.py</code>, <code>sys_fn_timer.py</code>, <code>sys_fn_ipc.py</code>, <code>sys_fn_static.py</code>, <code>sys_fn_hw.py</code></td>
+<td>System functions and variables that run in Python. The console, file and load functions, <code>.extern</code> and <code>.entry</code> are the engine's own.</td>
+</tr>
+<tr>
+<td><code>tools.py</code>, <code>source.py</code></td>
+<td>The <code>kgpy lint</code>, <code>check</code>, <code>compile c</code>, <code>fpga source</code> and <code>ast</code> commands, which parse their arguments and call the Rust tools.</td>
+</tr>
+<tr>
+<td><code>cli.py</code>, <code>repl.py</code>, <code>repl_input.py</code>, <code>help_index.py</code>, <code>operator_help.py</code>, <code>sysdocs.py</code>, <code>data/</code></td>
+<td>The <code>kgpy</code> command, the REPL and its help, and the help text as data files.</td>
+</tr>
+<tr>
+<td><code>ipc/</code></td>
+<td>The kdb+ IPC codec, sessions, compression and endpoints.</td>
+</tr>
+<tr>
+<td><code>static/</code></td>
+<td>The Python interface to the static compiler (<code>check_source</code>, <code>emit_program</code>, <code>load_program</code>, <code>call_entry</code>), the signature parser and the fixed-point array type. The checker, the type inference and the emitters are in Rust.</td>
+</tr>
+<tr>
+<td><code>hw/</code></td>
+<td>The FPGA flow: build, card server and client, and the simulator.</td>
+</tr>
+<tr>
+<td><code>db/</code>, <code>web/</code>, <code>ws/</code></td>
+<td>The optional database, web server and WebSocket system functions.</td>
+</tr>
+<tr>
+<td><code>lib/</code></td>
+<td>Klong libraries (<code>math.kg</code>, <code>mgmt.kg</code>, ...), loaded with <code>.l</code> (the three that are modules, <code>csv</code>, <code>mgmt</code> and <code>nstat</code>, state their interface with an <code>export</code> variable).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-native-workspace">The <code>native/</code> workspace<a class="headerlink" href="#the-native-workspace" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Crate</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>klong-core</code></td>
+<td>Lexer, parser, values and evaluator: the engine. <code>no_std</code> with <code>alloc</code>. <code>module.rs</code> is the one place that decides what a module is (a top-level assignment to <code>export</code>) and in what order <code>.l</code> looks for a name; the runtime, the linter and the checker call it.</td>
+</tr>
+<tr>
+<td><code>klong-ipc</code></td>
+<td>The kdb+ IPC codec, session and serial framing, with no I/O.</td>
+</tr>
+<tr>
+<td><code>klong-dgram</code></td>
+<td>The datagram layer of the Pico bench: frames, checksums and retry. <code>no_std</code>.</td>
+</tr>
+<tr>
+<td><code>klong-rt</code></td>
+<td>The runtime around the core: the <code>Platform</code> trait, system functions, <code>.l</code> and the module cache (<code>modules.rs</code>), timers, heap accounting.</td>
+</tr>
+<tr>
+<td><code>klong-host</code></td>
+<td>The <code>Platform</code> for desktop operating systems.</td>
+</tr>
+<tr>
+<td><code>klong-lint</code></td>
+<td>The linter behind <code>kg lint</code> and <code>kgpy lint</code>.</td>
+</tr>
+<tr>
+<td><code>klong-static</code></td>
+<td>The static profile: the checker, the typed IR and the C and FPGA emitters behind <code>check</code>, <code>compile c</code> and <code>fpga source</code>.</td>
+</tr>
+<tr>
+<td><code>klong-tools</code></td>
+<td>What reads Klong text outside the evaluator: <code>ast</code>, the REPL's completeness check, the text of a function sent over IPC.</td>
+</tr>
+<tr>
+<td><code>klong-cli</code></td>
+<td>The <code>kg</code> binary: file, <code>-e</code>, REPL, the tools, <code>--dump-ast</code> and <code>--conformance</code>.</td>
+</tr>
+<tr>
+<td><code>klong-console</code></td>
+<td>The serial console: line editor and the <code>^A</code> command mode.</td>
+</tr>
+<tr>
+<td><code>klong-sim</code></td>
+<td>A simulated board with the real console on top, used as a test bench.</td>
+</tr>
+<tr>
+<td><code>klong-board</code></td>
+<td>The skeleton of a board port, and a linkable image.</td>
+</tr>
+<tr>
+<td><code>klong-ffi</code></td>
+<td>The board runtime as a static library with a C ABI (<code>include/klong.h</code>).</td>
+</tr>
+<tr>
+<td><code>klong-py</code></td>
+<td>The engine as the Python extension <code>klongpy._native</code>, with its own Cargo workspace.</td>
+</tr>
+<tr>
+<td><code>klong-probe</code></td>
+<td>A size probe, outside the workspace (its own <code>Cargo.lock</code>).</td>
+</tr>
+<tr>
+<td><code>boards/</code></td>
+<td>The board applications: <code>esp32p4/</code> (ESP-IDF) and <code>pico-bench/</code> (Raspberry Pi Pico).</td>
+</tr>
+<tr>
+<td><code>scripts/</code>, <code>tools/</code>, <code>tests/</code></td>
+<td>Measurement and conformance scripts, <code>kgupload.py</code> (upload over a serial port) and the console tests in Python.</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../native/">Native runtime</a> for what the crates do together.</p>
+<h2 id="setting-up-an-environment">Setting up an environment<a class="headerlink" href="#setting-up-an-environment" title="Permanent link">&para;</a></h2>
+<p>You need Python 3.11 to 3.14 and a Rust toolchain (<a href="https://rustup.rs">rustup.rs</a>), because the package contains the engine as a compiled extension.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$ python -m venv .venv
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>$ .venv/bin/pip install -e ".[full]"
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>$ .venv/bin/pip install pytest-asyncio
+</code></pre></div>
+<p>The editable install builds the extension, <code>klongpy._native</code>. To build it by hand instead, run <code>cargo build --release</code> in <code>native/klong-py</code>, copy the library to a directory under the name <code>klong_native.abi3.so</code> (Windows: <code>klong_native.pyd</code>) and set <code>KLONGPY_NATIVE_PATH</code> to that directory. The <code>kg</code> binary is built in the Rust workspace, below.</p>
+<p><code>[full]</code> includes <code>pytest</code>, which the test suite needs (see below); the second line adds <code>pytest-asyncio</code>, the other half of the <code>dev</code> extra. The extras in <code>pyproject.toml</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Extra</th>
+<th>Adds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(none)</td>
+<td><code>numpy</code> and <code>colorama</code>, which the <code>kgpy</code> command needs.</td>
+</tr>
+<tr>
+<td><code>torch</code></td>
+<td>PyTorch, for the torch backend and autograd.</td>
+</tr>
+<tr>
+<td><code>repl</code></td>
+<td><code>colorama</code> (already a core dependency; the extra is kept for old install lines).</td>
+</tr>
+<tr>
+<td><code>web</code></td>
+<td><code>aiohttp</code>, for <code>.web</code>.</td>
+</tr>
+<tr>
+<td><code>db</code></td>
+<td><code>pandas</code> and <code>duckdb</code>, for <code>.db</code> and the table functions.</td>
+</tr>
+<tr>
+<td><code>ws</code></td>
+<td><code>websockets</code>, for <code>.ws</code>.</td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td><code>mkdocs</code>, <code>mkdocs-material</code> and <code>mike</code>.</td>
+</tr>
+<tr>
+<td><code>dev</code></td>
+<td><code>pytest</code> and <code>pytest-asyncio</code>.</td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td>torch, colorama, aiohttp, pandas, duckdb and websockets. It does not include <code>dev</code> or <code>docs</code>.</td>
+</tr>
+<tr>
+<td><code>full</code></td>
+<td><code>all</code> and <code>pytest</code>, which several test modules import. Use it for <code>pip install -e ".[full]"</code> before running the tests. It does not include <code>pytest-asyncio</code> or <code>docs</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Torch is optional. KlongPy runs without it, and tests and examples that need it skip or are skipped by the documentation checker. To work on the torch backend, install <code>torch</code>, and see the rule below on where <code>torch</code> may be imported.</p>
+<h2 id="running-the-tests">Running the tests<a class="headerlink" href="#running-the-tests" title="Permanent link">&para;</a></h2>
+<p>Run <code>python -m pytest tests/v2 -q -rs</code> while developing. In the checkout, <code>tests/v2/README.md</code> describes the four release jobs for desktop functionality, the q comparison, GPU execution, and desktop and firmware builds. It gives their prerequisites and performance thresholds.</p>
+<p>Run the full suite with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$ python -m unittest discover tests
+</code></pre></div>
+<p>or with pytest:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$ python -m pytest tests -q
+</code></pre></div>
+<p>The full suite takes several minutes: about 7 minutes with pytest and about 6 with <code>unittest discover</code> when torch, pandas, duckdb, aiohttp and websockets are installed and the native binary is built. Single files are much faster; <code>tests/test_conformance.py</code> takes about 11 seconds.</p>
+<p>Four test modules (<code>test_atomic_broadcasting</code>, <code>test_autograd_parametrized</code>, <code>test_nested_grade</code> and <code>test_ascii_gradient_names</code>) import <code>pytest</code>, so <code>unittest discover</code> needs it installed too; the <code>full</code> extra includes it.</p>
+<p>pytest also takes the options defined in <code>tests/conftest.py</code>, which run every <code>KlongInterpreter</code> in the tests on another backend:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ python -m pytest tests -q --backend torch --device cpu
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>$ python -m pytest tests -q --backend torch --device mps
+</code></pre></div>
+<p><code>--backend</code> is <code>numpy</code> (the default), <code>torch</code> or <code>test_backend</code> (a stub backend in <code>tests/custom_backend.py</code>). <code>--device</code> is <code>cpu</code>, <code>cuda</code> or <code>mps</code>, and applies to torch only. These options need pytest; <code>unittest discover</code> always uses numpy.</p>
+<p>To run one file or one test:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$ python -m pytest tests/test_conformance.py -q -p no:cacheprovider
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>$ python -m unittest tests.test_cli_errors.TestInterrupt -v
+</code></pre></div>
+<h3 id="tests-that-skip-without-a-tool">Tests that skip without a tool<a class="headerlink" href="#tests-that-skip-without-a-tool" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Needs</th>
+<th>If missing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/test_native_conformance.py</code>, <code>tests/test_native_ipc.py</code>, <code>tests/test_native_mgmt.py</code></td>
+<td>The <code>kg</code> binary: <code>cd native &amp;&amp; cargo build --release</code>. <code>KLONG_NATIVE</code> names another binary.</td>
+<td>Skipped.</td>
+</tr>
+<tr>
+<td>PeachQ interop tests (<code>tests/test_ipc_peachq.py</code> and the PeachQ classes in <code>tests/test_native_ipc.py</code>)</td>
+<td><code>KLONG_TEST_PEACHQ</code> set to the path of a PeachQ <code>q</code> executable.</td>
+<td>Skipped. They are opt-in.</td>
+</tr>
+<tr>
+<td><code>native/tests/test_console.py</code></td>
+<td>The native binaries, including <code>klong-sim</code>.</td>
+<td>Skipped.</td>
+</tr>
+<tr>
+<td><code>tests/static/</code> (the emitted C is compiled and run)</td>
+<td>A C compiler: <code>$KG_TEST_CC</code>, else <code>cc</code>, <code>clang</code> or <code>gcc</code> on the path.</td>
+<td>Skipped.</td>
+</tr>
+<tr>
+<td><code>tests/test_backend.py</code> and others that name torch</td>
+<td>PyTorch.</td>
+<td>Skipped.</td>
+</tr>
+<tr>
+<td>Tests of <code>.db</code>, <code>.web</code> and <code>.ws</code></td>
+<td><code>pandas</code>, <code>duckdb</code>, <code>aiohttp</code>, <code>websockets</code>.</td>
+<td>Skipped.</td>
+</tr>
+<tr>
+<td><code>tests/test_docs_examples.py</code></td>
+<td>Blocks in the docs that need an optional package or a PeachQ session.</td>
+<td>The checker skips those blocks.</td>
+</tr>
+</tbody>
+</table>
+<p>The native tests that need the binary run the conformance suite against it and the IPC tests against a simulated board. Build it first (see <a href="../native/building/">Building and running</a>). With it built, <code>tests/test_native_conformance.py</code>, <code>tests/test_native_mgmt.py</code> and <code>tests/test_native_ipc.py</code> pass in about a minute, skipping the PeachQ tests, and <code>native/tests/test_console.py</code> takes about 20 seconds.</p>
+<h2 id="the-golden-parse-trees">The golden parse trees<a class="headerlink" href="#the-golden-parse-trees" title="Permanent link">&para;</a></h2>
+<p><code>tests/golden/</code> holds one <code>.sexp</code> file per source: every <code>.kg</code> under <code>tests/kgtests/language/</code>, every <code>klongpy/lib/*.kg</code>, and the small inputs in <code>tests/golden/fixtures/</code>. <code>tests/test_golden_trees.py</code> parses each source with the engine and requires the canonical dump to match the file byte for byte. Another implementation's parser must print the same bytes (<code>conformance/run.py --trees</code>).</p>
+<p>After an intended change to the parser or the dump, list the files that differ, then rewrite them and review the diff:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$ python tests/golden/regen.py --check
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>$ python tests/golden/regen.py
+</code></pre></div>
+<p><code>--check</code> exits 1 if any file differs. To see the tree of one file, run <code>kgpy ast FILE</code> (or <code>kg ast FILE</code>). <code>tests/golden/README.md</code> lists the intended changes.</p>
+<h2 id="how-documentation-examples-are-checked">How documentation examples are checked<a class="headerlink" href="#how-documentation-examples-are-checked" title="Permanent link">&para;</a></h2>
+<p>This is the one page that explains how examples in the docs are verified.</p>
+<p><code>scripts/check_docs.py</code> runs the examples in <code>README.md</code> and <code>docs/*.md</code> and compares what they print with what the page says. <code>tests/test_docs_examples.py</code> runs it on every page, so the pytest and unittest runs include it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>$ python scripts/check_docs.py                  # every page (under a minute)
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>$ python scripts/check_docs.py docs/errors.md   # one page
+</code></pre></div>
+<p>It prints a line like <code>1512 examples checked, 0 mismatches; 7 blocks skipped (...)</code> and exits 1 on a mismatch. Run it with an environment that has the extras installed, or the blocks that need <code>aiohttp</code>, <code>duckdb</code> or <code>pandas</code> are skipped. The docstring at the top of the script lists every block form and directive. The short version:</p>
+<p>A fenced block whose first line starts with <code>?&gt;</code> runs in a fresh REPL. The lines after an input line, up to the next <code>?&gt;</code>, are what the REPL must print, ending with the value:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>?&gt; 1+2
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>3
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>?&gt; .p("hi")
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>hi
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>"hi"
+</code></pre></div>
+<p>This block is itself checked. A shell session is a block with the fence tag <code>console</code>, whose first line starts with <code>$</code>. <code>kgpy</code> runs this checkout's command line, <code>python</code> runs the interpreter that runs the checker, and the output must match exactly:</p>
+<!-- check-docs: link examples -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>-e<span class="w"> </span><span class="s1">'1+2'</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="go">3</span>
+</code></pre></div>
+<p>A comment on the line before a block changes how it runs:</p>
+<table>
+<thead>
+<tr>
+<th>Directive</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;!-- check-docs: continue --&gt;</code></td>
+<td>Run in the interpreters (or directory) of the previous block.</td>
+</tr>
+<tr>
+<td><code>&lt;!-- check-docs: requires duckdb pandas --&gt;</code></td>
+<td>Run only if these packages import.</td>
+</tr>
+<tr>
+<td><code>&lt;!-- check-docs: requires-cmd clang --&gt;</code></td>
+<td>Run only if these programs are on the <code>PATH</code>.</td>
+</tr>
+<tr>
+<td><code>&lt;!-- check-docs: link examples --&gt;</code></td>
+<td>Make these repository paths readable in a <code>console</code> block.</td>
+</tr>
+<tr>
+<td><code>&lt;!-- check-docs: strict 2 --&gt;</code></td>
+<td>Run at strict level 2.</td>
+</tr>
+<tr>
+<td><code>&lt;!-- check-docs: render --&gt;</code></td>
+<td>Show an error as the REPL prints it, with position and hint.</td>
+</tr>
+<tr>
+<td><code>&lt;!-- check-docs: skip: reason --&gt;</code></td>
+<td>Do not run; the reason is required. Use it only for an example that cannot run here.</td>
+</tr>
+</tbody>
+</table>
+<p>Directives combine with <code>;</code>. A block without <code>?&gt;</code> or <code>$</code> at the start is not run, so output of the native binary and other things the checker cannot start are shown as plain <code>text</code> blocks. Say on the page that those are not checked.</p>
+<h2 id="generated-files">Generated files<a class="headerlink" href="#generated-files" title="Permanent link">&para;</a></h2>
+<p>Two pages are generated. Do not edit them by hand; edit the source and regenerate.</p>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Generator</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docs/static-profile.md</code> (the tables between the <code>BEGIN GENERATED</code> and <code>END GENERATED</code> markers)</td>
+<td><code>python -m klongpy.static.profile_doc</code> (<code>--check</code> to test, <code>--write</code> to refresh)</td>
+<td>The rule and operator tables of the Rust crate <code>klong-static</code>. The text outside the markers is written by hand.</td>
+</tr>
+<tr>
+<td><code>docs/system-functions.md</code></td>
+<td><code>scripts/gen_system_functions.py</code></td>
+<td>The <code>eval_sys_*</code> docstrings of the modules in <code>MODULES</code>, with <code>DESC</code> and <code>GROUPS</code> in the script.</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$ python -m klongpy.static.profile_doc --check docs/static-profile.md; echo $?
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>0
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>$ PYTHONPATH=. python -W ignore scripts/gen_system_functions.py &gt; /tmp/sf.md &amp;&amp; mv /tmp/sf.md docs/system-functions.md
+</code></pre></div>
+<p>The system functions generator needs an environment with the extras (<code>duckdb</code>, <code>aiohttp</code>, <code>websockets</code>), and runs the examples in the docstrings while it generates. Write to a temporary file first, as above, so that a failure does not leave an empty page. A new module that defines system functions must be added to <code>MODULES</code> in the script, and a new function needs an entry in <code>DESC</code> and <code>GROUPS</code> or it falls into "Other" with its first docstring sentence as its description.</p>
+<h2 id="one-rule-about-torch">One rule about torch<a class="headerlink" href="#one-rule-about-torch" title="Permanent link">&para;</a></h2>
+<p>Torch is imported only in <code>klongpy/backends/torch_backend.py</code>. No other module, including the adapter over the engine and the system functions, may <code>import torch</code>. <code>tests/test_backend_isolation.py</code> checks it. Other code detects the backend like this:</p>
+<ul>
+<li>To test for an array or tensor, use <code>klong._backend.np.ndarray</code>. It is <code>torch.Tensor</code> on the torch backend and <code>numpy.ndarray</code> on numpy.</li>
+<li>To detect the torch backend, use <code>hasattr(klong._backend, '_torch_backend')</code>.</li>
+<li>To reach the torch module when the torch backend is already active, use <code>sys.modules.get('torch')</code>.</li>
+<li>For an operation that differs between backends, add or call a backend method, for example <code>klong._backend.np.cumsum</code>.</li>
+</ul>
+<p>This keeps torch optional and avoids import-time failures where it is not installed.</p>
+<h2 id="the-rust-workspace">The Rust workspace<a class="headerlink" href="#the-rust-workspace" title="Permanent link">&para;</a></h2>
+<p>You need a Rust toolchain (stable; the bare-metal checks below also use the nightly toolchain). The core depends on one crate, <code>libm</code>; the other crates add a few more, listed in their <code>Cargo.toml</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ cd native
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>$ cargo build --release
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>$ cargo test --release --workspace
+</code></pre></div>
+<p><code>cargo build --release</code> produces <code>native/target/release/kg</code> (the language), <code>klong-sim</code> and <code>klong-board-image</code>. The test run takes a few seconds once the build is cached. See <a href="../native/building/">Building and running</a>.</p>
+<p>One test, <code>data_nesting_is_bounded</code> in <code>native/klong-core/tests/full.rs</code>, fails about one run in ten. If it fails and you did not touch the evaluator, rerun it. See <a href="../roadmap/#known-limits">Roadmap</a>.</p>
+<h3 id="bare-metal-link-checks">Bare-metal link checks<a class="headerlink" href="#bare-metal-link-checks" title="Permanent link">&para;</a></h3>
+<p>The core and the board skeleton must link for bare-metal targets. <code>native/scripts/measure.sh</code> builds the host binaries, the <code>no_std</code> core without default features, the probe for <code>wasm32-unknown-unknown</code>, <code>riscv32imac-unknown-none-elf</code> and <code>thumbv7em-none-eabihf</code>, and the board image for the last two, and prints the section sizes. A target that is not installed is skipped (<code>rustup +stable target add TARGET</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$ sh native/scripts/measure.sh
+</code></pre></div>
+<p>The script takes about a minute and a half with a warm cache. To check one target only:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>$ cd native
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>$ cargo +stable build -p klong-board --profile min-size --target thumbv7em-none-eabihf --target-dir target/board-console
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>$ cargo +stable build -p klong-core --no-default-features
+</code></pre></div>
+<h3 id="the-firmware-build">The firmware build<a class="headerlink" href="#the-firmware-build" title="Permanent link">&para;</a></h3>
+<p>The ESP32-P4 firmware is built by <code>native/boards/esp32p4/build.sh</code>, which needs Docker with the ESP-IDF image pinned in the script and the <code>riscv32imafc-unknown-none-elf</code> Rust target. The steps, the flashing commands and the board's facts are in <code>native/boards/esp32p4/README.md</code> and <a href="../native/esp32-p4/">ESP32-P4</a>.</p>
+<h3 id="conformance-runs">Conformance runs<a class="headerlink" href="#conformance-runs" title="Permanent link">&para;</a></h3>
+<p>The <code>kg</code> binary, the console and the shim are all run against the same cases. See <a href="../conformance/">Conformance suite</a> for the commands and counts.</p>
+<h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
+<p>The site is built with MkDocs and the Material theme. <code>mkdocs.yml</code> holds the navigation; a page that is not in it, or a link that does not resolve, fails the strict build.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>$ mkdocs build --strict -d /tmp/site
+</code></pre></div>
+<p>To preview while you edit, run <code>mkdocs serve</code> and open the address it prints .</p>
+<h3 id="versioned-docs">Versioned docs<a class="headerlink" href="#versioned-docs" title="Permanent link">&para;</a></h3>
+<p>The published site keeps one directory per release line, built with <a href="https://github.com/jimporter/mike">mike</a> on the <code>gh-pages</code> branch. The workflow <code>.github/workflows/gh-pages.yml</code> does this:</p>
+<ul>
+<li>A push to <code>main</code> (or <code>master</code>) installs <code>".[docs]"</code> and <code>mike&gt;=2.1</code>, runs <code>mkdocs build --strict</code> as a check, then publishes the docs of that commit as the version <code>major.minor</code> of <code>pyproject.toml</code> and moves the alias <code>latest</code> to it (<code>mike deploy --push --update-aliases VERSION latest</code>, then <code>mike set-default --push latest</code>). Older versions stay on the branch. The <code>gh-pages</code> branch is then uploaded to GitHub Pages.</li>
+<li>A manual run (<code>workflow_dispatch</code>) takes two optional inputs: <code>ref</code>, a commit, tag or branch, and <code>version</code>, the name to publish it as, for example <code>0.7</code>. With a <code>version</code> it runs <code>mike deploy --push VERSION</code> and leaves <code>latest</code> where it is. Use it to keep the docs of the previous release. If the older tree has no version selector in its <code>mkdocs.yml</code>, the workflow adds <code>extra.version.provider: mike</code> for that build.</li>
+</ul>
+<p><code>mkdocs.yml</code> sets <code>extra.version.provider: mike</code>, which adds the version selector to the header. The site URL is <code>https://www.klongpy.org/</code>.</p>
+<p>To preview the versioned site without touching the real <code>gh-pages</code> branch, deploy to a scratch branch, serve it, and delete the branch afterwards. Do not push it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>$ mike deploy -b mike-scratch 0.7-preview latest -u
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>$ mike list -b mike-scratch
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>0.7-preview [latest]
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>$ mike serve -b mike-scratch -a 127.0.0.1:18765
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>$ git branch -D mike-scratch
+</code></pre></div>
+<p><code>mike deploy</code> only writes to the named branch; it does not change your working tree.</p>
+<h2 id="what-ci-runs">What CI runs<a class="headerlink" href="#what-ci-runs" title="Permanent link">&para;</a></h2>
+<p>Two workflows in <code>.github/workflows/</code>.</p>
+<p><code>unittests.yml</code> runs on a push to <code>main</code>, on every pull request and by hand:</p>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>linter</code></td>
+<td>Python 3.12. <code>flake8 klongpy/</code> with the selected error codes <code>F,E112,E113,E304,E502,E702,E703,E71,E72,W191,W6,W605</code>.</td>
+</tr>
+<tr>
+<td><code>testcpu</code></td>
+<td>A matrix of Python 3.9, 3.10, 3.11, 3.12, 3.13 and 3.14 on Ubuntu, with <code>pip install -e ".[web,db,ws,repl,dev]"</code>. Every leg except 3.12 runs <code>python -m pytest tests/ -v --ignore=tests/test_compiler.py</code>. The 3.12 leg installs CPU torch, runs the whole suite under <code>coverage</code>, and on a pull request checks that new lines are at least 80% covered (<code>diff-cover</code>).</td>
+</tr>
+<tr>
+<td><code>testtorch</code></td>
+<td>Python 3.14 with CPU torch: <code>python -m pytest tests/ -v --backend torch --device cpu</code>.</td>
+</tr>
+<tr>
+<td><code>testbackend</code></td>
+<td>Python 3.14: <code>python -m pytest tests/ -v --backend test_backend --ignore=tests/test_compiler.py</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Because <code>tests/test_docs_examples.py</code> is part of <code>tests/</code>, these jobs also run the documentation checker on every page; blocks that need a package that is not installed are skipped.</p>
+<p><code>gh-pages.yml</code> publishes the docs, as described above, on a push to <code>main</code> and by hand.</p>
+<p>CI does not build the Rust workspace, does not run <code>cargo test</code>, does not run <code>conformance/run.py</code> against the native binary or the console, and does not build the firmware. The native test files in <code>tests/</code> skip there because the binary is not built. CI does not run the PeachQ tests or any test on macOS or MPS.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../conformance/">Conformance suite</a></li>
+<li><a href="../native/">Native runtime</a> and <a href="../native/porting/">Porting to a board</a></li>
+<li><a href="../roadmap/">Roadmap</a></li>
+<li><a href="../embedded/">Compiling Klong to C</a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

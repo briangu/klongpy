@@ -1,0 +1,3231 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/language-additions/">
+      
+      
+        <link rel="prev" href="../operators/">
+      
+      
+        <link rel="next" href="../strict/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Language Additions - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#language-additions" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Language Additions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#destructuring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Destructuring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Destructuring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-a-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In a function
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-not-a-destructuring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not a destructuring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#named-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Named parameters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Named parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From Python
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-many-arguments-a-function-takes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How many arguments a function takes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dictionaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dictionaries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dictionaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lookup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lookup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#merge-and-the-pair-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Merge, and the pair rule
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qualified-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qualified names
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Modules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#host-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Host functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formatted-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formatted text
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gradient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gradient
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-it-variable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The it variable
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#destructuring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Destructuring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Destructuring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-a-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In a function
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-not-a-destructuring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not a destructuring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#named-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Named parameters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Named parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From Python
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-many-arguments-a-function-takes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How many arguments a function takes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dictionaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dictionaries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dictionaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lookup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lookup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#merge-and-the-pair-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Merge, and the pair rule
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qualified-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qualified names
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Modules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#host-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Host functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formatted-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formatted text
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gradient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gradient
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-it-variable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The it variable
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="language-additions">Language Additions<a class="headerlink" href="#language-additions" title="Permanent link">&para;</a></h1>
+<p>KlongPy adds a few forms to Klong. Each one gives a meaning to input that fails or does nothing useful in classic Klong, so a program written for classic Klong runs as it did, with the exceptions listed under <a href="../release-notes/#syntax-that-changed-meaning">Syntax that changed meaning</a>. Next to every new form this page shows the classic Klong that does the same thing, so you can use either.</p>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Does</th>
+<th>Classic Klong</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[a b c]::v</code></td>
+<td><a href="#destructuring">Destructuring</a>: binds the members of a list to names</td>
+<td><code>a::v@0;b::v@1;c::v@2</code></td>
+</tr>
+<tr>
+<td><code>{[a b]::x;...}</code></td>
+<td>The same as the first statement of a function; the names are local</td>
+<td><code>{[a b];a::x@0;b::x@1;...}</code></td>
+</tr>
+<tr>
+<td><code>f(a;b;c;d)::{...}</code></td>
+<td><a href="#named-parameters">Named parameters</a>, and more than three</td>
+<td><code>f::{...}</code> with <code>x y z</code>, or one list argument</td>
+</tr>
+<tr>
+<td><code>:{;k1;v1;k2;v2}</code></td>
+<td>An <a href="#dictionaries">evaluated dictionary</a></td>
+<td><code>:{[k1 v1] [k2 v2]}</code>, or <code>d,k,,v</code></td>
+</tr>
+<tr>
+<td><code>d.k</code>, <code>d.k::v</code></td>
+<td><a href="#qualified-names">Qualified names</a>: <code>d.k</code> is <code>d@"k"</code>, for reading and writing</td>
+<td><code>d@"k"</code>, <code>d::d,"k",,v</code></td>
+</tr>
+<tr>
+<td><code>export:::{;"k";v}</code>, <code>.l(path;...)</code></td>
+<td><a href="#modules">Modules</a>: a file with private names and a dictionary of exported ones, bound by <code>.l</code></td>
+<td><code>.l(path)</code> of a classic file, which writes every name of the file into your globals</td>
+</tr>
+<tr>
+<td><code>d@k</code>, <code>d@[k1 k2]</code>, <code>d,d2</code></td>
+<td>Dictionary lookup with <code>@</code>, several keys at once, merge</td>
+<td><code>d?k</code></td>
+</tr>
+<tr>
+<td><code>.fmt(template;args)</code>, <code>.pf(...)</code></td>
+<td><a href="#formatted-text">Formatted text</a></td>
+<td>joining strings with <code>,</code> and <code>$</code></td>
+</tr>
+<tr>
+<td><code>.split(s;sep)</code></td>
+<td><a href="#strings">Strings</a>: the pieces of <code>s</code> between the occurrences of <code>sep</code></td>
+<td>a loop over <code>s?sep</code>, written for each program</td>
+</tr>
+<tr>
+<td><code>.join(list;sep)</code></td>
+<td>The strings of <code>list</code> with <code>sep</code> between them</td>
+<td><code>{x,sep,y}/list</code>, which fails on an empty list</td>
+</tr>
+<tr>
+<td><code>.words(s)</code></td>
+<td>The pieces of <code>s</code> between runs of white space</td>
+<td>a hand-written split that drops the empty pieces</td>
+</tr>
+<tr>
+<td><code>.trim(s)</code></td>
+<td><code>s</code> without white space at either end</td>
+<td>a loop that drops one blank at a time</td>
+</tr>
+<tr>
+<td><code>.num(s)</code></td>
+<td>The number that <code>s</code> spells, or <code>:undefined</code></td>
+<td><code>.rs(s)</code>, which reads any data and stops after the first</td>
+</tr>
+<tr>
+<td><code>.json(x)</code>, <code>.unjson(s)</code></td>
+<td><a href="#json">JSON</a>: a value as JSON text, and JSON text as a value</td>
+<td>a hand-written writer and parser</td>
+</tr>
+<tr>
+<td><code>.grad(f;x)</code></td>
+<td><a href="#gradient">Gradient</a> in plain ASCII</td>
+<td><code>x∇f</code></td>
+</tr>
+<tr>
+<td><code>it</code></td>
+<td>The <a href="#the-it-variable">last result</a> at the REPL</td>
+<td>assign it yourself</td>
+</tr>
+</tbody>
+</table>
+<h2 id="destructuring">Destructuring<a class="headerlink" href="#destructuring" title="Permanent link">&para;</a></h2>
+<p>A list of names on the left of <code>::</code> binds each name to the member of the right side in the same position. The value of the statement is the right side.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>?&gt; [a b c]::[1 2 3]
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[1 2 3]
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>?&gt; a
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>1
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>?&gt; b+c
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>5
+</code></pre></div>
+<p>The classic form is one assignment for each name:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>?&gt; v::[1 2 3]
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[1 2 3]
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>?&gt; a::v@0;b::v@1;c::v@2
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>3
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>?&gt; a,b,c
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>[1 2 3]
+</code></pre></div>
+<p>A list such as <code>[a b c]</code> written anywhere else holds the symbols <code>:a :b :c</code>, not their values; the left side of <code>::</code> is the one place where it names variables. Use <code>[;a;b;c]</code> to list values (see <a href="../lint/#w012-a-bare-name-in-a-data-list">lint W012</a>).</p>
+<p>The right side may be a list, an array or a string. A matrix gives its rows, and a string its characters:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>?&gt; [r s]::[[1 2] [3 4]]
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[[1 2] [3 4]]
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>?&gt; s
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>[3 4]
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>?&gt; [p q]::"hi"
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>"hi"
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>?&gt; q
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>0ci
+</code></pre></div>
+<p>The number of names must equal the number of members, and the right side must be a list. Nothing is bound when it fails:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>?&gt; [u v]::[1 2 3]
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>error: cannot destructure 3 values into 2 names
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>?&gt; [u v]::5
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>error: cannot destructure integer into 2 names
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>?&gt; u
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>error: undefined: u
+</code></pre></div>
+<h3 id="in-a-function">In a function<a class="headerlink" href="#in-a-function" title="Permanent link">&para;</a></h3>
+<p>When a destructuring is the first statement of a function body, after an optional locals list, its names are local to the function. No locals list is needed, at any strict level, and a global of the same name is not touched:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>?&gt; a::100
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>100
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>?&gt; area::{[w h]::x;w*h}
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>:monad
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>?&gt; area([4 5])
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>20
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>?&gt; a
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>100
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>?&gt; w
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>error: undefined: w
+</code></pre></div>
+<p>The classic form declares the locals and assigns each:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>?&gt; area::{[w h];w::x@0;h::x@1;w*h}
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>:monad
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>?&gt; area([4 5])
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>20
+</code></pre></div>
+<p>This is the way to give an anonymous function more than three inputs: pass one list. Elsewhere in a body a destructuring follows the ordinary rule for assignment, so at <a href="../strict/">strict level 1 and 2</a> the names must be declared as locals.</p>
+<h3 id="what-is-not-a-destructuring">What is not a destructuring<a class="headerlink" href="#what-is-not-a-destructuring" title="Permanent link">&para;</a></h3>
+<p>A list on the left of <code>::</code> is a destructuring only when it holds at least one name, and every member is a plain name, none is <code>x</code>, <code>y</code> or <code>z</code>, and no name is repeated. Any other list binds nothing. At strict level 0 it is accepted with a warning that says why. At level 1 and 2 it is a syntax error:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>?&gt; .strict(1)
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>1
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>?&gt; [a [b c]]::[1 [2 3]]
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>error: cannot destructure: nested lists are not supported
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>?&gt; [a a]::[1 2]
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>error: cannot destructure: a is named twice
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>?&gt; [a x]::[1 2]
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>error: cannot destructure: x, y and z are the arguments of a function and cannot be assigned
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>?&gt; []::[1 2]
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>error: cannot destructure: the list on the left of :: is empty
+</code></pre></div>
+<p>Parentheses make no difference: <code>([a b])::v</code> is a destructuring.</p>
+<h2 id="named-parameters">Named parameters<a class="headerlink" href="#named-parameters" title="Permanent link">&para;</a></h2>
+<p><code>f(a;b)::{body}</code> defines <code>f</code> with the parameters <code>a</code> and <code>b</code>. It looks like the call it defines, and the right side must be a function in braces.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>?&gt; f(a;b)::{a+b}
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>:dyad
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>?&gt; f(1;2)
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>3
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>?&gt; f::{x+y}
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>:dyad
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>?&gt; f(1;2)
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>3
+</code></pre></div>
+<p>Any number of parameters is allowed. Classic functions stop at three (<code>x y z</code>):</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>?&gt; g(a;b;c;d)::{(a*b)+c*d}
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>:fn/4
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>?&gt; g(1;2;3;4)
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>14
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>?&gt; g@[1 2 3 4]
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>14
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>?&gt; mx(a;b;c;d;e;f)::{a+b+c+d+e+f}
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>:fn/6
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>?&gt; mx(1;2;3;4;5;6)
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>21
+</code></pre></div>
+<p>A function of four or more parameters displays as <code>:fn/N</code>, N being the number of parameters (<code>:fn/4</code>, <code>:fn/6</code>), which is how it is shown (over <a href="../ipc_capabilities/">IPC</a> a function travels as its source text, named parameters included); <code>:nilad</code>, <code>:monad</code>, <code>:dyad</code> and <code>:triad</code> stay for zero to three. A function with no parameters is written <code>h()::{...}</code>:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>?&gt; h()::{42}
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>:nilad
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>?&gt; h()
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>42
+</code></pre></div>
+<p>With four inputs and classic Klong, pass a list and take it apart with a head <a href="#in-a-function">destructuring</a>: <code>g::{[a b c d]::x;(a*b)+c*d}</code> called as <code>g([1 2 3 4])</code>.</p>
+<h3 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">&para;</a></h3>
+<p>The parameter names are local to the function. They shadow a global of the same name and leave it alone, and they need no locals list at strict level 1 or 2. The body may still start with a locals list, or with a head destructuring.</p>
+<p>A classic function (one written without named parameters) that is called from the body sees the parameters and locals, before the globals. A function with named parameters does not: it reads its own parameters and locals, then the globals, and never its caller's names. The tutorial shows it in <a href="../tutorial/#dynamic-scoping">Dynamic scoping</a>, and why to pass arguments instead.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>?&gt; a::100
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>100
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>?&gt; k(a;b)::{[t];t::a*b;t+1}
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>:dyad
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>?&gt; k(3;4)
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>13
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>?&gt; a
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>100
+</code></pre></div>
+<p><code>x</code>, <code>y</code> and <code>z</code> are not parameters of such a function. Using one directly is a syntax error found when the function is defined. A nested function literal has its own <code>x y z</code>, so it may use them:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>?&gt; m(a;b)::{a+x}
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>error: x is not available in a function with named parameters
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>?&gt; m(a;b)::{{x+1}'[;a;b]}
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>:dyad
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>?&gt; m(1;2)
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>[2 3]
+</code></pre></div>
+<p>The right side must be a function in braces, at every strict level. The left side must be a call of a plain name whose arguments are plain names, none repeated and none of <code>x y z</code>. At strict level 0 a left side that fails that is accepted as it always was, with a warning, and defines nothing; at level 1 and 2 it is a syntax error:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>?&gt; f(a;b)::5
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>error: named-parameter definition needs a function body in braces
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>?&gt; f(a;a)::{a}
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>:nilad
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>?&gt; f
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>:f
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>?&gt; .strict(1)
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>1
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>?&gt; f(a;a)::{a}
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>error: cannot define f with named parameters: a is named twice
+</code></pre></div>
+<h3 id="calling">Calling<a class="headerlink" href="#calling" title="Permanent link">&para;</a></h3>
+<p>A call works as for any function, and a function may be recursive by its own name or by <code>.f</code>:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>?&gt; fib(n)::{:[n&lt;2;n;fib(n-1)+fib(n-2)]}
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>:monad
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>?&gt; fib(10)
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>55
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>?&gt; fact(n)::{:[n&lt;2;1;n*.f(n-1)]}
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>:monad
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>?&gt; fact(5)
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>120
+</code></pre></div>
+<p>Leaving an argument empty, or leaving arguments off the end, makes a projection that takes the rest by position, for any number of parameters. <code>g(1;2)</code> is the same projection as <code>g(1;2;;)</code>. <code>f@list</code> spreads a list as the arguments. A function of one or two parameters works with the adverbs; one of more than two gives an arity error from the adverb.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>?&gt; g(a;b;c;d)::{(a*b)+c*d}
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>:fn/4
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>?&gt; p::g(1;;3;4)
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>:monad
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>?&gt; p(10)
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>22
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>?&gt; sub(a;b)::{a-b}
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>:dyad
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>?&gt; sub/[10 3]
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>7
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>?&gt; 3 sub 4
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>-1
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>?&gt; g'[1 2]
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>error: g takes 4 arguments, got 1
+</code></pre></div>
+<p>More arguments than parameters is an arity error at every strict level, since no classic program can depend on it. Fewer written arguments is a projection, and <code>f@list</code> with too few members is an arity error:</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>?&gt; g(1;2;3;4;5)
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>error: g takes 4 arguments, got 5
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>?&gt; g@[1 2]
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>error: the function takes 4 arguments, got 2
+</code></pre></div>
+<h3 id="from-python">From Python<a class="headerlink" href="#from-python" title="Permanent link">&para;</a></h3>
+<p><code>klong['f']</code> is a Python callable. Arguments are positional or keyword, by parameter name. For a function written with <code>x</code>, <code>y</code> and <code>z</code> the keywords are <code>x</code>, <code>y</code> and <code>z</code>. Python callers do not get projections: too few, too many, an unknown keyword or a parameter given twice raises <code>KlongArityError</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">()</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="n">klong</span><span class="p">(</span><span class="s1">'f(a;b;c;d)::{a+b*c-d}'</span><span class="p">)</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="n">f</span> <span class="o">=</span> <span class="n">klong</span><span class="p">[</span><span class="s1">'f'</span><span class="p">]</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="n">f</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>          <span class="c1"># -1</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="n">f</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>      <span class="c1"># -1</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="n">f</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>             <span class="c1"># KlongArityError: f takes 4 arguments, got 3</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="n">f</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>     <span class="c1"># KlongArityError</span>
+</code></pre></div>
+<h3 id="how-many-arguments-a-function-takes">How many arguments a function takes<a class="headerlink" href="#how-many-arguments-a-function-takes" title="Permanent link">&para;</a></h3>
+<p>The arity of a function written with <code>x</code>, <code>y</code> and <code>z</code> is the highest of the three that its body uses, not counting nested function literals. It is what the display shows (<code>:monad</code>, <code>:dyad</code>), what Python callers pass, what an adverb dispatches on, and the limit at <a href="../strict/#too-many-arguments">strict level 2</a>.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>?&gt; f::{1}
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>:nilad
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>?&gt; f::{-x}
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>:monad
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>?&gt; f::{#x}
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>:monad
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>?&gt; f::{y}
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>:dyad
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>?&gt; f::{x+z}
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>:triad
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>?&gt; {-x}'[1 2]
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>[-1 -2]
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>?&gt; {y}/[1 2 3]
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>3
+</code></pre></div>
+<p>A function that uses <code>x</code> only under a monad such as <code>-x</code> has one argument, so <code>f::{-x}</code> displays as <code>:monad</code>. <code>{y}</code> has two, so a call with one argument is a projection that waits for the second: <code>p::{y}(1);p(2)</code> is 2, and so is <code>{y}(1;2)</code>.</p>
+<h2 id="dictionaries">Dictionaries<a class="headerlink" href="#dictionaries" title="Permanent link">&para;</a></h2>
+<p>A dictionary literal is <code>:{[key value] [key value]}</code>. KlongPy keeps that form and adds an evaluated one, <code>:{;key;value;key;value}</code>: after <code>:{</code> a <code>;</code> with no space before it starts a list of expressions that alternate key and value. They are evaluated left to right each time the literal is evaluated.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>?&gt; n::7
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>7
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>?&gt; e:::{;"n";n;"sq";n*n}
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>:{["n" 7] ["sq" 49]}
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>?&gt; :{["n" n]}
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>:{["n" :n]}
+</code></pre></div>
+<p>The plain literal does not evaluate its entries; <code>n</code> in it is the symbol <code>:n</code>. Classic Klong builds a dictionary from values by joining a pair <code>[key value]</code> onto a dictionary with <code>,</code>. The empty dictionary is <code>:{}</code>:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>?&gt; n::7
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>7
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>?&gt; e:::{}
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>:{}
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>?&gt; e::e,"n",,n
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>:{["n" 7]}
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>?&gt; e::e,"sq",,n*n
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>:{["n" 7] ["sq" 49]}
+</code></pre></div>
+<p>The literal <code>:{;}</code> is the empty dictionary too. An odd number of expressions, an empty slot and a trailing <code>;</code> are syntax errors. A key is a number, a string, a character or a symbol. A list, a dictionary, an operator or a function cannot be one.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>?&gt; :{;"a"}
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>error: the last key of the dictionary literal has no value
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>?&gt; :{;"a";1;}
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>error: missing expression in a dictionary literal
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>?&gt; :{;[1 2];3}
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>error: a list cannot be a dictionary key
+</code></pre></div>
+<p>In the plain literal each entry must be exactly <code>[key value]</code>: one key and one value, in brackets. An entry of any other shape and an operator as a key are syntax errors, found before the program runs.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>?&gt; :{[1 2 3]}
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>error: each entry of a dictionary literal must be a [key value] pair
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>?&gt; :{[+ 1]}
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>error: an operator cannot be a dictionary key
+</code></pre></div>
+<p>A dictionary literal inside a dictionary or list literal is a dictionary:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>?&gt; d:::{["GET" :{["/" 2]}]}
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>:{["GET" :{["/" 2]}]}
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>?&gt; d@"GET"
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>:{["/" 2]}
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>?&gt; (d@"GET")@"/"
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>2
+</code></pre></div>
+<h3 id="lookup">Lookup<a class="headerlink" href="#lookup" title="Permanent link">&para;</a></h3>
+<p><code>d?k</code> looks up a key, and <code>d@k</code> does the same for every kind of key. <code>d@[k1 k2]</code> is the list of values. A missing key is <code>:undefined</code>. Test for it with <code>:_</code>.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>?&gt; d:::{["a" 1] ["b" 2]}
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>:{["a" 1] ["b" 2]}
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>?&gt; d?"a"
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>1
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>?&gt; d@"a"
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>1
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>?&gt; d@["a" "b"]
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>[1 2]
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>?&gt; d@"zz"
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>:undefined
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>?&gt; d@["a" "zz"]
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>[1 :undefined]
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>?&gt; :_d@"zz"
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>1
+</code></pre></div>
+<h3 id="merge-and-the-pair-rule">Merge, and the pair rule<a class="headerlink" href="#merge-and-the-pair-rule" title="Permanent link">&para;</a></h3>
+<p><code>d,d2</code> copies the entries of <code>d2</code> into <code>d</code> and returns <code>d</code>, and an entry of <code>d2</code> replaces one with the same key. It changes <code>d</code> in place, so another name for the same dictionary sees the new entries:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>?&gt; d:::{["x" 1]}
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>:{["x" 1]}
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>?&gt; alias::d
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>:{["x" 1]}
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>?&gt; d::d,:{["x" 5] ["y" 6]}
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>:{["x" 5] ["y" 6]}
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>?&gt; alias
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>:{["x" 5] ["y" 6]}
+</code></pre></div>
+<p>Joining a list of two members to a dictionary adds an entry, whichever side the list is on: <code>d,[k v]</code>, <code>d,k,,v</code>, <code>[k v],d</code>. Anything else on the right of a dictionary is an error. The same rule means that <code>list,dict</code> does not append the dictionary to the list. To append it, wrap the dictionary with <code>,</code>:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>?&gt; l::[1 2]
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>[1 2]
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>?&gt; l,:{[3 4]}
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>:{[3 4] [1 2]}
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>?&gt; l,,:{[3 4]}
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>[1 2 :{[3 4]}]
+</code></pre></div>
+<p><a href="../lint/#w020-a-two-element-list-joined-to-a-dictionary">Lint W020</a> flags a list of two members joined to a dictionary. A right operand that is neither a pair nor a dictionary is an error:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>?&gt; :{["a" 1]},[1 2 3]
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>error: ,: a dictionary can only be joined with a tuple (a list of two members) or a dictionary
+</code></pre></div>
+<p><code>$d</code> is the written form of the dictionary, as a string.</p>
+<h2 id="qualified-names">Qualified names<a class="headerlink" href="#qualified-names" title="Permanent link">&para;</a></h2>
+<p><code>a.b</code> is <code>a@"b"</code>: the entry <code>"b"</code> of the dictionary <code>a</code>. It reads, it writes and it calls, on any dictionary, and the parts chain.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>?&gt; cfg:::{;"run";:{;"days";30;"seed";7}}
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>:{["run" :{["days" 30] ["seed" 7]}]}
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>?&gt; cfg.run.days
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>30
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>?&gt; cfg.run.days::90
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>90
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>?&gt; cfg.run
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>:{["days" 90] ["seed" 7]}
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>?&gt; ops:::{;"inc";{x+1}}
+<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a>:{["inc" :monad]}
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a>?&gt; ops.inc(4)
+<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a>5
+</code></pre></div>
+<p>Writing <code>a.b::v</code> replaces the entry, or adds it when <code>a</code> has no entry <code>"b"</code>. In <code>a.b.c::v</code> every part before the last must exist. Reading a missing entry is a name error that names the dictionary and the key, and a name that holds something other than a dictionary is a type error:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>?&gt; d:::{;"x";1}
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>:{["x" 1]}
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>?&gt; d.y
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>error: d has no entry "y"
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>?&gt; n::5
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>5
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>?&gt; n.y
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>error: n.y: n is not a dictionary (it is integer)
+</code></pre></div>
+<p>A dot is part of no name. <code>shout.up</code> does not name a variable: it reads the entry <code>"up"</code> of <code>shout</code>, so <code>shout</code> must be a dictionary. A program that defined a global named <code>a.b</code> needs a plain name, or a dictionary.</p>
+<h2 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">&para;</a></h2>
+<p>A module is a Klong file that keeps its names private and offers a dictionary of them. The file states its interface with the top-level variable <code>export</code>, which holds a dictionary written as a literal. <code>.l</code> runs the file in a scope of its own and binds the module.</p>
+<p>The file <code>stats.kg</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>sq(v)::{v*v}
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>mean(v)::{(+/v)%#v}
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>var(v)::{mean(sq'v)-sq(mean(v))}
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>export:::{;"mean";mean;"var";var}
+</code></pre></div>
+<p>A program that uses it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>.l("stats")
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>stats.mean([1 2 3 4])
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>stats.var([1 2 3 4])
+</code></pre></div>
+<p><code>.l</code> has three forms. Each returns the module when the file is a module, and each is the Klong form of a Python import:</p>
+<table>
+<thead>
+<tr>
+<th>Klong</th>
+<th>Binds</th>
+<th>Python</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.l("stats")</code></td>
+<td>the module to the file's stem, <code>stats</code></td>
+<td><code>import stats</code></td>
+</tr>
+<tr>
+<td><code>.l("stats";:s)</code></td>
+<td>the module to <code>s</code>, and not to the stem</td>
+<td><code>import stats as s</code></td>
+</tr>
+<tr>
+<td><code>.l("stats";["mean" "var"])</code></td>
+<td>the entries <code>mean</code> and <code>var</code> as plain names, and not the stem</td>
+<td><code>from stats import mean, var</code></td>
+</tr>
+</tbody>
+</table>
+<p>The rules:</p>
+<ul>
+<li>A file is a module exactly when it assigns <code>export</code> at its top level. A file without that assignment is a classic file: <code>.l</code> writes its names into the globals and returns what it returned before. A second argument on a classic file is an error that says to write <code>.l("name")</code>.</li>
+<li>The interface is read and frozen when the file finishes loading. The names in the file, <code>sq</code> above, are private to it: the importer cannot reach one that <code>export</code> does not list, and nothing is written into the importer's globals.</li>
+<li>The key may differ from the name in the file: <code>export:::{;"seed";reset}</code> offers the function <code>reset</code> as <code>seed</code>.</li>
+<li>The second argument is a symbol or a list of strings. Any other value is a type error that says what to write. A missing entry in the names form is a name error that names it. Without an alias the stem must be a valid name, letters and digits starting with a letter; <code>.l("my-mod")</code> is an error that says to write <code>.l("my-mod";:name)</code>.</li>
+<li>At strict levels 0 and 1 a quoted symbol <code>:s</code> is the value of <code>s</code> when <code>s</code> is already defined, and at level 2 it is always the symbol. Choose an alias that is not in use.</li>
+<li>A bare name such as <code>"csv"</code> is searched in the directory of the file that contains the <code>.l</code> (the working directory at the REPL), then in the directories of <code>KLONGPATH</code> (default <code>.:lib</code> on Unix and <code>.;lib</code> on Windows), then in the library that ships with KlongPy. <code>./x</code> and <code>../x</code> are relative to the file that contains the <code>.l</code>, and an absolute path is itself. <code>.kg</code> is added when the name has no extension. Classic files and modules are found in the same order. When a file found beside the program has the name of a library file and is not that file, the program gets the file it has and the engine issues a warning (<code>kgpy lint</code> reports it as W023).</li>
+<li>The module is read-only from outside: <code>stats.mean::0</code> is a type error. A dictionary stored inside it is an ordinary dictionary and can be changed.</li>
+<li>An exported value is its value when the file finishes loading, so <code>stats.counter</code> does not follow later changes in the module. An exported function does, because it works on the module's own names. To expose changing state, export functions.</li>
+<li>Loading a file again gives the same module, identified by the real path of the file. A state that the module keeps is shared by every loader.</li>
+<li>A module is freed when nothing refers to it: no variable, no function taken from it. The next <code>.l</code> then runs the file again. <code>stats::0</code> lets go of the variable. To keep a module between the calls of a function, hold it in a global.</li>
+<li>A circular load is an error, and so is a file that does not exist.</li>
+<li>A module can load modules, and a function can load one when it runs.</li>
+</ul>
+<p>The libraries <code>csv</code>, <code>nstat</code> and <code>mgmt</code> are modules: <code>.l("csv")</code> gives <code>csv.read</code>, <code>csv.split</code> and the rest.</p>
+<p>The static checker follows a top-level <code>.l</code> with a literal path, so a module can be compiled. It reads <code>export</code> without running the file, so the compiler requires the literal form <code>export:::{;"key";value;...}</code> with names or numbers as values; any other right side is a diagnostic. <a href="../lint/#codes">Lint</a> has the rules for modules. <code>examples/modules</code> is a program of twelve files that uses all of this.</p>
+<h3 id="host-functions">Host functions<a class="headerlink" href="#host-functions" title="Permanent link">&para;</a></h3>
+<p><code>.extern(c_symbol;signature)</code> returns a host function as a value: <code>adc::.extern("read_adc";"int -&gt; float")</code>. The first argument is the C symbol, a C identifier (underscore allowed, no dot, not a C keyword, no <code>kg_</code> prefix). A target's functions live in an ordinary module file, <code>read.kg</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>adc::.extern("read_adc";"int -&gt; float")
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>export:::{;"adc";adc}
+</code></pre></div>
+<p>A program uses it as <code>.l("read")</code> and <code>read.adc(3)</code>. A statement that discards the value of <code>.extern</code>, the old form <code>.extern("read.adc";"int -&gt; float")</code>, is an error that names the new form. A host registers its implementation by C symbol, and <code>klong.externs["read_adc"]</code> in Python is keyed the same way. Declaring a symbol twice with the same signature gives one function, and with different signatures is an error. A function of more than three parameters works as a value like any other. <a href="../embedded/">Compiling Klong to C</a> has the rest.</p>
+<h2 id="formatted-text">Formatted text<a class="headerlink" href="#formatted-text" title="Permanent link">&para;</a></h2>
+<p><code>.fmt(template;args)</code> returns a string, and <code>.pf(template;args)</code> prints it with a newline and returns it. A call can leave out <code>args</code> when the template has no placeholders. The classic way is to join strings:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>?&gt; x::3;y::4
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>4
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>?&gt; .p("x=",($x),", y=",$y)
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>x=3, y=4
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>"x=3, y=4"
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>?&gt; .pf("x={}, y={}";[;x;y])
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>x=3, y=4
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>"x=3, y=4"
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>?&gt; .fmt("x={}, y={}";[;x;y])
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>"x=3, y=4"
+</code></pre></div>
+<p><code>{}</code> takes the next argument, <code>{0}</code> and <code>{1}</code> take by position, and the two styles cannot be mixed. <code>{{</code> and <code>}}</code> are literal braces. A placeholder may carry a format after a colon, which is a number given to the <a href="../operators/">Format2</a> operator <code>n$value</code>: a positive width pads on the right, a negative width on the left, and <code>5.2</code> means five integer digits and two decimals. The format is not Python's: a width pads with spaces, and a format with a leading zero, such as <code>{:02}</code>, is a range error.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>?&gt; .fmt("{1} {0}";["a" "b"])
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>"b a"
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>?&gt; .fmt("{:8}|";42)
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>"42      |"
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>?&gt; .fmt("{:-8}|";42)
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>"      42|"
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>?&gt; .fmt("{:5.2}";3)
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>"    3.00"
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>?&gt; .fmt("{{}} {}";7)
+<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>"{} 7"
+<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a>?&gt; .fmt("{:02}";5)
+<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>error: .fmt: bad format '02' in placeholder '{:02}': zero padding is not supported, a width pads with spaces in template '{:02}'
+</code></pre></div>
+<p>Each argument is shown as <code>.d</code> shows it: strings and characters without quotes, lists as <code>[1 2 3]</code>, <code>:undefined</code> as <code>undefined</code>. If <code>args</code> is a list, its members are the arguments; any other value is the single argument. To pass one list as the only argument, wrap it with <code>,</code>. Build an argument list from variables with <code>[;a;b]</code>; <code>[a b]</code> would hold the symbols.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>?&gt; .fmt("{}";[1 2 3])
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>error: .fmt: 1 placeholder(s) but 3 argument(s) in template '{}'
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>?&gt; .fmt("{}";,[1 2 3])
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>"[1 2 3]"
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>?&gt; .fmt("{} {}";[1])
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>error: .fmt: 2 placeholder(s) but 1 argument(s) in template '{} {}'
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>?&gt; .fmt("{} {1}";[1 2])
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>error: .fmt: cannot mix {} and {N} placeholders in template '{} {1}'
+</code></pre></div>
+<p>A template with no placeholders can be given alone, as in <code>.pf("done")</code>, which prints <code>done</code>. A template that has placeholders needs its arguments, and the error counts them. A list of numbers is an array, so mixed integers and floats in one argument list all print as floats: in <code>[;3;2.5]</code> the <code>3</code> is already <code>3.0</code> when <code>.fmt</code> sees it. Write <code>$n</code> to keep an integer's form.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>?&gt; .fmt("done")
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>"done"
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>?&gt; .fmt("{}")
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>error: .fmt: 1 placeholder(s) ({}) but no arguments; call .fmt(template;arguments) in template '{}'
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>?&gt; .fmt("{} {}";[;3;2.5])
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>"3.0 2.5"
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>?&gt; .fmt("{} {}";[;$3;2.5])
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>"3 2.5"
+</code></pre></div>
+<h2 id="strings">Strings<a class="headerlink" href="#strings" title="Permanent link">&para;</a></h2>
+<p>KlongPy has five functions for text that every program otherwise writes for itself. Each takes strings only; any other argument is a type error that names the function. Each counts characters, not bytes, as the rest of the language does. They are the same in the <a href="../native/">native runtime</a>, which runs the same <a href="../conformance/">conformance cases</a>.</p>
+<p><code>.split(s;sep)</code> returns the pieces of <code>s</code> between the occurrences of <code>sep</code>, a string of one or more characters or a character. Empty pieces are kept, so there is one more piece than there are separators, and the split of <code>""</code> is <code>[""]</code>. The result is always a list of strings. An empty <code>sep</code> is a range error. The classic way is a function that finds the separators with <code>?</code> and cuts between them; this one handles a single-character separator only:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>?&gt; sp::{[p s e t];t::x;p::x?y;s::0,1+p;e::p,#x;{((e@x)-s@x)#(s@x)_t}'!#s}
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>:dyad
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>?&gt; sp("a,,b";",")
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>["a" "" "b"]
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>?&gt; .split("a,,b";",")
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>["a" "" "b"]
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>?&gt; .split("";",")
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>[""]
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>?&gt; .split("a::b::";"::")
+<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>["a" "b" ""]
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>?&gt; .split("hé,é";0c,)
+<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>["hé" "é"]
+<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a>?&gt; .split("abc";"")
+<a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a>error: .split: y must not be empty
+</code></pre></div>
+<p><code>.join(list;sep)</code> is the inverse: the strings of <code>list</code> with <code>sep</code> between neighbours. The empty list gives <code>""</code>. A member may be a character; a member of any other type is a type error, and so is a string given as the list. The classic way is a fold, which fails on an empty list:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>?&gt; {x,", ",y}/["a" "b" "c"]
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>"a, b, c"
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>?&gt; .join(["a" "b" "c"];", ")
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>"a, b, c"
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>?&gt; .join([];", ")
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>""
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>?&gt; .join([0ca "bc"];"-")
+<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>"a-bc"
+<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a>?&gt; .join(["a" 1];",")
+<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a>error: .join: x must be a list of strings, got a list with integer
+<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a>?&gt; .join(.split("a,,b";",");",")
+<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a>"a,,b"
+</code></pre></div>
+<p><code>.words(s)</code> returns the non-empty pieces of <code>s</code> between runs of white space, and <code>.trim(s)</code> returns <code>s</code> without white space at its start and end. White space is the space, the tab, the newline and the carriage return.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>?&gt; .words("  to be  or not ")
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>["to" "be" "or" "not"]
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>?&gt; #.words("   ")
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>0
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>?&gt; .trim("  a b  ")
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>"a b"
+</code></pre></div>
+<p><code>.num(s)</code> returns the number that the whole of <code>s</code> spells: an integer, or a real in Klong's number syntax, with an optional <code>-</code> and optional white space around it. Anything else is <code>:undefined</code>: two numbers, text, or nothing. The classic way is <code>.rs</code>, which reads any data object and stops after the first one, so <code>.rs("7 8")</code> is <code>7</code> and <code>.rs("x")</code> is the symbol <code>x</code>.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>?&gt; .num("12")
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>12
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>?&gt; .num("-3.5")
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>-3.5
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>?&gt; .num(" 7 ")
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>7
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>?&gt; .num("7 8")
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>:undefined
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>?&gt; .num("x")
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>:undefined
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>?&gt; .num("")
+<a id="__codelineno-39-12" name="__codelineno-39-12" href="#__codelineno-39-12"></a>:undefined
+<a id="__codelineno-39-13" name="__codelineno-39-13" href="#__codelineno-39-13"></a>?&gt; .rs("7 8")
+<a id="__codelineno-39-14" name="__codelineno-39-14" href="#__codelineno-39-14"></a>7
+</code></pre></div>
+<p>To read a column of numbers from text, apply <code>.num</code> to each piece. A piece that is not a number gives <code>:undefined</code>, which the match operator <code>~</code> tests for:</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>?&gt; .num'.split("3,4.5";",")
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>[3.0 4.5]
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>?&gt; :undefined~.num("x")
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>1
+</code></pre></div>
+<h2 id="json">JSON<a class="headerlink" href="#json" title="Permanent link">&para;</a></h2>
+<p><code>.json(x)</code> returns the JSON text of a value, and <code>.unjson(s)</code> returns the value of JSON text. Both are built in and use no package. They are the same function pair that a <a href="../web_server/#json">web handler</a> uses to answer and read JSON, and the <a href="../native/">native runtime</a> has them too, with the same <a href="../conformance/">conformance cases</a>. An escaped lone surrogate (<code>"\ud800"</code>) is a range error there; an integer beyond 64 bits is exact, as in KlongPy, in a desktop build (a board build without the <code>bigint</code> feature gives a range error).</p>
+<table>
+<thead>
+<tr>
+<th>Klong</th>
+<th>JSON</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a dictionary</td>
+<td>an object; every key must be a string</td>
+</tr>
+<tr>
+<td>a list or an array</td>
+<td>an array</td>
+</tr>
+<tr>
+<td>an integer, a real, a NumPy or torch number</td>
+<td>a number</td>
+</tr>
+<tr>
+<td>a string or a character</td>
+<td>a string</td>
+</tr>
+<tr>
+<td><code>:undefined</code>, NaN, an infinity</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td>a symbol or a function</td>
+<td>a type error that says where it is</td>
+</tr>
+</tbody>
+</table>
+<p>The text has no spaces after <code>,</code> and <code>:</code>. <code>.unjson</code> reads an object as a dictionary, an array as a list (an array of numbers is an array), <code>null</code> as <code>:undefined</code>, and <code>true</code> and <code>false</code> as 1 and 0, so <code>.json</code> after <code>.unjson</code> returns <code>1</code> and <code>0</code>, not <code>true</code> and <code>false</code>. Text that is not exactly one JSON value is a range error with the line, column and character position.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>?&gt; t::.json(:{;"name";"ada";"scores";[1 2 3];"mean";2.5;"note";:undefined})
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>"{""name"":""ada"",""scores"":[1,2,3],""mean"":2.5,""note"":null}"
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>?&gt; d::.unjson(t)
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>:{["name" "ada"] ["scores" [1 2 3]] ["mean" 2.5] ["note" :undefined]}
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>?&gt; d@"scores"
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>[1 2 3]
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>?&gt; .json(:{;"f";{x}})
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>error: .json: a function has no JSON form at key "f"
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>?&gt; .unjson("[1,")
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>error: .unjson: Expecting value at line 1 column 4 (character 3)
+</code></pre></div>
+<h2 id="gradient">Gradient<a class="headerlink" href="#gradient" title="Permanent link">&para;</a></h2>
+<p><code>.grad(f;x)</code> is the numeric gradient of <code>f</code> at <code>x</code>, the same as <code>x∇f</code>, for keyboards without the <code>∇</code> character.</p>
+<p>The ASCII forms are <code>.grad(f;x)</code> for <code>x∇f</code> and <code>.jacobian(f;x)</code> for <code>x∂f</code>; both take the function first, and the operators take the point first. <a href="../operators/#comparison">Operators</a> has the table that compares all the gradient operators.</p>
+<p>The monad <code>∇f</code> and the multi-parameter <code>[w b]∂f</code> are available only as glyphs. The point is taken by value, so <code>.grad(f;p)</code> with a variable <code>p</code> uses its value.</p>
+<!-- check-docs: strict 2 -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>?&gt; f::{x^2}
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>:monad
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>?&gt; 3∇f
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a>6.000000000838668
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>?&gt; .grad(f;3)
+<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>6.000000000838668
+<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a>?&gt; .grad({+/x^2};[1 2 3])
+<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a>[2.000000000279556 3.9999999996709334 6.000000000838668]
+<a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a>?&gt; [1 2 3]∇{+/x^2}
+<a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a>[2.000000000279556 3.9999999996709334 6.000000000838668]
+</code></pre></div>
+<p>How to type <code>∇</code> and <code>∂</code> is in <a href="../torch_backend/#typing-the-gradient-symbols">PyTorch Backend and Autograd</a>.</p>
+<h2 id="the-it-variable">The <code>it</code> variable<a class="headerlink" href="#the-it-variable" title="Permanent link">&para;</a></h2>
+<p>In the REPL, <code>it</code> holds the value of the last expression that printed a result. In a program you assign the result yourself. Errors, <code>]</code> commands and expressions with no result leave <code>it</code> as it was, and a file run or <code>-e</code> never changes it. See <a href="../repl/#the-it-variable">the REPL</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>?&gt; 1+2
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>3
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a>?&gt; it*2
+<a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a>6
+<a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a>?&gt; r::it+1
+<a id="__codelineno-43-6" name="__codelineno-43-6" href="#__codelineno-43-6"></a>7
+</code></pre></div>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<p><a href="../whats-new-v2/">What's new in v2</a>, <a href="../migrating-to-v2/">Migrating to v2</a>, <a href="../differences/">Differences from Klong</a>, <a href="../conformance/">Conformance Suite</a>, <a href="../roadmap/">Roadmap</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

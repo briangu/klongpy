@@ -1,0 +1,3080 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/lint/">
+      
+      
+        <link rel="prev" href="../strict/">
+      
+      
+        <link rel="next" href="../errors/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Lint: kgpy lint - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#lint-kgpy-lint" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Lint: kgpy lint
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#options-and-exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options and exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suppressing-a-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suppressing a finding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lint-codes-and-runtime-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lint codes and runtime errors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#w001-an-underscore-between-name-characters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W001: an underscore between name characters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w002-a-name-used-before-it-is-defined-or-never-defined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W002: a name used before it is defined, or never defined
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w003-a-declared-local-that-is-never-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W003: a declared local that is never used
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w010-a-leading-minus-before-a-number-and-an-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W010: a leading minus before a number and an operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w011-a-function-that-uses-y-but-not-x-called-with-too-few-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W011: a function that uses y but not x, called with too few arguments
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w012-a-bare-name-in-a-data-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W012: a bare name in a data list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w013-a-conditional-in-the-else-branch-of-a-conditional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W013: a conditional in the else branch of a conditional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w014-whitespace-before-an-argument-list-or-an-adverb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W014: whitespace before an argument list or an adverb
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w015-a-newline-right-after-a-comment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W015: a newline right after a comment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w016-a-colon-before-a-number" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W016: a colon before a number
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w017-a-bracket-or-operator-inside-a-data-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W017: a ;, bracket or operator inside a data list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w018-a-number-directly-followed-by-a-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W018: a number directly followed by a name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w019-assignment-to-x-y-or-z" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W019: assignment to x, y or z
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w020-a-two-element-list-joined-to-a-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W020: a two-element list joined to a dictionary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w021-abv-where-a-is-not-a-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W021: a.b::v where a is not a dictionary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w022-a-module-that-is-never-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W022: a module that is never used
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w023-a-local-file-shadows-a-bundled-library-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W023: a local file shadows a bundled library file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e001-a-syntax-error-at-strict-level-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E001: a syntax error at strict level 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e002-more-arguments-than-the-function-takes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E002: more arguments than the function takes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e003-an-assignment-to-an-entry-of-a-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E003: an assignment to an entry of a module
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e004-a-qualified-name-the-module-does-not-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E004: a qualified name the module does not export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e005-an-extern-whose-value-is-discarded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E005: an .extern whose value is discarded
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-names-are-resolved" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How names are resolved
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-not-reported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not reported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From Python
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#options-and-exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options and exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suppressing-a-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suppressing a finding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lint-codes-and-runtime-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lint codes and runtime errors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#w001-an-underscore-between-name-characters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W001: an underscore between name characters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w002-a-name-used-before-it-is-defined-or-never-defined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W002: a name used before it is defined, or never defined
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w003-a-declared-local-that-is-never-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W003: a declared local that is never used
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w010-a-leading-minus-before-a-number-and-an-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W010: a leading minus before a number and an operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w011-a-function-that-uses-y-but-not-x-called-with-too-few-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W011: a function that uses y but not x, called with too few arguments
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w012-a-bare-name-in-a-data-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W012: a bare name in a data list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w013-a-conditional-in-the-else-branch-of-a-conditional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W013: a conditional in the else branch of a conditional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w014-whitespace-before-an-argument-list-or-an-adverb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W014: whitespace before an argument list or an adverb
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w015-a-newline-right-after-a-comment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W015: a newline right after a comment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w016-a-colon-before-a-number" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W016: a colon before a number
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w017-a-bracket-or-operator-inside-a-data-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W017: a ;, bracket or operator inside a data list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w018-a-number-directly-followed-by-a-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W018: a number directly followed by a name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w019-assignment-to-x-y-or-z" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W019: assignment to x, y or z
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w020-a-two-element-list-joined-to-a-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W020: a two-element list joined to a dictionary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w021-abv-where-a-is-not-a-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W021: a.b::v where a is not a dictionary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w022-a-module-that-is-never-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W022: a module that is never used
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#w023-a-local-file-shadows-a-bundled-library-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W023: a local file shadows a bundled library file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e001-a-syntax-error-at-strict-level-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E001: a syntax error at strict level 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e002-more-arguments-than-the-function-takes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E002: more arguments than the function takes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e003-an-assignment-to-an-entry-of-a-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E003: an assignment to an entry of a module
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e004-a-qualified-name-the-module-does-not-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E004: a qualified name the module does not export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e005-an-extern-whose-value-is-discarded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E005: an .extern whose value is discarded
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-names-are-resolved" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How names are resolved
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-not-reported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not reported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From Python
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="lint-kgpy-lint">Lint: <code>kgpy lint</code><a class="headerlink" href="#lint-kgpy-lint" title="Permanent link">&para;</a></h1>
+<p><code>kg lint FILE...</code> and <code>kgpy lint FILE...</code> use the same Rust linter to report likely mistakes before a program runs. The linter parses the source and can read the interface of a file named in a literal <code>.l</code> call. Linting a file containing <code>.x(3)</code> exits with status 0 because the linter does not execute the program.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>demo.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="go">&gt; my_var::5</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="go">&gt; total::0</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="go">&gt; -1+2</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">$ </span>kgpy<span class="w"> </span>lint<span class="w"> </span>demo.kg
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="go">demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cannot contain underscores</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="go">demo.kg:3:1: W010 a leading - negates everything to its right: -1+... is -(1+...)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="go">0 errors, 2 warnings in 1 file</span>
+</code></pre></div>
+<p>A finding is one line, <code>file:line:col: CODE message</code>. The findings of a file come in order of position, and files in the order they were named. The last line is the summary. Codes that start with <code>W</code> are warnings; codes that start with <code>E</code> are errors. Add <code>-v</code> after the file names to print a <code>hint:</code> line under each finding:</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'total::0\n-1+2\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>-v
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="go">&lt;stdin&gt;:2:1: W010 a leading - negates everything to its right: -1+... is -(1+...)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="go">  hint: write (-1)+... to negate only the number</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<p>The file name <code>-</code> reads standard input, which the examples on this page use to stay short. The options may come in any order: <code>kgpy lint -v demo.kg</code> and <code>kgpy lint demo.kg -v</code> are the same. <code>kgpy lint</code> with no file name is an error.</p>
+<p>Lint finds the same sort of mistake as <a href="../strict/">strict mode</a>, but in a file, before it runs, and without needing the mistake to happen on the path that is taken. <a href="#lint-codes-and-runtime-errors">Lint codes and runtime errors</a> maps each finding to the error or warning the interpreter gives for the same input.</p>
+<h2 id="options-and-exit-status">Options and exit status<a class="headerlink" href="#options-and-exit-status" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--select W001,W010</code></td>
+<td>Report only these codes.</td>
+</tr>
+<tr>
+<td><code>--ignore W002</code></td>
+<td>Leave these codes out. An ignored error does not count toward the exit status.</td>
+</tr>
+<tr>
+<td><code>--define t,helper</code></td>
+<td>Names that the host defines before the program runs. W002 accepts them.</td>
+</tr>
+<tr>
+<td><code>-v</code></td>
+<td>Print the hint of each finding.</td>
+</tr>
+</tbody>
+</table>
+<p>Codes are written in upper case or lower case, separated by commas, and must exist. A file name of <code>-</code> is standard input.</p>
+<table>
+<thead>
+<tr>
+<th>Exit status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>No error was reported. Warnings do not change the status.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>At least one <code>E</code> finding was reported, after <code>--select</code> and <code>--ignore</code>.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A file could not be read, or a code is unknown. The other files are still checked.</td>
+</tr>
+</tbody>
+</table>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'f::{x}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="go">0</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'1+'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="go">&lt;stdin&gt;:1:2: E001 missing right operand for +</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="go">1</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'my_var::5'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>--select<span class="w"> </span>W010<span class="w"> </span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="go">0</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'1+'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>--ignore<span class="w"> </span>E001<span class="w"> </span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="go">0</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="gp">$ </span>kgpy<span class="w"> </span>lint<span class="w"> </span>nothing.kg<span class="w"> </span>demo.kg<span class="w"> </span>--select<span class="w"> </span>W001<span class="w"> </span>&gt;lint.out<span class="w"> </span><span class="m">2</span>&gt;lint.err<span class="p">;</span><span class="w"> </span><span class="nv">status</span><span class="o">=</span><span class="nv">$?</span><span class="p">;</span><span class="w"> </span>cat<span class="w"> </span>lint.err<span class="w"> </span>lint.out<span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="go">nothing.kg: cannot read: No such file or directory</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="go">demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cannot contain underscores</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="go">0 errors, 1 warning in 1 file</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="go">2</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'a'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>--select<span class="w"> </span>W999<span class="w"> </span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="go">kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, E001, E002, E003, E004, E005</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="go">2</span>
+</code></pre></div>
+<p>The <code>--select W001</code> example reads <code>demo.kg</code> from the first example on this page.</p>
+<h2 id="suppressing-a-finding">Suppressing a finding<a class="headerlink" href="#suppressing-a-finding" title="Permanent link">&para;</a></h2>
+<p>A comment on a line removes a code on that line, and only that line. The comment is <code>:"lint:ignore CODE"</code>, and several codes may follow, separated by spaces or commas. A comment without a code does nothing.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>ignore.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">&gt; a::1</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">&gt; [a a]</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">&gt; [a a] :"lint:ignore W012"</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="gp">$ </span>kgpy<span class="w"> </span>lint<span class="w"> </span>ignore.kg
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="go">ignore.kg:2:2: W012 'a' in a list is the symbol :a, not the value of a</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="go">ignore.kg:2:4: W012 'a' in a list is the symbol :a, not the value of a</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="go">0 errors, 2 warnings in 1 file</span>
+</code></pre></div>
+<p>The third line is clean. A code can also be left out for the whole run with <code>--ignore</code>.</p>
+<h2 id="lint-codes-and-runtime-errors">Lint codes and runtime errors<a class="headerlink" href="#lint-codes-and-runtime-errors" title="Permanent link">&para;</a></h2>
+<p>Lint reports from the text what the interpreter reports when it runs. This table pairs them. The error kinds are those of <a href="../errors/#kinds-of-error">Errors</a>; the warning codes (<code>trailing-input</code> and the rest) are in <a href="../errors/#syntax-warnings">syntax warnings</a>; the levels are in <a href="../strict/">Strict mode</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Lint code</th>
+<th>Interpreter, same input</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>E001</code></td>
+<td>At strict level 1 and 2, a <code>syntax</code> error with the same message. At level 0, a syntax warning: <code>trailing-input</code>, <code>stray-closer</code>, <code>missing-operand</code>, <code>unterminated-string</code>, <code>unterminated-list</code>, <code>unterminated-dict</code> or <code>unterminated-comment</code>.</td>
+</tr>
+<tr>
+<td><code>E002</code></td>
+<td>At strict level 2, an <code>arity</code> error. Below level 2 the extra arguments are dropped.</td>
+</tr>
+<tr>
+<td><code>W002</code></td>
+<td>At strict level 2, a <code>name</code> error (<code>undefined: a</code>). Below level 2 the name evaluates to its own symbol.</td>
+</tr>
+<tr>
+<td><code>W003</code>, <code>W010</code>, <code>W011</code>, <code>W012</code>, <code>W016</code>, <code>W017</code>, <code>W018</code>, <code>W019</code>, <code>W020</code></td>
+<td>None. The program runs and gives a value that is probably not the one intended.</td>
+</tr>
+<tr>
+<td><code>E003</code></td>
+<td>A <code>type</code> error: a module is read-only.</td>
+</tr>
+<tr>
+<td><code>E004</code></td>
+<td>A <code>name</code> error: the module has no such entry (also for an entry named in <code>.l(path;[names])</code>).</td>
+</tr>
+<tr>
+<td><code>E005</code></td>
+<td>A <code>type</code> error: <code>.extern</code> returns a function, and a statement that discards it declares nothing.</td>
+</tr>
+<tr>
+<td><code>W021</code></td>
+<td>A <code>name</code> error, or at level 0 a new entry, when the base is not a dictionary: <code>a.b::v</code> is <code>a@"b"</code> written.</td>
+</tr>
+<tr>
+<td><code>W022</code></td>
+<td>None.</td>
+</tr>
+<tr>
+<td><code>W023</code></td>
+<td>None. The program gets the local file; the engine adds a warning to its warning list.</td>
+</tr>
+<tr>
+<td><code>W001</code></td>
+<td>None. <code>my_var</code> runs as <code>my _ var</code>.</td>
+</tr>
+<tr>
+<td><code>W013</code></td>
+<td>None. The nested conditional is correct; the chain form is shorter.</td>
+</tr>
+<tr>
+<td><code>W014</code></td>
+<td>The parenthesised part is dropped; a space before an adverb is a <code>syntax</code> error (also <code>E001</code>).</td>
+</tr>
+<tr>
+<td><code>W015</code></td>
+<td>At strict level 1 and 2 the newline after a comment is an ordinary newline; at level 0 it acts as <code>;</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="codes">Codes<a class="headerlink" href="#codes" title="Permanent link">&para;</a></h2>
+<p>Each example below is the whole file, read from standard input.</p>
+<h3 id="w001-an-underscore-between-name-characters">W001: an underscore between name characters<a class="headerlink" href="#w001-an-underscore-between-name-characters" title="Permanent link">&para;</a></h3>
+<p><code>_</code> is the Drop operator, so <code>my_var</code> is <code>my _ var</code>. Write <code>myVar</code>, or put spaces around <code>_</code> when Drop is meant. A name that is <code>x</code>, <code>y</code> or <code>z</code> next to an underscore (<code>x_a</code>) is not reported, because that is how Drop is usually written.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'my_var::5'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">&lt;stdin&gt;:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cannot contain underscores</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w002-a-name-used-before-it-is-defined-or-never-defined">W002: a name used before it is defined, or never defined<a class="headerlink" href="#w002-a-name-used-before-it-is-defined-or-never-defined" title="Permanent link">&para;</a></h3>
+<p>An undefined name evaluates to its own symbol, so a misspelled name does not fail where it is written. A use inside a function body may come before a later top-level definition, since the function runs later.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'b::a\na::1\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">&lt;stdin&gt;:1:4: W002 'a' is used before its definition (defined at line 2)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'g::{zz}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="go">&lt;stdin&gt;:1:5: W002 'zz' is never defined in this file</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="go">0 errors, 1 warning in 1 file</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{a}\na::1\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+</code></pre></div>
+<p>See <a href="#how-names-are-resolved">How names are resolved</a> for what counts as defined.</p>
+<h3 id="w003-a-declared-local-that-is-never-used">W003: a declared local that is never used<a class="headerlink" href="#w003-a-declared-local-that-is-never-used" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'f::{[a;b];a::1;a}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="go">&lt;stdin&gt;:1:8: W003 local 'b' is declared but never used</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w010-a-leading-minus-before-a-number-and-an-operator">W010: a leading minus before a number and an operator<a class="headerlink" href="#w010-a-leading-minus-before-a-number-and-an-operator" title="Permanent link">&para;</a></h3>
+<p><code>-1+2</code> is <code>-(1+2)</code>, which is -3. A minus fuses with a number only inside <code>[...]</code>. Write <code>(-1)+2</code> to negate only the number. A leading minus before <code>*</code> or <code>%</code> is not reported, since the sign commutes with those.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'-1+2'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="go">&lt;stdin&gt;:1:1: W010 a leading - negates everything to its right: -1+... is -(1+...)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w011-a-function-that-uses-y-but-not-x-called-with-too-few-arguments">W011: a function that uses <code>y</code> but not <code>x</code>, called with too few arguments<a class="headerlink" href="#w011-a-function-that-uses-y-but-not-x-called-with-too-few-arguments" title="Permanent link">&para;</a></h3>
+<p>A function takes as many arguments as the highest of <code>x</code>, <code>y</code> and <code>z</code> it uses, so <code>{y}</code> takes two. A call with one argument does not give a value. The rule fires only when the file shows such a call. A function that is never called short is not reported, because callbacks with a fixed <code>(x;y)</code> signature that ignore <code>x</code> are correct.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{y}\nf(5)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="go">&lt;stdin&gt;:1:4: W011 function uses y but not x: the call at line 2 passes 1 argument and gets a projection, not a value</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w012-a-bare-name-in-a-data-list">W012: a bare name in a data list<a class="headerlink" href="#w012-a-bare-name-in-a-data-list" title="Permanent link">&para;</a></h3>
+<p>A name in <code>[a b]</code> is the symbol <code>:a</code>, not the value of <code>a</code>. Use <code>[;a;b]</code> to list values. Not reported: <code>x</code>, <code>y</code>, <code>z</code>, the keys of a dictionary literal, and lists that the language reads as names (the left side of a destructuring, the argument of <code>.pyc</code>, <code>f:&gt;[w b]</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'a::1\n[a 2]\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="go">&lt;stdin&gt;:2:2: W012 'a' in a list is the symbol :a, not the value of a</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w013-a-conditional-in-the-else-branch-of-a-conditional">W013: a conditional in the else branch of a conditional<a class="headerlink" href="#w013-a-conditional-in-the-else-branch-of-a-conditional" title="Permanent link">&para;</a></h3>
+<p><code>:[c;a;:[d;b;e]]</code> can be written with the chain form <code>:[c;a:|d;b;e]</code>, which the <a href="../operators/#else-if-chains">operator reference</a> describes.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">':[1;"a";:[0;"b";"c"]]'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="go">&lt;stdin&gt;:1:9: W013 :[ in the else branch of :[ can be written as the :| chain</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w014-whitespace-before-an-argument-list-or-an-adverb">W014: whitespace before an argument list or an adverb<a class="headerlink" href="#w014-whitespace-before-an-argument-list-or-an-adverb" title="Permanent link">&para;</a></h3>
+<p><code>f (1)</code> is not a call: the parenthesised part is dropped. <code>{x} '[1 2]</code> is a syntax error. The same position is also an <code>E001</code> finding, so a file with either construct exits with status 1.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x}\nf (1)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="go">&lt;stdin&gt;:2:3: E001 unexpected '(' after the end of the expression; the rest of the input is not evaluated</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="go">&lt;stdin&gt;:2:3: W014 whitespace between f and (: this is not a call, the parenthesised part is dropped</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="go">1 error, 1 warning in 1 file</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"{x} '[1 2]"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="go">&lt;stdin&gt;:1:5: E001 adverb ' must directly follow its verb</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="go">&lt;stdin&gt;:1:5: W014 whitespace between } and the adverb ': an adverb must follow its verb directly</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="go">1 error, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w015-a-newline-right-after-a-comment">W015: a newline right after a comment<a class="headerlink" href="#w015-a-newline-right-after-a-comment" title="Permanent link">&para;</a></h3>
+<p>Inside a function body, a conditional, an argument list or an evaluated list, the newline after a comment acts as <code>;</code> at strict level 0. At level 1 and 2 it is an ordinary newline. The finding is placed on the comment, so a <code>lint:ignore</code> goes in that comment. Not reported at the top level, where a newline is a separator anyway.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x :"c"\n+2}\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="go">&lt;stdin&gt;:1:7: W015 newline after a comment acts as ';' inside a function body</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w016-a-colon-before-a-number">W016: a colon before a number<a class="headerlink" href="#w016-a-colon-before-a-number" title="Permanent link">&para;</a></h3>
+<p><code>:123</code> is the number 123. The colon is ignored.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">':123'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="go">&lt;stdin&gt;:1:1: W016 ':123' is the number 123: the colon is ignored</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w017-a-bracket-or-operator-inside-a-data-list">W017: a <code>;</code>, bracket or operator inside a data list<a class="headerlink" href="#w017-a-bracket-or-operator-inside-a-data-list" title="Permanent link">&para;</a></h3>
+<p>In <code>[1;2]</code> the <code>;</code> is the string <code>";"</code>, and in <code>[1 + 2]</code> the <code>+</code> is an operator value. Separate data with spaces; use <code>[;1;2]</code> for values that are computed. One finding is reported for each list, at its first offending token.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'[1;2]'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="go">&lt;stdin&gt;:1:3: W017 ';' inside a list is the string ";"</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'[1 + 2]'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="go">&lt;stdin&gt;:1:4: W017 operator + inside a list is an operator object, not a computation</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w018-a-number-directly-followed-by-a-name">W018: a number directly followed by a name<a class="headerlink" href="#w018-a-number-directly-followed-by-a-name" title="Permanent link">&para;</a></h3>
+<p><code>10c</code> is the number 10 followed by a call of <code>c</code>. Add a space if <code>c</code> is an infix function.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'c::{x+y}\n10c 2\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="go">&lt;stdin&gt;:2:1: W018 '10c' is the number 10 followed by the name c</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w019-assignment-to-x-y-or-z">W019: assignment to <code>x</code>, <code>y</code> or <code>z</code><a class="headerlink" href="#w019-assignment-to-x-y-or-z" title="Permanent link">&para;</a></h3>
+<p>Assigning to an argument of a function is legal, and is usually a mistake. A function that declares the name as a local is not reported.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'f::{x::5;x}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="go">&lt;stdin&gt;:1:5: W019 assignment to x, which is an argument of the function</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w020-a-two-element-list-joined-to-a-dictionary">W020: a two-element list joined to a dictionary<a class="headerlink" href="#w020-a-two-element-list-joined-to-a-dictionary" title="Permanent link">&para;</a></h3>
+<p>A list of two members on the left of <code>,</code> with a dictionary on the right is a dictionary entry, not a list with one more member. To append the dictionary, wrap it: <code>list,,dict</code>. See <a href="../language-additions/#dictionaries">Dictionaries</a>. The rule needs a list of two elements written out in the file, or a name whose every definition is such a list.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'a::[1 2]\na,:{[3 4]}\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="go">&lt;stdin&gt;:2:2: W020 'a', a two-element list, joined to a dictionary with , becomes a dictionary entry</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w021-abv-where-a-is-not-a-dictionary">W021: <code>a.b::v</code> where <code>a</code> is not a dictionary<a class="headerlink" href="#w021-abv-where-a-is-not-a-dictionary" title="Permanent link">&para;</a></h3>
+<p><code>a.b::v</code> writes the entry <code>"b"</code> of the dictionary <code>a</code>. A program that treats <code>a.b</code> as a variable name, as a program written for 0.7 does, fails when it runs. The rule reports a write to <code>a.b</code> where every definition of <code>a</code> in the file is a number, a string, a character, a list or a function, or where <code>a</code> is not defined at all. A parameter or a local that can hold a dictionary is not reported. See <a href="../language-additions/#qualified-names">Qualified names</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'q.x::1\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="go">&lt;stdin&gt;:1:1: W002 'q' is never defined in this file</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="go">&lt;stdin&gt;:1:1: W021 q.x::... sets the entry "x" of q, which is not a dictionary here</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="go">0 errors, 2 warnings in 1 file</span>
+</code></pre></div>
+<h3 id="w022-a-module-that-is-never-used">W022: a module that is never used<a class="headerlink" href="#w022-a-module-that-is-never-used" title="Permanent link">&para;</a></h3>
+<p>A top-level <code>.l("file")</code> or <code>.l("file";:alias)</code> of a module whose bound name (the file's name, or the alias) is never read in the file. Remove the line, or use a qualified name such as <code>name.f</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq(v)::{v*v}\nexport:::{;"sq";sq}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>geom.kg
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom";:g)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="go">&lt;stdin&gt;:1:1: W022 the module g is never used</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<h3 id="w023-a-local-file-shadows-a-bundled-library-file">W023: a local file shadows a bundled library file<a class="headerlink" href="#w023-a-local-file-shadows-a-bundled-library-file" title="Permanent link">&para;</a></h3>
+<p>A bare name given to <code>.l</code> is looked for in the directory of the file that contains the <code>.l</code>, then in <code>KLONGPATH</code>, then in the bundled library. When a file found in the first two places has the name of a library file (<code>csv</code>, <code>nstat</code>, <code>math</code>, ...) and is not that file, the program gets the local file and the linter says so. Write <code>./name</code> to say that the local file is meant, or rename it. The interpreter adds the same finding to its warning list.</p>
+<h3 id="e001-a-syntax-error-at-strict-level-1">E001: a syntax error at strict level 1<a class="headerlink" href="#e001-a-syntax-error-at-strict-level-1" title="Permanent link">&para;</a></h3>
+<p>Everything that <a href="../strict/">strict level 1</a> rejects, found without running the file: input left over, a missing operand, an unterminated string, a closer with nothing open, and the like. All of a file's problems are listed; parsing resumes after each.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'1+'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="go">&lt;stdin&gt;:1:2: E001 missing right operand for +</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'"abc'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="go">&lt;stdin&gt;:1:1: E001 unterminated string: the closing " is missing; it runs to the end of the input</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="go">1 error, 0 warnings in 1 file</span>
+</code></pre></div>
+<h3 id="e002-more-arguments-than-the-function-takes">E002: more arguments than the function takes<a class="headerlink" href="#e002-more-arguments-than-the-function-takes" title="Permanent link">&para;</a></h3>
+<p>The extra arguments are dropped at strict levels 0 and 1 and are an arity error at level 2. The limit is the number of named parameters, or the highest of <code>x</code>, <code>y</code> and <code>z</code> the function uses, so <code>{x+z}(1;2;3)</code> is fine and <code>{x}(1;2)</code> is not. The callee must be known: a name bound to a function literal at the top level of the file or of a file it loads with <code>.l</code>, or a literal called directly.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x}\nf(1;2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="go">&lt;stdin&gt;:2:1: E002 f takes 1 argument but is called with 2: the extra arguments are dropped</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x+z}\nf(1;2;3)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f(a;b)::{a+b}\nf(1;2;3)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="go">&lt;stdin&gt;:2:1: E002 f takes 2 arguments but is called with 3: the extra arguments are dropped</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="go">1 error, 0 warnings in 1 file</span>
+</code></pre></div>
+<h3 id="e003-an-assignment-to-an-entry-of-a-module">E003: an assignment to an entry of a module<a class="headerlink" href="#e003-an-assignment-to-an-entry-of-a-module" title="Permanent link">&para;</a></h3>
+<p>A module is read-only. Writing <code>m.name::v</code>, where <code>m</code> was bound by <code>.l</code>, is a type error when it runs.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq(v)::{v*v}\ncube(v)::{v*sq(v)}\nexport:::{;"sq";sq;"cube";cube}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>geom.kg
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom")\ngeom.sq::5\ngeom.sq(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="go">&lt;stdin&gt;:2:1: E003 cannot assign geom.sq: geom holds a module, which is read-only</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="go">1 error, 0 warnings in 1 file</span>
+</code></pre></div>
+<h3 id="e004-a-qualified-name-the-module-does-not-export">E004: a qualified name the module does not export<a class="headerlink" href="#e004-a-qualified-name-the-module-does-not-export" title="Permanent link">&para;</a></h3>
+<p>When the loaded file is found and its <code>export</code> is a literal dictionary, a read of <code>m.name</code> that the export does not list is a name error when it runs. So is an entry that <code>.l(path;[names])</code> asks for and the module lacks. The rule needs the file; with <code>-v</code> the hint lists what the module exports.</p>
+<!-- check-docs: continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom")\ngeom.nope\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>-v
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="go">&lt;stdin&gt;:2:1: E004 geom has no entry "nope"</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="go">  hint: the module exports: cube sq</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom";["sq" "nope"])\nsq(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>-v
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="go">&lt;stdin&gt;:1:1: E004 ./geom has no entry "nope"</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="go">  hint: the module exports: cube sq</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="go">1 error, 0 warnings in 1 file</span>
+</code></pre></div>
+<h3 id="e005-an-extern-whose-value-is-discarded">E005: an <code>.extern</code> whose value is discarded<a class="headerlink" href="#e005-an-extern-whose-value-is-discarded" title="Permanent link">&para;</a></h3>
+<p><code>.extern(c_symbol;signature)</code> returns the host function as a value. A statement that only calls it declares nothing a program can use, and it is a <code>type</code> error when it runs. Assign it, in a module file that exports it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.extern("read_adc";"int -&gt; float")\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="go">&lt;stdin&gt;:1:1: E005 .extern returns the host function as a value, and this statement throws it away</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
+</code></pre></div>
+<h2 id="how-names-are-resolved">How names are resolved<a class="headerlink" href="#how-names-are-resolved" title="Permanent link">&para;</a></h2>
+<p>W002, W012, E002 and E004 use a table of what the file defines: top-level <code>name::...</code>, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with <code>.l("file")</code>, with a literal argument, is looked up as <code>.l</code> looks it up: <code>file</code> and <code>file.kg</code> in the directory of the file that contains the <code>.l</code> (the working directory for standard input), then in each <code>KLONGPATH</code> directory (by default <code>.</code> and <code>lib</code>), then in the bundled library. The decision whether a file is a module (it assigns <code>export</code> at its top level) and the search order are the interpreter's: one implementation, <code>klong-core</code>'s <code>module.rs</code>, serves the interpreter, the linter and the checker. <code>kgpy</code>, <code>kgpy check</code> and <code>kgpy compile c</code> use the same order. It is parsed, not run.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'inc::{x+1}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>inc.kg
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("inc.kg")\ninc(1)\n'</span><span class="w"> </span>&gt;<span class="w"> </span>main.kg
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="gp">$ </span>kgpy<span class="w"> </span>lint<span class="w"> </span>main.kg
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'inc(1)'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="go">&lt;stdin&gt;:1:1: W002 'inc' is never defined in this file</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
+<p>Some definitions cannot be seen without running code. A <code>.py</code> or <code>.pyf</code> import, a <code>.pya</code>, <code>.E</code>, a <code>.l</code> with a computed argument, and a <code>.l</code> whose file is not found, define names that lint does not know. W002 is switched off for such a file, and the other rules still run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.pyf("math";"sqrt")\nsqrt(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+</code></pre></div>
+<p>A name that the host defines before the program runs is given with <code>--define</code>, as in <code>--define t</code>.</p>
+<h2 id="what-is-not-reported">What is not reported<a class="headerlink" href="#what-is-not-reported" title="Permanent link">&para;</a></h2>
+<p>A rule that needs run-time knowledge reports only what the text shows. W002 compares the order of the source with the order a program runs, which is right to left inside a statement and dynamic between functions, and it does not follow calls. W020 needs a two-element list written out. E002 knows only functions bound to a literal. There are no type checks, no formatting rules and no automatic fixes.</p>
+<h2 id="from-python">From Python<a class="headerlink" href="#from-python" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy.lint</span><span class="w"> </span><span class="kn">import</span> <span class="n">lint_source</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">lint_source</span><span class="p">(</span><span class="s2">"a::1</span><span class="se">\n</span><span class="s2">[a 2]</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"demo.kg"</span><span class="p">):</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">severity</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">line</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">hint</span><span class="p">)</span>
+</code></pre></div>
+<p><code>lint_source(text, name, *, select, ignore, define, base_dir, resolve)</code> returns <code>Diagnostic</code> objects in order of position. <code>str(d)</code> is the line the command prints. <code>resolve=False</code> never reads other files. <code>lint_file(path, ...)</code> reads a file.</p>
+<p>See also: <a href="../strict/">Strict Mode</a>, <a href="../errors/">Errors</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

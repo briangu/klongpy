@@ -1,0 +1,2540 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/native/management-node/">
+      
+      
+        <link rel="prev" href="../ipc/">
+      
+      
+        <link rel="next" href="../../embedded/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Management Node - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#management-node" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Management Node
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-pieces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pieces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-worked-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A worked example
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A worked example">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#liveness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Liveness
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#try-and-err" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .try and .err
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#klongpy-as-the-management-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KlongPy as the management process
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits-and-what-is-not-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits and what is not done
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-pieces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pieces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-worked-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A worked example
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A worked example">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#liveness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Liveness
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#try-and-err" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .try and .err
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#klongpy-as-the-management-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KlongPy as the management process
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits-and-what-is-not-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits and what is not done
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="management-node">Management Node<a class="headerlink" href="#management-node" title="Permanent link">&para;</a></h1>
+<p>This page covers the <code>mgmt</code> library (<code>klongpy/lib/mgmt.kg</code>), which turns one node into a management node: it keeps a registry of other nodes, checks that they are alive, relays calls to one node or to all of them, and stores source files on them. It is for people who run several native Klong nodes and want one place to reach them from. It is the role that a baseboard management controller has in a server, and it is not tied to any board.</p>
+<div class="admonition warning">
+<p class="admonition-title">Trust model</p>
+<p>Anyone who can reach the management node can run any code on it <strong>and on every node behind it</strong>, and can read and replace the files of each of them. Nothing is encrypted, and <code>.srv.auth</code> sees a user name and a password that travel in clear text. Let the management node listen on an isolated or trusted network only, preferably on <code>127.0.0.1</code> or a private link. This is the trust model of <a href="../ipc/">IPC and Timers</a>, made larger: one connection to the management node is a connection to all of them.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">What has been run</p>
+<p>Most of this page ran on one computer: the nodes and the management node are <code>kg</code> processes that talk over localhost TCP, and a second set of tests runs several runtimes in one thread over simulated lossy and serial links. On hardware, the library has loaded and management-library calls (<code>mgmt.call</code>) have run between two Raspberry Pi Picos (see <a href="../pico-bench/">two Picos calling each other</a>). <strong>Not run on a board</strong>: a management board with nodes on UARTs, and a pulled cable. The hooks <code>node.reset</code> and <code>node.power</code> (below) are a place for a board to plug into, and no board does yet. The <a href="../#status-what-has-and-has-not-been-proven">status table</a> has the one summary.</p>
+</div>
+<h2 id="the-pieces">The pieces<a class="headerlink" href="#the-pieces" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>  desktop (KlongPy or kg)  --.cli--&gt;  management node  --.cli--&gt;  node n1
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                                         (mgmt library)   --.cli--&gt;  node n2
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                                                          --.cli--&gt;  node n3
+</code></pre></div>
+<p>A <strong>node</strong> is any runtime that serves IPC: a native <code>kg</code> with <code>.srv</code>. A node needs nothing installed. When the management node connects, it defines three names on the node (<code>mgmt.run</code>, <code>mgmt.job</code> and <code>mgmt.r</code>) and nothing else, and it writes nothing to the node's storage unless you ask it to.</p>
+<p>The <strong>management node</strong> loads the library with <code>.l("mgmt")</code>. The native runtime carries the file in its image when it is built with the <code>ipc</code> feature, so no file is needed there. KlongPy finds it on its library path.</p>
+<p>Nodes are named by strings and reached by transport address strings, the ones <code>.cli</code> takes. The library never looks inside an address, so a node can be at <code>"127.0.0.1:5001"</code>, <code>"tcp:10.0.0.11:5000"</code> or <code>"uart:1@921600"</code> on a platform that has that transport.</p>
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Call</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mgmt.add(name;address)</code></td>
+<td>register a node and try to connect to it; a name that is already there gets the new address</td>
+</tr>
+<tr>
+<td><code>mgmt.nodes</code></td>
+<td>the registry, a dictionary from name to <code>:{["addr" a] ["h" handle or 0] ["state" s] ["seen" t] ["ver" v] ["wait" w] ["t" n]}</code></td>
+</tr>
+<tr>
+<td><code>mgmt.names()</code></td>
+<td>the names, in the order they were added</td>
+</tr>
+<tr>
+<td><code>mgmt.status()</code></td>
+<td>name to <code>:{addr state seen age ver}</code>: the registry without the handles</td>
+</tr>
+<tr>
+<td><code>mgmt.timeout(name;seconds)</code></td>
+<td>the call timeout of one node</td>
+</tr>
+<tr>
+<td><code>mgmt.start(seconds)</code></td>
+<td>check every node now, and then every <code>seconds</code></td>
+</tr>
+<tr>
+<td><code>mgmt.stop()</code></td>
+<td>stop checking</td>
+</tr>
+<tr>
+<td><code>mgmt.open(name)</code></td>
+<td>connect a node now (again, if it already has a link)</td>
+</tr>
+<tr>
+<td><code>mgmt.call(name;fn;args)</code></td>
+<td>call <code>fn</code> on a node with the list <code>args</code>, and return the result</td>
+</tr>
+<tr>
+<td><code>mgmt.each(names;fn;args)</code>, <code>mgmt.all(fn;args)</code></td>
+<td>the same call on several nodes at once, and on all of them: a dictionary from name to the result or to an error value</td>
+</tr>
+<tr>
+<td><code>mgmt.put(name;path;text)</code></td>
+<td>write a file on a node; returns the number of characters written</td>
+</tr>
+<tr>
+<td><code>mgmt.boot(name;text)</code></td>
+<td>write the node's <code>boot.kg</code>, which it runs when it starts</td>
+</tr>
+<tr>
+<td><code>mgmt.load(name;path)</code></td>
+<td>have the node load a file now (<code>.l(path)</code> there)</td>
+</tr>
+<tr>
+<td><code>mgmt.reset(name)</code>, <code>mgmt.power(name;on)</code></td>
+<td>call <code>node.reset(name)</code> and <code>node.power(name;on)</code>, when this board defines them; otherwise <code>name error: mgmt: this board has no node.reset</code></td>
+</tr>
+</tbody>
+</table>
+<p>Settings: <code>mgmt.ct</code> is the call timeout a node gets when it is added (30 seconds), <code>mgmt.pi</code> is the interval that <code>mgmt.start</code> was given, and <code>mgmt.probe</code> is the request a check sends (<code>".ver()"</code>). The defaults are provisional. In <code>mgmt.nodes</code>, <code>state</code> is <code>"up"</code> or <code>"down"</code>, <code>seen</code> is the <code>.pc()</code> time of the last answer (-1 before the first), <code>ver</code> is what <code>.ver()</code> gave there, <code>wait</code> is 1 while a probe is unanswered, and <code>t</code> is the node's call timeout.</p>
+<p><code>fn</code> is a symbol (the node's function of that name), a string (source that the node evaluates; give a function literal such as <code>"{+/x}"</code>, and with <code>args</code> of <code>[]</code> the value of the source is the result), or a function (sent as its source). Passing a string like <code>"+/x"</code> that is not a function literal does not apply it to <code>args</code>.</p>
+<h2 id="a-worked-example">A worked example<a class="headerlink" href="#a-worked-example" title="Permanent link">&para;</a></h2>
+<p>Three nodes, a management node in front of them, and a desktop client, all on localhost. The commands are run from one shell. The ports are <code>8888</code> for the first node and the next ones above it, and <code>8891</code> for the management node; the checker of this documentation replaces <code>8888</code> with a free port.</p>
+<p>Start three nodes. Each defines <code>sq</code> and serves one port:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s2">"sq::{x*x};.srv(\"127.0.0.1:</span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="nv">i</span><span class="k">))</span><span class="s2">\")"</span><span class="w"> </span>&gt;<span class="w"> </span>n<span class="nv">$i</span>.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$!</span><span class="w"> </span>&gt;<span class="w"> </span>n<span class="nv">$i</span>.pid<span class="p">;</span><span class="w"> </span><span class="k">done</span><span class="p">;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="k">$(</span>seq<span class="w"> </span><span class="m">600</span><span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-s<span class="w"> </span>n1.log<span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-s<span class="w"> </span>n2.log<span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-s<span class="w"> </span>n3.log<span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="k">break</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">0</span>.1<span class="p">;</span><span class="w"> </span><span class="k">done</span>
+</code></pre></div>
+<p>Write the management node's program. It registers the nodes, starts the liveness check every 0.3 seconds, defines one helper, and serves the management port. The ports are the arguments of the program, which a file reads from <code>.a</code>:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>mgr.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">&gt; .l("mgmt")</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="go">&gt; mgmt.add("n1";"127.0.0.1:",.a@0)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="go">&gt; mgmt.add("n2";"127.0.0.1:",.a@1)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="go">&gt; mgmt.add("n3";"127.0.0.1:",.a@2)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="go">&gt; mgmt.start(0.3)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="go">&gt; states::{{(mgmt.nodes?x)?"state"}'mgmt.names()}</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="go">&gt; .srv("127.0.0.1:",.a@3)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="gp">$ </span>kg<span class="w"> </span>mgr.kg<span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">1</span><span class="k">))</span><span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">2</span><span class="k">))</span><span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">3</span><span class="k">))</span><span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">10</span><span class="k">))</span><span class="w"> </span>&gt;<span class="w"> </span>mgr.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$!</span><span class="w"> </span>&gt;<span class="w"> </span>mgr.pid<span class="p">;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="k">$(</span>seq<span class="w"> </span><span class="m">600</span><span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>lsof<span class="w"> </span>-nP<span class="w"> </span>-iTCP:<span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">10</span><span class="k">))</span><span class="w"> </span>-sTCP:LISTEN<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="k">break</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">0</span>.1<span class="p">;</span><span class="w"> </span><span class="k">done</span><span class="p">;</span><span class="w"> </span>cat<span class="w"> </span>mgr.log
+</code></pre></div>
+<p>The management node prints nothing. <code>kg</code> stays alive because a timer runs and a server listens.</p>
+<p>Now the desktop. A client connects to the management node with <code>.cli</code> and sends it requests: a string to evaluate, or a list whose first element is the symbol of a function. The <code>mgmt</code> functions are called through the management node, so the list <code>[:mgmt.call "n2" :sq [7]]</code> is a request to call <code>mgmt.call("n2";:sq;[7])</code> there. The client is another <code>klong</code> here; it could be KlongPy.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>desk.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">&gt; m::.cli("127.0.0.1:",.a@0)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">&gt; .p(m("mgmt.names()"))</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">&gt; .p(m([:mgmt.call "n2" :sq [7]]))</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="go">&gt; .p(m([:mgmt.all :sq [6]]))</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="go">&gt; .p(m("states()"))</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="gp">$ </span>kg<span class="w"> </span>desk.kg<span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">10</span><span class="k">))</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="go">[n1 n2 n3]</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="go">49</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="go">:{[n1 36] [n2 36] [n3 36]}</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="go">[up up up]</span>
+</code></pre></div>
+<p><code>mgmt.call</code> relayed the call to <code>n2</code> and returned 49. <code>mgmt.all</code> sent the request to all three nodes before waiting for any answer, so they computed at the same time, and returned a dictionary of the results. The helper <code>states</code> shows the registry entries. The list literal <code>[:mgmt.call ...]</code> is how the library itself takes symbols, because symbols in list literals are never looked up as variables. At strict levels 0 and 1 a quoted symbol is the value of a variable of that name when there is one, so a desktop that has its own <code>sq</code> and writes <code>:sq</code> outside a list literal sends its function and not the name.</p>
+<h3 id="deploy">Deploy<a class="headerlink" href="#deploy" title="Permanent link">&para;</a></h3>
+<p><code>mgmt.put</code> writes a file on a node, and <code>mgmt.load</code> has the node load it. All three nodes run in this directory, so the file shows up here:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>deploy.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">&gt; m::.cli("127.0.0.1:",.a@0)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="go">&gt; .p(m([:mgmt.put "n2" "cube.kg" "cube::{x*x*x}"]))</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">&gt; m([:mgmt.load "n2" "cube.kg"])</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="go">&gt; .p(m([:mgmt.call "n2" :cube [3]]))</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="go">&gt; r::m([:mgmt.all :cube [2]])</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="go">&gt; .p(r?"n2")</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="go">&gt; .p((r?"n1")?"message")</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="gp">$ </span>kg<span class="w"> </span>deploy.kg<span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">10</span><span class="k">))</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="go">13</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="go">27</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="go">8</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="go">n1: undefined function: cube</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="gp">$ </span>cat<span class="w"> </span>cube.kg
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="go">cube::{x*x*x}</span>
+</code></pre></div>
+<p><code>mgmt.put</code> returned the 13 characters it wrote. The call of <code>cube</code> on <code>n2</code> gave 27. <code>mgmt.all</code> gave 8 for <code>n2</code> and, for the two nodes that never loaded the file, an error value, which does not stop the others: its message starts with the node's name. <code>mgmt.boot(name;text)</code> writes <code>boot.kg</code> the same way. A board runs its <code>boot.kg</code> when it starts; the host <code>kg</code> does not, so to bring a node back with it you start it as <code>kg boot.kg</code>.</p>
+<h3 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h3>
+<p>An error on a node is raised on the management node as an error of the same kind, with the name of the node in front of the message, and it travels on to the desktop with that kind:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'m::.cli(%s)\nm([:mgmt.call "n1" "{1+x}" ["a"]])\n'</span><span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">10</span><span class="k">))</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kg<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span>2p
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">  1:1: type error: n1: cannot apply + (Plus) to integer and string</span>
+</code></pre></div>
+<p>A link that fails, and a call that times out, are <code>system</code> errors that start with the node's name. Errors of the management node itself start with <code>mgmt:</code>. In a fan-out, <code>mgmt.each</code> and <code>mgmt.all</code> do not raise: a dead node or a slow one becomes an error value in the result, and costs at most its own timeout, because the requests go out to every node first and each node has until its own deadline. The error value is a dictionary:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>:{["error" kind] ["node" name] ["message" text]}
+</code></pre></div>
+<p>Klong has no error type, so a node whose own answer is such a dictionary cannot be told from a failed one.</p>
+<h3 id="liveness">Liveness<a class="headerlink" href="#liveness" title="Permanent link">&para;</a></h3>
+<p>Every interval each node is sent <code>mgmt.probe</code> without waiting. An answer makes the node <code>"up"</code>. A node that has not answered by the next check is <code>"down"</code>, and so is one whose link failed or whose call timed out; the check connects it again at the following check. Kill a node and the check notices:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">$ </span><span class="nb">kill</span><span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>n3.pid<span class="k">)</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span>.2
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>after.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="go">&gt; m::.cli("127.0.0.1:",.a@0)</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="go">&gt; .p(m("states()"))</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="go">&gt; r::m([:mgmt.all :sq [6]])</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="go">&gt; .p(r?"n1")</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="go">&gt; .p(r?"n3")</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="gp">$ </span>kg<span class="w"> </span>after.kg<span class="w"> </span><span class="k">$((</span><span class="m">8888</span><span class="o">+</span><span class="m">10</span><span class="k">))</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="go">[up up down]</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="go">36</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="go">:{[error system] [node n3] [message n3: not connected]}</span>
+</code></pre></div>
+<p>With the check running, a fan-out does not connect a node that has no link. It reports <code>not connected</code> at once and leaves connecting to the check. Without that, a node that accepts a connection and then says nothing would hold every fan-out for the handshake time (5 seconds, not settable from Klong). A node that is busy for longer than the interval is reported <code>"down"</code> until it answers: an evaluation moves no bytes. A killed process is reported at the next check; a link that goes silent, at the check after the unanswered probe, so up to two intervals. If you want the node back, start it again on the same port; the next check connects it and marks it up.</p>
+<p>While <code>mgmt.call</code> or a fan-out waits, the management node does nothing else: no check runs and other clients wait. One evaluation at a time.</p>
+<p>Last, stop what the example started:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span><span class="k">for</span><span class="w"> </span>f<span class="w"> </span><span class="k">in</span><span class="w"> </span>mgr<span class="w"> </span>n1<span class="w"> </span>n2<span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span><span class="nb">kill</span><span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span><span class="nv">$f</span>.pid<span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="k">done</span>
+</code></pre></div>
+<h2 id="try-and-err"><code>.try</code> and <code>.err</code><a class="headerlink" href="#try-and-err" title="Permanent link">&para;</a></h2>
+<p>The library needed two functions that Klong did not have: a way to catch an error and a way to raise one. They are one pair, and they are functions, not statements (a program raises with <code>.err</code> and catches with <code>.try</code>, and what one catches the other raises again). Both are in <code>kg</code>, in <code>kgpy</code> and on every board build, from the same runtime.</p>
+<p><code>.try(f;args)</code> applies the function <code>f</code> to the list <code>args</code>. The result is <code>[1 result]</code> when it worked and <code>[0 e]</code> when it raised an error. <code>e</code> is a dictionary, as every collection of named things is in Klong (principle 3 of the <a href="../../design-principles/">design principles</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Entry</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"kind"</code></td>
+<td>the name of the error kind, a string: <code>syntax</code>, <code>name</code>, <code>arity</code>, <code>type</code>, <code>shape</code>, <code>range</code>, <code>system</code>, <code>memory</code>, <code>internal</code> or <code>remote</code> (the kinds of <a href="../../errors/">Errors</a>)</td>
+</tr>
+<tr>
+<td><code>"message"</code></td>
+<td>the message, a string</td>
+</tr>
+<tr>
+<td><code>"source"</code></td>
+<td>the name of the program text the error was found in (a file name, <code>&lt;-e&gt;</code>, <code>&lt;stdin&gt;</code>), or <code>""</code></td>
+</tr>
+<tr>
+<td><code>"line"</code>, <code>"col"</code></td>
+<td>where, counting from 1; 0 when the error has no place</td>
+</tr>
+</tbody>
+</table>
+<p>An interrupt (Ctrl-C, <code>.x</code>) is not caught. <code>.err(kind;message)</code> raises an error of that kind with that message, for any kind except <code>interrupt</code>, and the kind may be a string or a symbol. <code>.err(e)</code> raises what <code>.try</code> caught, with its kind and its message (the place it reports is that of the <code>.err</code>; the place of the first failure is in <code>e</code>). A program that wants a category of its own writes it in the message: the kinds are the language's.</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{x+"a"};.try(f;,1)'</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="go">[0 :{["kind" "type"] ["message" "cannot apply + (Plus) to integer and string"] ["source" "&lt;-e&gt;"] ["line" 1] ["col" 6]}]</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'g::{x+1};.try(g;,1)'</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="go">[1 2]</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{x+"a"};e::(.try(f;,1))@1;e@"message"'</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="go">"cannot apply + (Plus) to integer and string"</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'f::{x+"a"};e::(.try(f;,1))@1;.err(e)'</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="go">1:30: type error: cannot apply + (Plus) to integer and string</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="go">  f::{x+"a"};e::(.try(f;,1))@1;.err(e)</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="go">                               ^^^^^^^</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.err("range";"bad index")'</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="go">1:1: range error: bad index</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="go">  .err("range";"bad index")</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="go">  ^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.err("interrupt";"stop")'</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="go">1:1: range error: .err: interrupt is not an error kind</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="go">  .err("interrupt";"stop")</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="go">  ^^^^^^^^^^^^^^^^^^^^^^^^</span>
+</code></pre></div>
+<p>A function literal with no argument, written as the argument of a user function, is evaluated on the spot: that is the rule of the language (<code>f::{x+1};f({41})</code> gives 42, because <code>f</code> receives 41). As the function argument of <code>.try</code>, <code>.async</code> or <code>.timer</code> it stays a function, so <code>.try({1+"a"};[0])</code> catches the error that the function raises, and <code>.timer("t";1;{0})</code> hands <code>.timer</code> the function. To pass such a function to a user function, give it a name or an argument:</p>
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'h::{1+"a"};.try(h;[0])'</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="go">[0 :{["kind" "type"] ["message" "cannot apply + (Plus) to integer and string"] ["source" "&lt;-e&gt;"] ["line" 1] ["col" 6]}]</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="gp">$ </span>kg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.try({x;1+"a"};[0])'</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="go">[0 :{["kind" "type"] ["message" "cannot apply + (Plus) to integer and string"] ["source" "&lt;-e&gt;"] ["line" 1] ["col" 10]}]</span>
+</code></pre></div>
+<p>The management library keeps the older, flat form on the wire between nodes, <code>[1 result]</code> or <code>[0 kind message]</code>, so that a node of either age understands another; <code>mgmt.cfg.trap</code> says whether the runtime has <code>.try</code> (1) or not (0), and it is worked out the first time it is needed.</p>
+<p>The two functions cost about 1.7 KB of flash on <code>thumbv7em-none-eabihf</code> and 2.3 KB on <code>riscv32imac-unknown-none-elf</code> (older figures); the dictionary of the caught error adds a little code.</p>
+<h2 id="klongpy-as-the-management-process">KlongPy as the management process<a class="headerlink" href="#klongpy-as-the-management-process" title="Permanent link">&para;</a></h2>
+<p>The file loads in KlongPy at every strict level and is tested there (<code>TestKlongPyAsManagementNode</code> in <code>tests/test_native_mgmt.py</code>), with native nodes behind it. A native client can drive it through <code>.srv</code>. What works:</p>
+<ul>
+<li>the registry, and <code>mgmt.call</code> with values of every type;</li>
+<li><code>mgmt.all</code> and <code>mgmt.each</code> when every link is up (an error on a node is still an error value, because the node catches it);</li>
+<li><code>mgmt.put</code>, <code>mgmt.boot</code>, <code>mgmt.load</code>;</li>
+<li>the liveness check marking a killed node down.</li>
+</ul>
+<p>What differs:</p>
+<ul>
+<li><code>mgmt.add</code> does not connect; the first call does.</li>
+<li>An error of a node keeps its kind but does not carry the node's name.</li>
+<li>A link that fails or a node that is too slow during a fan-out fails the whole call.</li>
+<li>The check does not connect a node again; <code>mgmt.open(name)</code> does. The reason is that <code>.cli</code> in KlongPy blocks for minutes when nobody listens at the address.</li>
+<li>An error of the management node itself is a <code>name</code> error about <code>mgmt.error</code>, after the message is printed.</li>
+<li>At strict level 2 KlongPy cannot be asked whether <code>.try</code> exists, so set <code>mgmt.cfg.trap::0</code> yourself after loading the library (<code>mgmt</code> is a module and <code>cfg</code> is its dictionary of settings).</li>
+</ul>
+<p>The nodes behind it are native runtimes in every case.</p>
+<h2 id="limits-and-what-is-not-done">Limits and what is not done<a class="headerlink" href="#limits-and-what-is-not-done" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Resources.</strong> A load reads one statement at a time and keeps functions as their text. On the 64-bit host the library needs a heap of about 43 KiB to load, peaks at about 40 KB in all and holds about 18 KB more afterwards (<code>.mem()</code>). On a Pico it keeps about 10 KB in use (<a href="../pico-bench/">two Picos calling each other</a>). It is 12.6 KB of text in the image, of which about half is the header that is also in this page. A 32-bit build has not been measured.</li>
+<li><strong>Defaults.</strong> The probe interval of 5 seconds in the library's example and the call timeout of 30 seconds are provisional. The keepalive of the packet layer and the probe do similar jobs, and one of them may be enough on a real UART.</li>
+<li><strong>Reconnect.</strong> A node comes back only at a check, so a management node without <code>mgmt.start</code> does not reconnect a node by itself; <code>mgmt.open(name)</code> does.</li>
+<li><strong>Hooks.</strong> <code>node.reset</code> and <code>node.power</code> are looked up by name when called. No board defines them.</li>
+<li><strong>No Python helper.</strong> There is no <code>klongpy.mgmt</code> class; the client side is <code>.cli</code> to the management node, as above.</li>
+<li><strong>Boards.</strong> The reference configuration (a management board with nodes on UARTs), the behaviour with a pulled cable, a node's <code>boot.kg</code> run at power-up after <code>mgmt.boot</code>, and the heap and flash of a real management board have not been tried. See <a href="../esp32-p4/">ESP32-P4</a>: that firmware has no IPC.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

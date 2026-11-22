@@ -1,0 +1,2959 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/hardware/">
+      
+      
+        <link rel="prev" href="../static-profile/">
+      
+      
+        <link rel="next" href="../design-principles/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Klong functions as FPGA hardware - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#klong-functions-as-fpga-hardware" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Klong functions as FPGA hardware
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tested-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tested setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-qualifies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What qualifies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-emit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Emit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-build-with-the-timing-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Build, with the timing gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-bind-and-call-from-klong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Bind and call from Klong
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-lanes-and-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Lanes and parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-the-summary-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The summary pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#calling-a-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calling a kernel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Calling a kernel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-fir-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fir image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-strategy-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The strategy kernel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-cpu-wins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the CPU wins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#correctness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Correctness
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tested-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tested setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-qualifies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What qualifies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-emit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Emit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-build-with-the-timing-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Build, with the timing gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-bind-and-call-from-klong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Bind and call from Klong
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-lanes-and-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Lanes and parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-the-summary-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The summary pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#calling-a-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calling a kernel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Calling a kernel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-fir-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fir image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-strategy-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The strategy kernel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-cpu-wins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the CPU wins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#correctness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Correctness
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="klong-functions-as-fpga-hardware">Klong functions as FPGA hardware<a class="headerlink" href="#klong-functions-as-fpga-hardware" title="Permanent link">&para;</a></h1>
+<p>A function of the <a href="../static-profile/">static profile</a> becomes an FPGA kernel, and you call it from a KlongPy session with ordinary arrays. This page is for someone who has an FPGA card, or wants to know what the flow produces and how fast it is.</p>
+<div class="admonition warning">
+<p class="admonition-title">Experimental</p>
+<p>This has been run on one card, an Alveo U250. The commands, the names <code>.fpga</code> and <code>kgpy fpga build</code>, and the file formats may change. The first kernel measured (<code>fir</code>) is slower than numpy. The strategy kernel is about ten times faster than a 32-thread CPU running the same program as C. Both are measured <a href="#results">below</a>, with the cases where the CPU wins.</p>
+</div>
+<p>The same source runs three ways: interpreted, as C (see <a href="../embedded/">Compiling Klong to C</a>) and on the card, with the same answers. Two kinds of kernel exist. A <em>streaming kernel</em>, the default, takes one record per clock cycle when the program allows it. A <em>wrapped kernel</em> (<code>--wrapped</code>) runs the program's C unchanged once per record and is slower.</p>
+<p><code>fpga source</code> is part of the engine and also runs under <code>kg</code>; building, the card server and <code>.fpga</code> are in <code>kgpy</code>. They need no Python packages beyond KlongPy's own. The machine with the card also needs the Xilinx runtime (<code>pyxrt</code>, which is not on PyPI), and the build machine needs Vitis.</p>
+<h2 id="tested-setup">Tested setup<a class="headerlink" href="#tested-setup" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Card</td>
+<td>Alveo U250</td>
+</tr>
+<tr>
+<td>Platform</td>
+<td><code>xilinx_u250_gen3x16_xdma_4_1_202210_1</code></td>
+</tr>
+<tr>
+<td>Toolchain</td>
+<td>Vitis and Vitis HLS 2022.2</td>
+</tr>
+<tr>
+<td>Host</td>
+<td>Ryzen 9 7950X3D (16 cores, 32 threads), gcc 9.4, numpy 1.24</td>
+</tr>
+<tr>
+<td>Link</td>
+<td>the card sits on a PCIe link of one lane, so transfers are slower than on a full slot</td>
+</tr>
+<tr>
+<td>Dates</td>
+<td><code>fir</code> image built 2026-11-16, strategy image measured 2026-11-17</td>
+</tr>
+<tr>
+<td>Images run</td>
+<td>two: <code>fir</code> (a wrapped kernel) and the strategy (a streaming kernel)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-qualifies">What qualifies<a class="headerlink" href="#what-qualifies" title="Permanent link">&para;</a></h2>
+<p>A program is a candidate when it is inside the static profile (<code>kgpy check FILE</code>) and an <code>.entry</code> of it is a function that</p>
+<ul>
+<li>takes at least one argument and returns a value, or returns <code>void</code> and is the driver of a <a href="../static-profile/#a-summary-entry">summary pair</a>;</li>
+<li>takes <code>int</code>, <code>float</code> and <code>fixed&lt;W,I&gt;</code> arguments and arrays of them with fixed shapes, not <code>str</code>;</li>
+<li>does not reach an <code>.extern</code>: the card has nothing to call;</li>
+<li>does not mix <code>int</code> and <code>float</code> arguments in one entry, for the host side (<code>.fpga</code> refuses such an entry; the build accepts it);</li>
+<li>computes in 32-bit <code>float</code> in a float program (the card has no <code>--float64</code>); <code>int</code> is 32 bits unless the program was built with <code>--int64</code>.</li>
+</ul>
+<p>Every <code>.entry</code> becomes one kernel. The program's globals are the kernel's state between calls. Two entries of one program are two kernels with a state each, and they do not share globals. The exception is a summary pair, which is one kernel.</p>
+<h2 id="the-flow">The flow<a class="headerlink" href="#the-flow" title="Permanent link">&para;</a></h2>
+<h3 id="1-emit">1. Emit<a class="headerlink" href="#1-emit" title="Permanent link">&para;</a></h3>
+<p><code>kgpy fpga source FILE... -o DIR</code> writes the HLS C++ of every entry, a C test bench, a script for Vitis HLS and <code>manifest.json</code>. It takes seconds and needs none of the tools.</p>
+<!-- check-docs: link examples -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>fpga<span class="w"> </span><span class="nb">source</span><span class="w"> </span>examples/embedded/fir.kg<span class="w"> </span>-o<span class="w"> </span>out/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="go">examples/embedded/fir.kg: wrote out/fir.c, out/fir.h, out/fir_run_tb.cpp, out/fir_run_top.cpp, out/hls_run.tcl, out/kg_hls_stub.h, out/klong_rt.h, out/manifest.json</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="go">  kernel fir_run_kernel: entry run (float[256] -&gt; float[241]); record in 1024 bytes, out 964 bytes</span>
+</code></pre></div>
+<p>With <code>KLONG_FPGA_BUILD=user@host</code> set, <code>--synth</code> runs C synthesis on that machine and prints the estimates.</p>
+<h3 id="2-build-with-the-timing-gate">2. Build, with the timing gate<a class="headerlink" href="#2-build-with-the-timing-gate" title="Permanent link">&para;</a></h3>
+<p><code>kgpy fpga build FILE... [--clock-mhz N]</code> builds the bitstream on the machine named by <code>KLONG_FPGA_BUILD</code> and keeps it in a cache there. The cache key is a hash of the program, the emitter version, the clock, the platform and the tool version. Several files make one image, so build together what you will use together:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>kgpy fpga status                # shows the build
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>kgpy fpga build --wait          # waits for it
+</code></pre></div>
+<p>A source that has been built is not built again. A source that failed timing is not retried; the message gives the slack and a clock to try. A build is a full Vitis and Vivado run. One image of three small programs (four kernels) took 1 hour 27 minutes. Run one build at a time: <code>kgpy fpga build</code> refuses to start while a Vivado, <code>v++</code> or Vitis HLS process of any user is running on the machine.</p>
+<p>A bitstream is loaded only if its routed timing was met: no failing endpoints and a worst negative slack at or above zero. The build records the result in <code>build.json</code> next to the image. An image that fails is renamed <code>*.timing-failed.xclbin</code>. The loader refuses that name, any image without a passing <code>build.json</code>, and any image whose SHA-256 differs from the recorded one.</p>
+<h3 id="3-bind-and-call-from-klong">3. Bind and call from Klong<a class="headerlink" href="#3-bind-and-call-from-klong" title="Permanent link">&para;</a></h3>
+<p><code>.fpga("fir.kg")</code> finds the image of that source, loads it on the card and returns a dictionary from entry name to function. A source with no image is an error that names the exact build command. <code>.fpga</code> never runs an image that was built from other source.</p>
+<p>With <code>KLONG_FPGA=sim</code>, <code>.fpga</code> needs no card and no build. It compiles the generated HLS code with the system C and C++ compilers (the HLS pragmas are ignored) and calls it with the same records and status word as the card. Its results show that the program and the binding work. They say nothing about speed.</p>
+<p><code>fir.kg</code> is a 16-tap filter over a block of 256 samples that gives 241 outputs. The program below loads it interpreted (<code>.l</code> defines <code>run</code>), binds the kernel (<code>fir.run</code>), runs three blocks both ways, prints the shape of the result, and prints 1 if the largest squared difference is below 1e-9.</p>
+<!-- check-docs: link examples; requires-cmd cc c++ -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>fir_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">&gt; .l("examples/embedded/fir.kg")</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="go">&gt; fir::.fpga("examples/embedded/fir.kg")</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="go">&gt; x::{256#x}'1.0+!3</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="go">&gt; d::run'x</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="go">&gt; d::d-fir.run(x)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="go">&gt; .p(^d)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="go">&gt; .p((|/,/d*d)&lt;1e-9)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>fir_hw.kg
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="go">[3 241]</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="go">1</span>
+</code></pre></div>
+<p><code>run'x</code> is the interpreted program over three blocks; <code>fir.run(x)</code> is one run of three calls on the kernel. The array <code>x</code> has one more dimension than the entry's argument (<code>float[256]</code>), which means three calls in one run, and the result has the same extra dimension. A value of exactly <code>float[256]</code> is one call and gives one result of <code>float[241]</code>.</p>
+<p>State lives in the kernel. <code>mavg.kg</code> keeps the last four samples:</p>
+<!-- check-docs: continue; requires-cmd cc c++ -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>mavg_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">&gt; mavg::.fpga("examples/embedded/mavg.kg")</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">&gt; .p(mavg.step([4.0 8.0 12.0 16.0 20.0]))</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">&gt; .p(mavg.step(4.0))</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="go">&gt; .fpga.reset(mavg.step)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="go">&gt; .p(mavg.step(4.0))</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="go">&gt; .p(.fpga.info()@"mode")</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>mavg_hw.kg
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="go">[1.0 3.0 6.0 10.0 14.0]</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="go">13.0</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="go">1.0</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="go">sim</span>
+</code></pre></div>
+<p>The first call after <code>.fpga</code> starts the program from its initial state; the five ticks are one run. The next call goes on from the window the run left. <code>.fpga.reset(k)</code> makes the next call of <code>k</code> start from the initial state again.</p>
+<h3 id="4-lanes-and-parameters">4. Lanes and parameters<a class="headerlink" href="#4-lanes-and-parameters" title="Permanent link">&para;</a></h3>
+<p><code>--lanes N</code> builds N copies of the program, called lanes, that read one input stream. Each parameter (declared with <code>.param</code>) is then an array of N values, set with <code>.fpga.set</code> between runs. <code>.fpga.lanes("crossover.kg";n)</code> binds the image built with <code>--lanes n</code>.</p>
+<p>On the simulator, with two lanes (<code>fast</code> 2 and 1, <code>slow</code> 4 and 3) and the 20 ticks of a test series whose answer was worked out on paper:</p>
+<!-- check-docs: link examples; requires-cmd cc c++ -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>strategy.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">&gt; s::.fpga.lanes("examples/hardware/crossover.kg";2)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="go">&gt; .fpga.set(s;"fast";[2 1])</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">&gt; .fpga.set(s;"slow";[4 3])</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="go">&gt; .fpga.set(s;"stop";[1.5 1.5])</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="go">&gt; t::[10 10 10 10 11 9.25 9.5 9.75 11.5 12 12.5 13 13.5 14 14.5 15 15.5 16 16.5 17]</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="go">&gt; .p(crossover.step(t))</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="go">&gt; .p(crossover.summary())</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>strategy.kg
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="go">[[1.75 3.75 3.0] [5.0 2.25 3.0]]</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="go">[[1.75 3.75 3.0] [5.0 2.25 3.0]]</span>
+</code></pre></div>
+<p>Each row is one lane: profit, largest drawdown, number of trades. The first lane is that series
+(<code>tests/static/test_crossover.py</code>); the same account comes out of the evaluator of the static profile (the one <code>call_entry</code> uses), the emitted C, the kernel in
+C simulation and this simulator, bit for bit.</p>
+<h3 id="5-the-summary-pattern">5. The summary pattern<a class="headerlink" href="#5-the-summary-pattern" title="Permanent link">&para;</a></h3>
+<p>A result per tick would cost more than the computation. With 32 lanes, a result of three 64-bit words per tick is 96 words, and a kernel writes one word per clock cycle. So a strategy is written as a <em>summary pair</em>: <code>step</code> returns <code>void</code> and updates the state, and <code>summary</code> reads the state at the end. The kernel runs n calls of <code>step</code>, writes nothing for them, then writes the one record of <code>summary</code>, per lane. <code>examples/hardware/crossover.kg</code> is a moving-average crossover strategy written this way; the rules for the pair are in <a href="../static-profile/#a-summary-entry">the static profile</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>.param("fast";"int";5)                            :" the fast window, 1 to 32 ticks "
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>.param("slow";"int";20)
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>.param("stop";"fixed&lt;32,16&gt;";1)                   :" close a position this far under water "
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>step::{...update the account...;0}                .entry("step";"fixed&lt;32,16&gt; -&gt; void")
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>summary::{profit,maxdd,wide(trades)}              .entry("summary";"-&gt; fixed&lt;64,32&gt;[3]")
+</code></pre></div>
+<p>This is a fragment: <code>step</code>, <code>profit</code>, <code>maxdd</code>, <code>trades</code> and <code>wide</code> are defined in the file. Three design choices let it fit 32 lanes at 250 MHz:</p>
+<ul>
+<li><strong>No multiplication in what a tick carries to the next.</strong> A multiplication of two <code>fixed&lt;32,16&gt;</code> numbers in the feedback of a state variable limited a one-lane moving average to 228 MHz in C synthesis. In the strategy the sums change by an add and a subtract, the position by comparisons and the profit by an add.</li>
+<li><strong>One process per lane.</strong> A single pipelined loop that holds every lane stalls on one signal, an empty input FIFO, which drives the clock enable of every register of every lane. That net cannot be replicated or pipelined and routes at several times the clock period. With one dataflow process per lane the net reaches a few thousand registers. The input words are copied to every lane's stream and the lanes' records are collected in lane order at the end.</li>
+<li><strong>Parameters as a table.</strong> The host runtime can write a scalar to a kernel's register but not an array. The server writes the parameters of all lanes into a table in card memory that the kernel reads when it starts.</li>
+</ul>
+<p>Building and replaying it on the card:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>kgpy fpga build examples/hardware/crossover.kg --lanes 32 --clock-mhz 250
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python examples/hardware/crossover_bench.py gen history.bin params.bin --ticks 10000000 --lanes 32
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>KLONG_FPGA_HOST=user@host python examples/hardware/crossover_card.py history.bin params.bin
+</code></pre></div>
+<h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Meaning</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KLONG_FPGA=sim</code></td>
+<td>use the simulator on this machine; no card, no image</td>
+<td>unset</td>
+</tr>
+<tr>
+<td><code>KLONG_FPGA_HOST=user@host</code></td>
+<td>the machine with the card, reached by key-based ssh; the server <code>klongpy/hw/server.py</code> is started there with Python 3.8, numpy and pyxrt</td>
+<td>unset; with <code>pyxrt</code> importable, the card on this machine</td>
+</tr>
+<tr>
+<td><code>KLONG_FPGA_BUILD=user@host</code></td>
+<td>where <code>kgpy fpga source --synth</code> and <code>kgpy fpga build</code> run</td>
+<td>unset</td>
+</tr>
+<tr>
+<td><code>KLONG_FPGA_ROOT</code></td>
+<td>the directory on the build and card machine under which everything is written (<code>work/</code>, <code>builds/</code>, <code>server/</code>, <code>venv/</code>, <code>build.lock</code>); absolute, or starting with <code>~/</code>, the home directory of that machine; a path outside it is refused</td>
+<td><code>~/klong-hw</code></td>
+</tr>
+<tr>
+<td><code>KLONG_FPGA_VITIS_SETTINGS</code></td>
+<td>the <code>settings64.sh</code> of Vitis that a build sources before <code>v++</code> and <code>vitis_hls</code></td>
+<td>none: <code>v++</code> and <code>vitis_hls</code> must be on the <code>PATH</code> of the machine, or the build stops and names this variable</td>
+</tr>
+<tr>
+<td><code>KLONG_FPGA_HLS_SETTINGS</code></td>
+<td>the <code>settings64.sh</code> of Vitis HLS that <code>--synth</code> and the remote tests source before <code>vitis_hls</code></td>
+<td>none: <code>vitis_hls</code> must be on the <code>PATH</code></td>
+</tr>
+<tr>
+<td><code>KLONG_FPGA_PLATFORM_REPO_PATHS</code></td>
+<td>the directory that holds the U250 platform, exported to the build as <code>PLATFORM_REPO_PATHS</code></td>
+<td>none: a build stops with an error naming this variable unless <code>PLATFORM_REPO_PATHS</code> is already set on the machine</td>
+</tr>
+</tbody>
+</table>
+<p>The build machine and the card machine may be the same machine but are separate settings. Nothing of this is imported when KlongPy starts. The settings are read where <code>kgpy</code> runs and used on the machine named by <code>KLONG_FPGA_BUILD</code> or <code>KLONG_FPGA_HOST</code>. The hash that names a build directory does not include the root, so images built under one root are found again when the root is set to that directory.</p>
+<h3 id="trust">Trust<a class="headerlink" href="#trust" title="Permanent link">&para;</a></h3>
+<p>The server runs on the card machine with your ssh identity, and the build runs there as you. Loading an image replaces what was on the card, including an image of someone else's, after checking that no other process has the card open. The loader does not program the base shell and never loads an image whose timing failed. All of its files are under <code>KLONG_FPGA_ROOT</code> (default <code>~/klong-hw/</code>) on that machine. Nothing is installed outside it, and nothing needs sudo.</p>
+<h2 id="calling-a-kernel">Calling a kernel<a class="headerlink" href="#calling-a-kernel" title="Permanent link">&para;</a></h2>
+<p><code>h::.fpga("fir.kg")</code> binds each entry twice: as <code>h@"run"</code> in the returned dictionary (<code>g::h@"run"; g(x)</code>), and as the name <code>fir.run</code>, the file name without <code>.kg</code>, then a dot, then the entry. A list of paths, <code>.fpga(["mavg.kg" "fir.kg"])</code>, binds the programs of an image built from several files.</p>
+<ul>
+<li>A call checks the number, type and shape of its arguments against the entry's signature before anything is sent, with the errors <code>call_entry</code> gives: a wrong type is a <code>type</code> error, a wrong shape a <code>shape</code> error, a wrong count an <code>arity</code> error, an <code>int</code> outside the kernel's 32 bits a <code>range</code> error.</li>
+<li>An argument with one extra leading dimension <code>n</code> is <code>n</code> calls in one run, and the result has the same leading dimension. All arguments of a call must agree on <code>n</code>.</li>
+<li>A float result is returned as float64, an int as int64, in the array type of the session's backend (a torch tensor on the torch backend). The arrays cross to the card as numpy.</li>
+<li><code>.fpga.put(k;x)</code> uploads the arguments of calls of <code>k</code> once and returns a buffer. For a kernel with several arguments <code>x</code> is a list of them. <code>k(b)</code> runs the stored calls without sending them again, <code>.fpga.get(b)</code> downloads them and <code>.fpga.free(b)</code> frees them. Buffers are freed when another image is loaded and when the session ends.</li>
+<li><code>.fpga.lanes("fir.kg";n)</code> is <code>.fpga</code> for the image built with <code>--lanes n</code>. Every parameter of the program (declared with <code>.param</code>) is then an array of n values, one per lane, set with <code>.fpga.set(h;"name";values)</code> between runs, and a result has a leading dimension n. <code>.fpga.set</code> converts the value as <code>klongpy.static.set_param</code> does for the interpreter, and an unknown name, a wrong shape (one value per lane) or a value that does not fit the register is an error. See <a href="#5-the-summary-pattern">the summary pattern</a>.</li>
+<li><code>.fpga.info()</code> is a dictionary: <code>mode</code> (<code>card</code>, <code>local</code> or <code>sim</code>), <code>device</code>, <code>shell</code>, the loaded <code>image</code> and its <code>key</code>, the <code>kernels</code>, the <code>build</code> record (routed timing, utilisation, build time), and the number and size of the <code>buffers</code>.</li>
+</ul>
+<p>Loading an image replaces whatever the card held, and one session holds one image: a second <code>.fpga</code> that needs another image loads it, and the kernels bound earlier then raise an error that says to call <code>.fpga</code> again. Bind everything that is used together in one image.</p>
+<h3 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h3>
+<p>All are <code>system</code> errors (a subclass of <code>KlongSystemError</code>) except the first, which is the checker's own, and the last two rows, which are <code>name</code> and <code>range</code> errors.</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>What you see</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The program is outside the profile, or an entry cannot be a kernel</td>
+<td>a <code>static</code> error with the position and the rule</td>
+</tr>
+<tr>
+<td>No hardware: none of <code>KLONG_FPGA=sim</code>, <code>KLONG_FPGA_HOST</code>, <code>pyxrt</code></td>
+<td>a <code>system</code> error naming the three ways to get one</td>
+</tr>
+<tr>
+<td>No image for this source, or the build failed timing, or it is still being built</td>
+<td>a <code>system</code> error with the exact <code>kgpy fpga build ...</code> command</td>
+</tr>
+<tr>
+<td>The server refused an image (timing, no passing <code>build.json</code>, hash mismatch)</td>
+<td>a <code>system</code> error; nothing is loaded</td>
+</tr>
+<tr>
+<td>The card is in use by another process, or a unit is not idle</td>
+<td>a <code>system</code> error; nothing is loaded</td>
+</tr>
+<tr>
+<td>The connection dropped or the server stopped answering</td>
+<td>a <code>system</code> error; call <code>.fpga</code> again to reconnect</td>
+</tr>
+<tr>
+<td><code>.fpga.set</code> of a name the program does not declare with <code>.param</code></td>
+<td>a <code>name</code> error that lists the parameters</td>
+</tr>
+<tr>
+<td>A trap during a run: an index out of range, an integer division by zero</td>
+<td>a <code>range</code> error naming the entry; the results of that run are not returned, and the next run starts clean</td>
+</tr>
+</tbody>
+</table>
+<p>The trap is the compiled program's trap: the kernel does not stop, it sets a flag, and the host raises after the run. The interpreter raises at the first call that does it.</p>
+<!-- check-docs: link examples -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>no_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="go">&gt; .fpga("examples/embedded/fir.kg")</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="gp">$ </span>env<span class="w"> </span>-u<span class="w"> </span>KLONG_FPGA<span class="w"> </span>-u<span class="w"> </span>KLONG_FPGA_HOST<span class="w"> </span>kgpy<span class="w"> </span>no_hw.kg
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="go">no_hw.kg:1:1: system error: no hardware to run on: set KLONG_FPGA_HOST=user@host to use the Alveo card on that machine over ssh, run KlongPy on the machine with the card (pyxrt importable), or set KLONG_FPGA=sim for the simulator (no hardware)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="go">  .fpga("examples/embedded/fir.kg")</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="go">  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+</code></pre></div>
+<h2 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h2>
+<h3 id="the-fir-image">The <code>fir</code> image<a class="headerlink" href="#the-fir-image" title="Permanent link">&para;</a></h3>
+<p>A 16-tap filter over blocks of 256 samples, built 2026-11-16 at 300 MHz (met, worst slack 0.027 ns), a wrapped kernel: the hardware runs the program's C unchanged. Best of 3 to 5 runs (2 for 100000 blocks). <code>put</code>, <code>kernel</code> and <code>get</code> are the server's clock on the card machine; <code>card wall</code> is what the client saw, including ssh.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">blocks</th>
+<th style="text-align: right;">put (s)</th>
+<th style="text-align: right;">kernel (s)</th>
+<th style="text-align: right;">get (s)</th>
+<th style="text-align: right;">card wall (s)</th>
+<th style="text-align: right;">numpy, client machine (s)</th>
+<th style="text-align: right;">numpy, card machine CPU (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.000045</td>
+<td style="text-align: right;">0.000084</td>
+<td style="text-align: right;">0.000015</td>
+<td style="text-align: right;">0.002701</td>
+<td style="text-align: right;">0.000011</td>
+<td style="text-align: right;">0.000015</td>
+</tr>
+<tr>
+<td style="text-align: right;">1000</td>
+<td style="text-align: right;">0.001590</td>
+<td style="text-align: right;">0.013105</td>
+<td style="text-align: right;">0.001688</td>
+<td style="text-align: right;">0.040323</td>
+<td style="text-align: right;">0.004779</td>
+<td style="text-align: right;">0.005158</td>
+</tr>
+<tr>
+<td style="text-align: right;">100000</td>
+<td style="text-align: right;">0.144330</td>
+<td style="text-align: right;">1.294230</td>
+<td style="text-align: right;">0.158533</td>
+<td style="text-align: right;">3.400952</td>
+<td style="text-align: right;">1.025725</td>
+<td style="text-align: right;">1.046810</td>
+</tr>
+</tbody>
+</table>
+<p>The kernel takes about 12.9 microseconds per block, about 3886 cycles at 300 MHz. A wrapped kernel cannot do a floating-point sum at one result per cycle. Numpy takes about 10 microseconds per block on the same gather and weighted sum. The card is slower than numpy at every size, even before the transfer is counted. A kernel rebuilt as a shift register with a pipelined reduction is where speed would have to come from; the streaming kernel does this, and <code>fir</code> has not been rebuilt that way.</p>
+<p>The image of <code>mavg.kg</code>, <code>fir.kg</code> and <code>tests/static/hw/trap.kg</code> (a program that traps on purpose) uses 126578 LUT (7.33 percent of the device with the shell), 199444 FF, 276.5 BRAM tiles and 18 DSP.</p>
+<h3 id="the-strategy-kernel">The strategy kernel<a class="headerlink" href="#the-strategy-kernel" title="Permanent link">&para;</a></h3>
+<p>Measured 2026-11-17. The image is <code>crossover.kg</code> built with <code>--lanes 32 --clock-mhz 250</code>. It passed routed timing at 250 MHz (worst setup and hold slack 0.009 ns, no failing endpoints; the margin is thin) after a build of 1 hour 54 minutes. It uses 13.6 percent of the device's LUTs (234315, the shell's 118282 included), 7.0 percent of its registers, 258 block RAM tiles and 135 DSPs. The history is 10 million synthetic ticks, a random walk with rare jumps folded into the band 5 to 15 (<code>crossover_bench.py gen</code>), held as a file on the card machine. The 32 parameter sets are 4 values of <code>fast</code>, 4 of <code>slow</code> and 2 stops. Every lane replays all 10 million ticks, 320 million lane-ticks in all.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">time for 10 M ticks x 32 lanes</th>
+<th style="text-align: right;">lane-ticks per second, total</th>
+<th style="text-align: right;">ticks per second per lane (card) or per process (CPU)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>card, kernel only (the server's clock; best of 7)</td>
+<td style="text-align: right;">40.2 ms</td>
+<td style="text-align: right;">7.97 G</td>
+<td style="text-align: right;">249 M</td>
+</tr>
+<tr>
+<td>card, history already on the card, wall time of the call over ssh (best of 7)</td>
+<td style="text-align: right;">42.7 ms</td>
+<td style="text-align: right;">7.50 G</td>
+<td style="text-align: right;">234 M</td>
+</tr>
+<tr>
+<td>card, the same with the 40 MB history uploaded first</td>
+<td style="text-align: right;">0.56 s</td>
+<td style="text-align: right;">0.57 G</td>
+<td style="text-align: right;">18 M</td>
+</tr>
+<tr>
+<td>emitted C, <code>gcc -O3</code>, one core, 32 lanes in turn (best and worst of 5)</td>
+<td style="text-align: right;">6.0 s to 6.8 s</td>
+<td style="text-align: right;">47 M to 53 M</td>
+<td style="text-align: right;">47 M to 53 M</td>
+</tr>
+<tr>
+<td>the same, 8 processes of 4 lanes</td>
+<td style="text-align: right;">0.87 s</td>
+<td style="text-align: right;">366 M</td>
+<td style="text-align: right;">46 M</td>
+</tr>
+<tr>
+<td>the same, 16 processes of 2 lanes (one per core; best of 5)</td>
+<td style="text-align: right;">0.46 s to 0.47 s</td>
+<td style="text-align: right;">691 M</td>
+<td style="text-align: right;">43 M</td>
+</tr>
+<tr>
+<td>the same, 32 processes of 1 lane (one per thread; best of 5)</td>
+<td style="text-align: right;">0.42 s</td>
+<td style="text-align: right;">758 M</td>
+<td style="text-align: right;">24 M</td>
+</tr>
+<tr>
+<td>numpy (the sums and the signal for all lanes at once, the position stepped one tick at a time), on 1 M ticks</td>
+<td style="text-align: right;">20.3 s for 1 M ticks</td>
+<td style="text-align: right;">1.6 M</td>
+<td style="text-align: right;">50 k</td>
+</tr>
+</tbody>
+</table>
+<p>The card replays one tick per clock cycle in every lane, 250 M a second at 250 MHz, with 32 lanes at once. Against the C that the same Klong source compiles to, it is 10 times faster than all 32 threads of the CPU (40.2 ms against 0.42 s) and 150 times faster than one core. A lane on the card is five times a core.</p>
+<p>The upload of the history is a separate cost and the largest one when the data comes over ssh: 0.52 s for 40 MB, against 0.08 s for the transfer from memory to the card on the server's clock. The CPU's numbers include reading the history from the page cache. Numpy is not a fair opponent on long histories, because the position of a tick depends on the one before: only the sums and the signal vectorise.</p>
+<p>The figures come from two runs. The first table is the benchmark script's default of 7 card runs (<code>crossover_card.py --runs</code>) and 5 CPU runs. The sweep below used 9 card runs. They agree within 3 percent at 10 million ticks: 40.2 ms against 40.2 ms for the kernel, 42.7 ms against 43 ms for the call, and 0.46 s against 0.47 s for 16 processes.</p>
+<h3 id="where-the-cpu-wins">Where the CPU wins<a class="headerlink" href="#where-the-cpu-wins" title="Permanent link">&para;</a></h3>
+<p>The card has a fixed cost of about 1 ms per call: its kernel takes 0.05 ms for 1000 ticks and a call from the client 1.0 ms. A computation of fewer than about 50 thousand ticks of one parameter set is faster on one core, which runs 50 M ticks a second per lane. The card needs all 32 lanes to be worth it. With 32 parameter sets it already wins at 1000 ticks (2.4 ms on one core, 1.0 ms on the card) and by 12 times at 100000 ticks (1.7 ms against 21 ms for 16 processes).</p>
+<p>The number of lanes and every <code>.entry</code> are fixed at build time, and a build takes hours. A CPU compiles the program in a second and runs any number of lanes.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">ticks</th>
+<th style="text-align: right;">card kernel</th>
+<th style="text-align: right;">card wall</th>
+<th style="text-align: right;">CPU, 1 core</th>
+<th style="text-align: right;">CPU, 16 processes</th>
+<th style="text-align: right;">CPU, 32 processes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1 000</td>
+<td style="text-align: right;">0.05 ms</td>
+<td style="text-align: right;">1.0 ms</td>
+<td style="text-align: right;">2.4 ms</td>
+<td style="text-align: right;">15.7 ms</td>
+<td style="text-align: right;">32 ms</td>
+</tr>
+<tr>
+<td style="text-align: right;">10 000</td>
+<td style="text-align: right;">0.09 ms</td>
+<td style="text-align: right;">1.1 ms</td>
+<td style="text-align: right;">6.9 ms</td>
+<td style="text-align: right;">16.3 ms</td>
+<td style="text-align: right;">31 ms</td>
+</tr>
+<tr>
+<td style="text-align: right;">100 000</td>
+<td style="text-align: right;">0.45 ms</td>
+<td style="text-align: right;">1.7 ms</td>
+<td style="text-align: right;">60 ms</td>
+<td style="text-align: right;">20.8 ms</td>
+<td style="text-align: right;">32 ms</td>
+</tr>
+<tr>
+<td style="text-align: right;">1 000 000</td>
+<td style="text-align: right;">4.1 ms</td>
+<td style="text-align: right;">5.9 ms</td>
+<td style="text-align: right;">0.59 s</td>
+<td style="text-align: right;">63 ms</td>
+<td style="text-align: right;">67 ms</td>
+</tr>
+<tr>
+<td style="text-align: right;">10 000 000</td>
+<td style="text-align: right;">40.2 ms</td>
+<td style="text-align: right;">43 ms</td>
+<td style="text-align: right;">5.9 s</td>
+<td style="text-align: right;">0.47 s</td>
+<td style="text-align: right;">0.43 s</td>
+</tr>
+</tbody>
+</table>
+<p>Card: best of 9 calls; CPU: best of 5; 32 lanes. The CPU's processes start together and each reads its ticks, so the small cases show the cost of starting 16 or 32 processes.</p>
+<h3 id="correctness">Correctness<a class="headerlink" href="#correctness" title="Permanent link">&para;</a></h3>
+<p>The summary of every lane after the first 100000 ticks equals the static profile's evaluator's (the one <code>call_entry</code> uses). After all 10 million ticks it equals the emitted C's, bit for bit, on the card. The hand-checked 20-tick series give the worked results in every lane. <code>tests/static/test_crossover_card.py</code> runs the hand series and 200000 ticks against the card. For <code>fir</code>, floats agree within 1e-5 relative.</p>
+<h2 id="known-limits">Known limits<a class="headerlink" href="#known-limits" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Only the strategy image has been run on the card with the current emitter. The image of <code>mavg.kg</code>, <code>fir.kg</code> and <code>trap.kg</code> must be built again (<code>kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg</code>) before <code>tests/static/test_hw_card.py</code> and <code>test_hw_binding_card.py</code> stop skipping.</li>
+<li>More than 32 lanes: a build with 64 lanes in one pipelined loop failed timing (estimated worst slack -6.4 ns at 250 MHz after placement, with five nets of more than 10000 loads) and was stopped during routing. 64 lanes as one process per lane (about 290000 LUTs) has not been built.</li>
+<li>Hardware emulation: loading the emulated image did not complete in the time allowed. There is no co-simulation.</li>
+<li>There are no network ports.</li>
+<li>An entry that mixes <code>int</code> and <code>float</code> arguments is built but cannot be called by <code>.fpga</code>, and a summary kernel with lanes needs records of one width.</li>
+<li>One session holds one image. Loading an image replaces what the card held.</li>
+<li>Builds take hours and one image at a time.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

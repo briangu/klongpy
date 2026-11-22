@@ -1,0 +1,5074 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/performance/">
+      
+      
+        <link rel="prev" href="../torch_backend/">
+      
+      
+        <link rel="next" href="../operators/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Performance - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#performance" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Performance
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#native-kg-and-numpy-on-resident-cpu-arrays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native kg and NumPy on resident CPU arrays
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nyc-taxi-and-one-billion-row-challenge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NYC taxi and One Billion Row Challenge
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="NYC taxi and One Billion Row Challenge">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#comparisons-on-the-same-m2-ultra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparisons on the same M2 Ultra
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ticker-plant-throughput-and-rollover" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ticker plant throughput and rollover
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#streaming-tables-and-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming tables and queries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Streaming tables and queries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#peachq-comparison-at-default-cpu-placement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PeachQ comparison at default CPU placement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hosted-and-standalone-feed-at-default-cpu-placement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hosted and standalone feed at default CPU placement
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distinct-ids-and-group-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distinct IDs and group counts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#peak-heap-for-an-integer-running-sum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Peak heap for an integer running sum
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-hosted-runtime-compared-with-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python-hosted runtime compared with v1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#first-launch-under-rosetta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First launch under Rosetta
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#earlier-cpu-microbenchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Earlier CPU microbenchmarks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conditions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#programs-the-interpreter-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programs the interpreter runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vector-arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vector arithmetic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reduce-scan-and-power" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reduce, scan and power
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#grade-and-sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grade and sort
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#matrix-multiply-through-pyf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matrix multiply through .pyf
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-native-engine-measured-in-process-on-one-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The native engine, measured in process on one machine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The native engine, measured in process on one machine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#programs-the-interpreter-runs_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programs the interpreter runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arrays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arrays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-profiles-said" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the profiles said
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-each-change-did" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What each change did
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#float32-scalars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Float32 scalars
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to write
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rerun-the-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rerun the measurements
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native/management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#native-kg-and-numpy-on-resident-cpu-arrays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native kg and NumPy on resident CPU arrays
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nyc-taxi-and-one-billion-row-challenge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NYC taxi and One Billion Row Challenge
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="NYC taxi and One Billion Row Challenge">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#comparisons-on-the-same-m2-ultra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparisons on the same M2 Ultra
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ticker-plant-throughput-and-rollover" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ticker plant throughput and rollover
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#streaming-tables-and-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming tables and queries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Streaming tables and queries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#peachq-comparison-at-default-cpu-placement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PeachQ comparison at default CPU placement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hosted-and-standalone-feed-at-default-cpu-placement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hosted and standalone feed at default CPU placement
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distinct-ids-and-group-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distinct IDs and group counts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#peak-heap-for-an-integer-running-sum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Peak heap for an integer running sum
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-hosted-runtime-compared-with-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python-hosted runtime compared with v1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#first-launch-under-rosetta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First launch under Rosetta
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#earlier-cpu-microbenchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Earlier CPU microbenchmarks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conditions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#programs-the-interpreter-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programs the interpreter runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vector-arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vector arithmetic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reduce-scan-and-power" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reduce, scan and power
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#grade-and-sort" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grade and sort
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#matrix-multiply-through-pyf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matrix multiply through .pyf
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-native-engine-measured-in-process-on-one-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The native engine, measured in process on one machine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The native engine, measured in process on one machine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#programs-the-interpreter-runs_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programs the interpreter runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arrays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arrays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-profiles-said" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the profiles said
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-each-change-did" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What each change did
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#float32-scalars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Float32 scalars
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to write
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rerun-the-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rerun the measurements
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h1>
+<p>The release comparisons below describe their workload, baseline, candidate and machine. The older array microbenchmarks that follow describe a separate development build.</p>
+<h2 id="native-kg-and-numpy-on-resident-cpu-arrays">Native kg and NumPy on resident CPU arrays<a class="headerlink" href="#native-kg-and-numpy-on-resident-cpu-arrays" title="Permanent link">&para;</a></h2>
+<p>The November 21 development build ran 16 array workloads on an Apple M2 Ultra with 192 GiB, using standalone <code>kg</code> and NumPy 2.5.5 with Apple Accelerate. Each workload uses matching contiguous 64-bit inputs. The harness checks every output value, shape and inferred numeric dtype against NumPy before timing. Both engines warm up and calibrate a batch of at least 5 ms. The table reports medians of seven batches for 4,096 and one million elements and five batches for eight million. Timing covers the operation on resident data, including result allocation. Input construction, interpreter startup and JSON transfer happen outside the timer. These workloads cover NumPy operations also exercised by the upstream benchmark suite. <a href="https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_reduce.py">NumPy reductions</a> · <a href="https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_function_base.py">NumPy sorting workloads</a></p>
+<p>The ratio divides NumPy time by <code>kg</code> time. A value above one favors <code>kg</code>. Matrices have 64 columns. The wide keys form a deterministic strided permutation at the reported sizes. Sorted runs contain 64 copies of each key. Dot uses <code>numpy.dot</code>, including its BLAS implementation, and <code>+/a*b</code> in Klong.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">kg at 1M (µs)</th>
+<th style="text-align: right;">NumPy at 1M (µs)</th>
+<th style="text-align: right;">NumPy/kg at 4,096</th>
+<th style="text-align: right;">At 1M</th>
+<th style="text-align: right;">At 8M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>float64 add</td>
+<td style="text-align: right;">282.9</td>
+<td style="text-align: right;">259.2</td>
+<td style="text-align: right;">1.19×</td>
+<td style="text-align: right;">0.92×</td>
+<td style="text-align: right;">1.13×</td>
+</tr>
+<tr>
+<td>float64 multiply</td>
+<td style="text-align: right;">265.4</td>
+<td style="text-align: right;">264.5</td>
+<td style="text-align: right;">1.11×</td>
+<td style="text-align: right;">1.00×</td>
+<td style="text-align: right;">0.97×</td>
+</tr>
+<tr>
+<td>float64 sum</td>
+<td style="text-align: right;">201.8</td>
+<td style="text-align: right;">177.8</td>
+<td style="text-align: right;">1.44×</td>
+<td style="text-align: right;">0.88×</td>
+<td style="text-align: right;">1.24×</td>
+</tr>
+<tr>
+<td>float64 min</td>
+<td style="text-align: right;">158.8</td>
+<td style="text-align: right;">92.3</td>
+<td style="text-align: right;">1.24×</td>
+<td style="text-align: right;">0.58×</td>
+<td style="text-align: right;">0.97×</td>
+</tr>
+<tr>
+<td>float64 dot</td>
+<td style="text-align: right;">450.9</td>
+<td style="text-align: right;">110.0</td>
+<td style="text-align: right;">0.52×</td>
+<td style="text-align: right;">0.24×</td>
+<td style="text-align: right;">0.63×</td>
+</tr>
+<tr>
+<td>int64 cumulative sum</td>
+<td style="text-align: right;">375.1</td>
+<td style="text-align: right;">2,032.6</td>
+<td style="text-align: right;">4.81×</td>
+<td style="text-align: right;">5.42×</td>
+<td style="text-align: right;">6.58×</td>
+</tr>
+<tr>
+<td>float64 first differences</td>
+<td style="text-align: right;">477.8</td>
+<td style="text-align: right;">182.8</td>
+<td style="text-align: right;">1.08×</td>
+<td style="text-align: right;">0.38×</td>
+<td style="text-align: right;">0.57×</td>
+</tr>
+<tr>
+<td>float64 gather</td>
+<td style="text-align: right;">1,596.8</td>
+<td style="text-align: right;">920.8</td>
+<td style="text-align: right;">0.53×</td>
+<td style="text-align: right;">0.58×</td>
+<td style="text-align: right;">1.35×</td>
+</tr>
+<tr>
+<td>int64 positive indices</td>
+<td style="text-align: right;">716.0</td>
+<td style="text-align: right;">787.5</td>
+<td style="text-align: right;">1.48×</td>
+<td style="text-align: right;">1.10×</td>
+<td style="text-align: right;">1.00×</td>
+</tr>
+<tr>
+<td>int64 stable argsort, 257 keys</td>
+<td style="text-align: right;">1,372.0</td>
+<td style="text-align: right;">78,441.0</td>
+<td style="text-align: right;">21.74×</td>
+<td style="text-align: right;">57.17×</td>
+<td style="text-align: right;">79.08×</td>
+</tr>
+<tr>
+<td>int64 stable argsort, wide keys</td>
+<td style="text-align: right;">27,157.0</td>
+<td style="text-align: right;">70,399.2</td>
+<td style="text-align: right;">2.12×</td>
+<td style="text-align: right;">2.59×</td>
+<td style="text-align: right;">3.21×</td>
+</tr>
+<tr>
+<td>int64 stable argsort, presorted</td>
+<td style="text-align: right;">299.9</td>
+<td style="text-align: right;">851.3</td>
+<td style="text-align: right;">3.25×</td>
+<td style="text-align: right;">2.84×</td>
+<td style="text-align: right;">2.71×</td>
+</tr>
+<tr>
+<td>int64 stable argsort, sorted runs</td>
+<td style="text-align: right;">285.0</td>
+<td style="text-align: right;">849.1</td>
+<td style="text-align: right;">3.48×</td>
+<td style="text-align: right;">2.98×</td>
+<td style="text-align: right;">3.12×</td>
+</tr>
+<tr>
+<td>int64 stable argsort, uniform</td>
+<td style="text-align: right;">290.1</td>
+<td style="text-align: right;">836.5</td>
+<td style="text-align: right;">3.31×</td>
+<td style="text-align: right;">2.88×</td>
+<td style="text-align: right;">2.86×</td>
+</tr>
+<tr>
+<td>int64 column sums</td>
+<td style="text-align: right;">169.3</td>
+<td style="text-align: right;">481.7</td>
+<td style="text-align: right;">3.78×</td>
+<td style="text-align: right;">2.85×</td>
+<td style="text-align: right;">2.75×</td>
+</tr>
+<tr>
+<td>int64 row sums</td>
+<td style="text-align: right;">100.3</td>
+<td style="text-align: right;">173.8</td>
+<td style="text-align: right;">3.31×</td>
+<td style="text-align: right;">1.73×</td>
+<td style="text-align: right;">1.12×</td>
+</tr>
+</tbody>
+</table>
+<p>The new stable grade counts keys when the integer span is small relative to the vector, and returns row positions directly for ascending inputs. On one million signed integers cycling through 257 keys, <code>kg</code> went from 28.32 ms to 1.37 ms. The equivalent stable NumPy argsort took 78.44 ms. With the order of the engine timing runs reversed, the ratio was again 57×.</p>
+<p>Key width matters. A separate run timed <code>np.argsort(keys.astype(np.int16), kind="stable")</code>, including the conversion from int64. On the same patterned keys, NumPy took 5.07 ms and <code>kg</code> took 1.49 ms, a 3.41× advantage for <code>kg</code>. On one million randomly drawn keys in the same range, NumPy took 5.34 ms with conversion and 98.33 ms on int64. The native grade took 1.50 ms. All three implementations returned the same million indices for each distribution.</p>
+<p>Reductions over packed integer matrices now visit the rows directly. At one million elements, column sums went from 2.12 ms to 0.169 ms and row sums from 1.18 ms to 0.100 ms. NumPy retained the lead on the float64 dot product and first differences at both large sizes.</p>
+<p>To reproduce from the checkout, build the release CLI and run the following commands. The thread settings must be in the environment before starting Python.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cargo<span class="w"> </span>build<span class="w"> </span>--locked<span class="w"> </span>--release<span class="w"> </span>--manifest-path<span class="w"> </span>native/Cargo.toml<span class="w"> </span>-p<span class="w"> </span>klong-cli
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">VECLIB_MAXIMUM_THREADS</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">OPENBLAS_NUM_THREADS</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">MKL_NUM_THREADS</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>.venv/bin/python<span class="w"> </span>native/scripts/bench_numpy.py<span class="w"> </span>--json<span class="w"> </span>numpy-comparison.json
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>.venv/bin/python<span class="w"> </span>native/scripts/bench_numpy.py<span class="w"> </span>--sizes<span class="w"> </span><span class="m">8000000</span><span class="w"> </span>--samples<span class="w"> </span><span class="m">5</span><span class="w"> </span>--json<span class="w"> </span>numpy-large.json
+</code></pre></div>
+<h2 id="nyc-taxi-and-one-billion-row-challenge">NYC taxi and One Billion Row Challenge<a class="headerlink" href="#nyc-taxi-and-one-billion-row-challenge" title="Permanent link">&para;</a></h2>
+<p>The post-RC1 development build ran the four NYC taxi reports on <strong>1,128,213,169 real trips</strong> on an Apple M2 Ultra. The input was 96 local TLC Parquet files totalling 21.51 GB. It included yellow cabs from January 2009 through June 2015 and green cabs from January 2014 through June 2015. The five published 2013 green links returned HTTP 403. This monthly TLC snapshot differs from the original benchmark author's historical export. <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC TLC files</a> · <a href="https://tech.marksblogg.com/duckdb-1b-taxi-rides.html">Original benchmark</a></p>
+<p>The original four queries scan the source for each report. The example reads the required columns together and aggregates trips by cab type, passenger count, pickup year and rounded distance. It builds the four reports from those group counts and fare totals. A separate PyArrow and NumPy scan verified all group keys and counts, row order and the fare averages to floating-point tolerance. The distance report returned 6,806 groups.</p>
+<p>With eight DuckDB threads, the original four queries took <strong>19.51 s</strong> and the optimized example took <strong>11.24 s</strong>, a <strong>1.74× speedup</strong>. Times are medians of three paired warm-cache runs in alternating order, including process startup, reading Parquet, aggregation and writing all four JSON results. Median peak resident memory rose from 2.09 GiB to 2.18 GiB.</p>
+<p>The weather example ran on <strong>1,000,000,000 measurements</strong> generated by the upstream Java program. With the default thread settings, the median was <strong>4.78 s</strong> for standalone <code>kg</code> and <strong>4.89 s</strong> for <code>kgpy</code> over three fresh processes each. Both outputs matched the upstream Java reference byte for byte across all 413 stations. The example parses and groups in DuckDB and computes the mean using exact integer tenths. The previous Python worker pipeline lost results across workers, so it provides no valid timing baseline. <a href="https://github.com/gunnarmorling/1brc">One Billion Row Challenge</a></p>
+<p>Two measurements isolate work in the Klong runtime. Reading 2,964,624 January 2024 yellow-cab fares into one Klong integer vector and summing the cents fell from <strong>134.3 ms to 58.6 ms</strong> across nine paired process runs. Median peak resident memory fell from <strong>140 MiB to 95 MiB</strong>. Matching numeric SQL columns now copy directly into Klong's packed vectors until a null requires a mixed list. Separately, grouping 200,000 resident labels drawn from 413 station strings fell from <strong>161 ms to 4.7 ms</strong>. That operator test exercises the dictionary index used by Klong's <code>=</code> on labels. The weather example uses SQL for its grouping.</p>
+<h3 id="comparisons-on-the-same-m2-ultra">Comparisons on the same M2 Ultra<a class="headerlink" href="#comparisons-on-the-same-m2-ultra" title="Permanent link">&para;</a></h3>
+<p>On the same 96 taxi files, <code>kg</code> took <strong>11.31 s</strong> and DuckDB 2.0.0 through Python took <strong>11.41 s</strong> to execute the same SQL and print all four reports. In a second paired series, <code>kg</code> took <strong>11.25 s</strong> and Polars 2.1.0 took <strong>7.79 s</strong>. Both used eight threads and aggregated once before producing the reports. The Polars streaming plan selected the year directly from historical ISO date strings. The Klong example cast those fields to timestamps. All timings are medians of three fresh-process runs after a warm-up. The independent checker verified the results of every run.</p>
+<p>On the same billion weather measurements, the comparison run took <strong>5.22 s</strong> with <code>kg</code>, <strong>5.67 s</strong> with DuckDB through Python, and <strong>1.05 s</strong> with the winning Java team's specialized parser running on OpenJDK 27. All three used the machine's default 24 logical CPUs and produced identical output. The official competition measured a GraalVM native binary on eight AMD EPYC cores. <a href="https://github.com/gunnarmorling/1brc/blob/db064194be375edc02d6dbcd21268ad40f7e2869/src/main/java/dev/morling/onebrc/CalculateAverage_thomaswue.java">Winning Java source</a> · <a href="https://github.com/gunnarmorling/1brc#evaluating-results">Competition hardware and timing rules</a></p>
+<table>
+<thead>
+<tr>
+<th>Runtime operation</th>
+<th style="text-align: right;"><code>kg</code></th>
+<th style="text-align: right;">Comparison</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Group 200,000 strings across 413 station names</td>
+<td style="text-align: right;">4.73 ms</td>
+<td style="text-align: right;">185.52 ms in PeachQ 0.92</td>
+</tr>
+<tr>
+<td>Group 200,000 symbols across 265 zone names</td>
+<td style="text-align: right;">2.13 ms</td>
+<td style="text-align: right;">2.21 ms in PeachQ 0.92</td>
+</tr>
+<tr>
+<td>Read and sum 2.96 million fares, including startup</td>
+<td style="text-align: right;">57.4 ms</td>
+<td style="text-align: right;">133.3 ms in DuckDB and NumPy</td>
+</tr>
+<tr>
+<td>Read and sum the same fares in an open session</td>
+<td style="text-align: right;">13.7 ms</td>
+<td style="text-align: right;">15.1 ms in DuckDB and NumPy</td>
+</tr>
+</tbody>
+</table>
+<p>The grouping timer starts after constructing the input and stops before checking every group's row positions. The fresh-process fare timings include imports and connection setup. The open-session figures are medians of 20 scans and host-side reductions per implementation, with an untimed warm-up in each process.</p>
+<h2 id="ticker-plant-throughput-and-rollover">Ticker plant throughput and rollover<a class="headerlink" href="#ticker-plant-throughput-and-rollover" title="Permanent link">&para;</a></h2>
+<p>The native ticker plant accepts kdb+ IPC batches, commits them to the RDB and sends each batch to two subscribers. A separate native HDB imports closed sessions. The test used three Kubernetes nodes, with the head on an AMD EPYC node, the HDB on a separate Intel node, and the publisher, subscribers and query clients on a third node. Each pod had a four-CPU limit and 8 GiB of memory. The databases used node-local storage. Only the Parquet handoff crossed the shared filesystem. The Linux servers ran the previously qualified x86-64 RC1 binary with the new Klong example programs.</p>
+<p>The feed had 1,024 instrument IDs, integer prices, quantities and nanosecond timestamps. One ordered publisher waited for each batch acknowledgment. Both subscribers checked sequence continuity, returned their processed watermark and had their total volume checked. Independent IPC clients requested the latest live and historical prices at 20 queries per second each. After each rollover the driver checked every stored payload field, distinct sequence coverage and row count.</p>
+<table>
+<thead>
+<tr>
+<th>Two-subscriber workload</th>
+<th style="text-align: right;">Batch size</th>
+<th style="text-align: right;">Ingest rate</th>
+<th style="text-align: right;">Rate including rollover</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alternating feed sizes, two six-second runs</td>
+<td style="text-align: right;">3,000 / 8,192 / 6,000 / 4,096</td>
+<td style="text-align: right;">446k–456k trades/s</td>
+<td style="text-align: right;">393k–406k trades/s</td>
+</tr>
+<tr>
+<td>Saturated publisher, two eight-second runs</td>
+<td style="text-align: right;">65,536</td>
+<td style="text-align: right;">1.42M–1.57M trades/s</td>
+<td style="text-align: right;">1.12M–1.20M trades/s</td>
+</tr>
+<tr>
+<td>Paced at 750k/s for one minute</td>
+<td style="text-align: right;">32,768</td>
+<td style="text-align: right;">750k trades/s</td>
+<td style="text-align: right;">662k–665k trades/s</td>
+</tr>
+<tr>
+<td>Offered 1.6M/s for 15 seconds, including drain</td>
+<td style="text-align: right;">65,536</td>
+<td style="text-align: right;">1.54M trades/s</td>
+<td style="text-align: right;">1.21M trades/s</td>
+</tr>
+</tbody>
+</table>
+<p>The variable-size feed initially managed 74k–79k trades/s because the head reopened its database when the batch width changed. Reusing power-of-two staging buffers on one connection made the median rate 5.9× higher. A partial batch writes only valid rows. Larger messages can span multiple buffers inside a single transaction.</p>
+<p>The run with rollover probes processed 45,023,232 trades in 60.012 seconds. Batch acknowledgment p99 was 108.8 ms. During ingestion, live-query round-trip p99 was 97.4 ms and historical-query p99 was 20.4 ms. The live client missed 101 scheduled query slots. The historical client missed zero. The last batch drained 12 ms after the offer window. Closing this session took 7.99 s. A live query issued during the handoff waited 7.98 s and a historical query waited 3.06 s.</p>
+<p>After the load runs, the publisher left 1,048,576 acknowledged trades in an open session. Both database processes were killed. The recovered head returned the same watermark and rolled the open session. After another forced restart, the verifier checked every payload field and sequence for <strong>352,108,704 trades across 43 sessions</strong>. This tests process death with the same storage available.</p>
+<p>At an offered 1.6M trades/s, 1,179,648 trades were still awaiting acknowledgment at the end of the 15-second window. Draining the queue took another 0.59 s and the HDB handoff took 4.28 s. The measured arrival schedule begins when a batch is due. A live feed must also budget for the time it takes to fill the batch. <a href="https://github.com/briangu/klongpy/tree/main/examples/stocks/tickerplant">Example and commands</a></p>
+<h2 id="streaming-tables-and-queries">Streaming tables and queries<a class="headerlink" href="#streaming-tables-and-queries" title="Permanent link">&para;</a></h2>
+<p>On 2026-11-20 UTC, standalone <code>kg</code> from the installed <strong>2.0.0rc1</strong> Linux x86-64 wheel ingested <strong>0.959–0.977 million rows/s</strong> over six controlled trials on an AMD EPYC 7773X. A loopback client loaded 1,048,576 rows into memory in 256-row batches. In a separate phase, a writer offered 25,600 rows/s against 32,768 preloaded rows while two clients queried last price and as-of bid. Each trial checked the query results and final row counts. Query latency runs from the scheduled time to the reply.</p>
+<p>The reference was PeachQ 0.92. Both servers used one query-engine thread. Each series contains three paired <code>kg</code>/PeachQ trials, alternating which server ran first. In the controlled series, each server ran on CPU 8 and the clients used CPUs 9–12 on the same socket. All processes shared a six-CPU container quota. The source archive SHA-256 starts with <code>547dd7b9e927</code>, the Linux wheel's with <code>9b6fcffb0e85</code>, the standalone executable's with <code>c8855a024400</code>, and the PeachQ executable's with <code>69a0befb1abc</code>.</p>
+<table>
+<thead>
+<tr>
+<th><code>kg</code> / PeachQ 0.92</th>
+<th style="text-align: right;">Controlled series 1</th>
+<th style="text-align: right;">Controlled series 2</th>
+<th style="text-align: right;">Acceptance bound</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ingestion throughput</td>
+<td style="text-align: right;">1.644×</td>
+<td style="text-align: right;">1.672×</td>
+<td style="text-align: right;">≥0.80×</td>
+</tr>
+<tr>
+<td>Last-price p99</td>
+<td style="text-align: right;">0.378×</td>
+<td style="text-align: right;">0.391×</td>
+<td style="text-align: right;">≤1.25×</td>
+</tr>
+<tr>
+<td>As-of bid p99</td>
+<td style="text-align: right;">0.416×</td>
+<td style="text-align: right;">0.366×</td>
+<td style="text-align: right;">≤1.25×</td>
+</tr>
+</tbody>
+</table>
+<p>Each table entry is the median of the three paired ratios. Across the six controlled trials, PeachQ ingested 0.572–1.198 million rows/s. Individual throughput ratios ranged from 0.816× to 1.679×.</p>
+<h3 id="peachq-comparison-at-default-cpu-placement">PeachQ comparison at default CPU placement<a class="headerlink" href="#peachq-comparison-at-default-cpu-placement" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Unrestricted series</th>
+<th style="text-align: right;">Ingestion throughput ratio</th>
+<th style="text-align: right;">Last-price p99 ratio</th>
+<th style="text-align: right;">As-of bid p99 ratio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First series</td>
+<td style="text-align: right;">1.706×</td>
+<td style="text-align: right;">0.697×</td>
+<td style="text-align: right;">1.043×</td>
+</tr>
+<tr>
+<td>First repeat</td>
+<td style="text-align: right;">1.689×</td>
+<td style="text-align: right;">0.776×</td>
+<td style="text-align: right;">1.069×</td>
+</tr>
+<tr>
+<td>Second repeat</td>
+<td style="text-align: right;">1.737×</td>
+<td style="text-align: right;">0.712×</td>
+<td style="text-align: right;">1.243×</td>
+</tr>
+</tbody>
+</table>
+<p>Each current series met the median bounds. In the second repeat, one pair exceeded the 1.25× as-of bound at 1.353×. Across all nine pairs at default placement, the highest absolute query p99 on either engine was 17.09 ms, and the slowest batch acknowledgement was 22.87 ms.</p>
+<p>Before the idle SQL change, four unrestricted series using standalone executable <code>6306836e445e</code> recorded median as-of p99 ratios of 1.471×, 1.433×, 1.074× and 1.342×. A separate instrumented run of that executable recorded 1.455×. The first last-price query occupied 8.89–11.45 ms of the 9.40–12.05 ms that the first as-of query waited between send and SQL entry. Linux charged the query thread 18.44–20.85 ms of CPU time across the two SQL calls, at roughly 1 ms resolution. Those calls include both publishing newly appended rows for SQL and executing the queries.</p>
+<p>From a source checkout with the candidate installed and the PeachQ executable available, run the reference selection with this command.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">KLONG_V2_RELEASE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">KLONG_NATIVE</span><span class="o">=</span>/path/to/kg<span class="w"> </span><span class="nv">KLONG_TEST_PEACHQ</span><span class="o">=</span>/path/to/q<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/v2<span class="w"> </span>-m<span class="w"> </span>v2_reference<span class="w"> </span>-o<span class="w"> </span><span class="nv">junit_family</span><span class="o">=</span>xunit1<span class="w"> </span>--junitxml<span class="o">=</span>reference.xml
+</code></pre></div>
+<h3 id="hosted-and-standalone-feed-at-default-cpu-placement">Hosted and standalone feed at default CPU placement<a class="headerlink" href="#hosted-and-standalone-feed-at-default-cpu-placement" title="Permanent link">&para;</a></h3>
+<p>With default CPU placement, the installed RC1 wheel passed the 25,600-row/s qualification feed on both commands while two clients queried last price and as-of bid. The regression budget is 100 ms for each query p99 and for the slowest batch acknowledgement, measured from its scheduled time. Ingestion capacity comes from the separate phase without readers.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th style="text-align: right;">Ingestion capacity</th>
+<th style="text-align: right;">Worst ingest lag</th>
+<th style="text-align: right;">Last-price p99</th>
+<th style="text-align: right;">As-of bid p99</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kg</code></td>
+<td style="text-align: right;">948,377 rows/s</td>
+<td style="text-align: right;">15.76 ms</td>
+<td style="text-align: right;">9.35 ms</td>
+<td style="text-align: right;">14.49 ms</td>
+</tr>
+<tr>
+<td><code>kgpy</code></td>
+<td style="text-align: right;">148,809 rows/s</td>
+<td style="text-align: right;">76.24 ms</td>
+<td style="text-align: right;">23.22 ms</td>
+<td style="text-align: right;">19.60 ms</td>
+</tr>
+</tbody>
+</table>
+<p>In a historical set of 12 runs before the idle SQL change, we tested each of three hosted wheels and PeachQ once per round over three rounds, changing the order between rounds. Those measurements used default CPU placement and the same feed.</p>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th style="text-align: right;">Median ingestion capacity</th>
+<th style="text-align: right;">Worst ingest lag across runs</th>
+<th style="text-align: right;">Last-price p99 range</th>
+<th style="text-align: right;">As-of bid p99 range</th>
+<th style="text-align: right;">Runs meeting the 100 ms budget</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Development <code>kgpy</code>, before shared-value ownership</td>
+<td style="text-align: right;">189,381 rows/s</td>
+<td style="text-align: right;">27.82–34.16 ms</td>
+<td style="text-align: right;">16.29–22.98 ms</td>
+<td style="text-align: right;">16.36–22.99 ms</td>
+<td style="text-align: right;">3/3</td>
+</tr>
+<tr>
+<td>First RC1 candidate <code>kgpy</code></td>
+<td style="text-align: right;">146,725 rows/s</td>
+<td style="text-align: right;">37.05–108.10 ms</td>
+<td style="text-align: right;">17.47–18.59 ms</td>
+<td style="text-align: right;">23.42–25.27 ms</td>
+<td style="text-align: right;">2/3</td>
+</tr>
+<tr>
+<td>Later RC1 candidate <code>kgpy</code></td>
+<td style="text-align: right;">149,502 rows/s</td>
+<td style="text-align: right;">46.61–63.49 ms</td>
+<td style="text-align: right;">15.28–17.76 ms</td>
+<td style="text-align: right;">24.15–26.70 ms</td>
+<td style="text-align: right;">3/3</td>
+</tr>
+<tr>
+<td>PeachQ 0.92</td>
+<td style="text-align: right;">531,142 rows/s</td>
+<td style="text-align: right;">11.82–14.67 ms</td>
+<td style="text-align: right;">12.66–12.97 ms</td>
+<td style="text-align: right;">12.70–12.88 ms</td>
+<td style="text-align: right;">3/3</td>
+</tr>
+</tbody>
+</table>
+<p>The later RC1 candidate ingested about 21% fewer rows per second than the development wheel at the median paired ratio. Relative to the first RC1 candidate, it had lower last-price p99 and higher as-of p99 in every round. The first RC1 candidate missed the ingest budget once in this series. In an earlier three-pair comparison it passed in all three runs, with 146,000 rows/s median and worst ingest lags of 25.61–90.59 ms. The development wheel reached 191,000 rows/s and 16.94–25.33 ms in that comparison. The SHA-256 prefixes for the development, first RC1 and later RC1 wheels are <code>263fbeabd43e</code>, <code>ac24a06efc25</code> and <code>b4b3bba8600c</code>.</p>
+<p>An earlier v2 build reached 228 ms worst hosted ingest lag on this workload. The first three runs after the live SQL scan change recorded 24.28, 23.95 and 33.62 ms.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">KLONG_NATIVE</span><span class="o">=</span>/path/to/kg<span class="w"> </span><span class="nv">KLONG_V2_KGPY</span><span class="o">=</span>/path/to/kgpy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/v2/test_performance.py::test_tick_service_under_load<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">junit_family</span><span class="o">=</span>xunit1<span class="w"> </span>--junitxml<span class="o">=</span>tick-feed.xml
+</code></pre></div>
+<h2 id="distinct-ids-and-group-counts">Distinct IDs and group counts<a class="headerlink" href="#distinct-ids-and-group-counts" title="Permanent link">&para;</a></h2>
+<p>A before-and-after comparison on Linux x86-64 used standalone release builds from the same v2 development line, immediately before and after the dense-integer optimization. On an AMD EPYC 7773X, the loopback client requested distinct IDs and group counts from one million resident int64 rows with 64 densely spaced IDs. Input construction ran before timing. Each operation had a warm-up, then seven timed requests whose results were checked.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Before, median</th>
+<th style="text-align: right;">After, median</th>
+<th style="text-align: right;">Median paired speedup</th>
+<th style="text-align: right;">Range across five pairs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Distinct IDs (<code>?ids</code>)</td>
+<td style="text-align: right;">29.732 ms</td>
+<td style="text-align: right;">2.800 ms</td>
+<td style="text-align: right;">10.65×</td>
+<td style="text-align: right;">10.37–10.97×</td>
+</tr>
+<tr>
+<td>Group counts (<code>#'=ids</code>)</td>
+<td style="text-align: right;">30.394 ms</td>
+<td style="text-align: right;">11.988 ms</td>
+<td style="text-align: right;">2.54×</td>
+<td style="text-align: right;">2.52–2.85×</td>
+</tr>
+</tbody>
+</table>
+<p>The build order alternated over five paired trials. The time columns are the medians of their trial medians. A control with 64 widely spaced IDs took 29.709 ms before and 29.824 ms after for distinct IDs. The installed RC1 Linux wheel ran the same 64-dense-ID case in <strong>2.43 ms for distinct IDs and 11.86 ms for group counts</strong> (medians of seven calls).</p>
+<p>Run the resident 64-ID workload against each binary separately:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">KLONG_NATIVE</span><span class="o">=</span>/path/to/kg<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>tests/v2/test_performance.py::test_group_resident_integer_ids<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">junit_family</span><span class="o">=</span>xunit1<span class="w"> </span>--junitxml<span class="o">=</span>group-ids.xml
+</code></pre></div>
+<h2 id="peak-heap-for-an-integer-running-sum">Peak heap for an integer running sum<a class="headerlink" href="#peak-heap-for-an-integer-running-sum" title="Permanent link">&para;</a></h2>
+<p>On an Apple M2 Ultra, standalone <code>kg</code> used <strong>8.02 MB of peak heap</strong> to generate one million consecutive int64 values, compute their running sum and read its last value. The preceding implementation used <strong>16.02 MB</strong>. The new scan reuses the temporary input buffer. A vector held in a variable or through an alias retains its original contents.</p>
+<p>Both builds returned <code>499999500000</code>. The new build also completed with a 10 MiB interpreter heap limit. The earlier build reported an out-of-memory error at that limit. These figures come from <code>kg --stats</code>, which measures the interpreter heap. In nine alternating local trial pairs, the median runtime was about 0.49 ms on both builds.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>kg<span class="w"> </span>--stats<span class="w"> </span>--heap-limit<span class="w"> </span><span class="m">10485760</span><span class="w"> </span>-e<span class="w"> </span><span class="s1">'(+\!1000000)@999999'</span>
+</code></pre></div>
+<h2 id="python-hosted-runtime-compared-with-v1">Python-hosted runtime compared with v1<a class="headerlink" href="#python-hosted-runtime-compared-with-v1" title="Permanent link">&para;</a></h2>
+<p>On 2026-11-20 UTC, we evaluated the same expressions through <code>KlongInterpreter</code> on pure-Python 1.0.0 and the installed 2.0.0rc1 Linux x86-64 wheel. The benchmark used CPU 8 of an AMD EPYC 7773X. Both builds used Python 3.11.2, NumPy 2.4.6 and one numeric library thread. Three paired trials alternated the build order, using a fresh process for each side. Each case had three warm-up calls and nine measured calls. Timing covered the interpreter call and the creation of its result. Setup, validation and process startup ran outside the clock. Every result was checked.</p>
+<table>
+<thead>
+<tr>
+<th>Workload</th>
+<th style="text-align: right;">v1 median</th>
+<th style="text-align: right;">RC1 median</th>
+<th style="text-align: right;">Paired speedup</th>
+<th style="text-align: right;">Range across three pairs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Recursive <code>fib(20)</code></td>
+<td style="text-align: right;">2106.115 ms</td>
+<td style="text-align: right;">3.274 ms</td>
+<td style="text-align: right;">643.302×</td>
+<td style="text-align: right;">627.105–649.182×</td>
+</tr>
+<tr>
+<td>While loop, 100,000 steps</td>
+<td style="text-align: right;">5720.051 ms</td>
+<td style="text-align: right;">13.635 ms</td>
+<td style="text-align: right;">419.515×</td>
+<td style="text-align: right;">405.980–423.309×</td>
+</tr>
+<tr>
+<td>Lambda reduction, 100,000 integers</td>
+<td style="text-align: right;">848.544 ms</td>
+<td style="text-align: right;">8.217 ms</td>
+<td style="text-align: right;">103.377×</td>
+<td style="text-align: right;">101.647–104.239×</td>
+</tr>
+<tr>
+<td>Element-wise arithmetic, 1,000,000 integers</td>
+<td style="text-align: right;">2.172 ms</td>
+<td style="text-align: right;">1.631 ms</td>
+<td style="text-align: right;">1.331×</td>
+<td style="text-align: right;">1.327–1.437×</td>
+</tr>
+<tr>
+<td>Sum, 1,000,000 integers</td>
+<td style="text-align: right;">0.406 ms</td>
+<td style="text-align: right;">0.279 ms</td>
+<td style="text-align: right;">1.467×</td>
+<td style="text-align: right;">1.457–1.477×</td>
+</tr>
+<tr>
+<td>Running sum (scan), 1,000,000 integers</td>
+<td style="text-align: right;">0.753 ms</td>
+<td style="text-align: right;">1.019 ms</td>
+<td style="text-align: right;">0.740×</td>
+<td style="text-align: right;">0.734–0.832×</td>
+</tr>
+<tr>
+<td>Sort, 100,000 seeded floats</td>
+<td style="text-align: right;">16.483 ms</td>
+<td style="text-align: right;">2.658 ms</td>
+<td style="text-align: right;">6.201×</td>
+<td style="text-align: right;">6.185–6.357×</td>
+</tr>
+<tr>
+<td>Group counts, 1,000,000 Python-supplied integers with 64 IDs</td>
+<td style="text-align: right;">35.394 ms</td>
+<td style="text-align: right;">48.632 ms</td>
+<td style="text-align: right;">0.728×</td>
+<td style="text-align: right;">0.725–0.744×</td>
+</tr>
+</tbody>
+</table>
+<p>Time columns give the median of three trial medians for each build. Speedup is the median paired v1/RC1 elapsed-time ratio. The running sum and group counts on IDs supplied as a NumPy array were slower on RC1 in all three pairs. The standalone group-count benchmark operates on resident Klong vectors. The v1 commit begins <code>9315318cbb03</code>, the RC1 source archive SHA-256 begins <code>547dd7b9e927</code>, the wheel's begins <code>9b6fcffb0e85</code>, and its native Python extension's begins <code>bb2649021452</code>.</p>
+<p>The running sum returns a writable million-element NumPy array to Python. An installed v2 wheel from before the temporary-buffer change measured 3.686 ms on this workload. A later RC1 candidate (<code>b4b3bba8600c</code>) measured 0.662 ms. The current wheel measured 1.019 ms. The native heap test above checks buffer reuse independently of the hosted result timing.</p>
+<p>From the checkout, run the same workload with the v2 wheel installed in the active Python environment. The output includes all timing samples.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>scripts/bench_versions.py<span class="w"> </span>--v1-source<span class="w"> </span>/path/to/v1-source<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>--v2-source<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sysconfig; print(sysconfig.get_path("platlib"))'</span><span class="k">)</span><span class="s2">"</span><span class="w"> </span>--out<span class="w"> </span>v1-v2.json
+</code></pre></div>
+<h2 id="first-launch-under-rosetta">First launch under Rosetta<a class="headerlink" href="#first-launch-under-rosetta" title="Permanent link">&para;</a></h2>
+<p>On Apple Silicon running macOS 26.6.2, the original Intel Mac RC1 wheel took 10.904 seconds to print <code>kg --help</code> after a fresh installation. That exceeded the existing ten-second timeout for automated clients. The release wheel limits C++ inlining in DuckDB and folds identical functions at link time. The package shrank from 37.4 MB to 33.0 MB.</p>
+<p>We compared the executables on fresh file copies, alternating the original, release, release and original builds for each workload. Help took 10.55–10.75 seconds on the original and 8.80–8.82 seconds on the release wheel. A Klong script that created a three-row table and queried its sum took 10.41–10.60 seconds on the original and 8.78–8.84 seconds on the release wheel. Three subsequent help calls on the same release executable took 66–70 ms.</p>
+<p>We also timed one-thread DuckDB queries on two million resident rows. Across three alternating pairs, the release wheel's median time ratios to the original were 0.990× for an integer sum, 0.975× for counts across 64 groups and 0.977× for a join. Each process took nine checked measurements after warm-up. An alternative build optimized for size started in 5.35 seconds, but those same warm queries took 19–35% longer. These measurements compare Intel binaries under Rosetta. The tested release wheel's SHA-256 starts with <code>f84de715b399</code>.</p>
+<h2 id="earlier-cpu-microbenchmarks">Earlier CPU microbenchmarks<a class="headerlink" href="#earlier-cpu-microbenchmarks" title="Permanent link">&para;</a></h2>
+<p>These figures are for the dated development build in the conditions table. Whole-array NumPy arithmetic, reduction and sorting often approached direct NumPy on 100,000 to a million elements. Dispatch cost was more visible in loops and per-element lambdas. Use the workloads and sample sizes below when comparing your own measurements.</p>
+<h2 id="conditions">Conditions<a class="headerlink" href="#conditions" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Date</td>
+<td>2026-11-18</td>
+</tr>
+<tr>
+<td>Machine</td>
+<td>AMD Ryzen 9 7950X3D, 16 cores (32 threads), 62 GB of memory</td>
+</tr>
+<tr>
+<td>Operating system</td>
+<td>Ubuntu 20.04.6 LTS, Linux 5.4</td>
+</tr>
+<tr>
+<td>Python</td>
+<td>3.12.16</td>
+</tr>
+<tr>
+<td>NumPy</td>
+<td>2.5.5 (OpenBLAS)</td>
+</tr>
+<tr>
+<td>PyTorch</td>
+<td>2.15.0, CPU build; 16 threads by default</td>
+</tr>
+<tr>
+<td>Native runtime</td>
+<td>the <code>--release</code> build of <code>native/</code> (rustc 1.100.0), run as <code>kg --bench 1 -e PROGRAM</code></td>
+</tr>
+<tr>
+<td>GPU</td>
+<td>none measured</td>
+</tr>
+<tr>
+<td>Load</td>
+<td>idle (load average below 0.1) before the run</td>
+</tr>
+</tbody>
+</table>
+<p>Method: each row runs 3 untimed warm-up runs, then 9 timed runs. The tables show the best run and the median, as <code>best / median</code>.</p>
+<ul>
+<li><strong>Single thread.</strong> The process is pinned to one core and sets <code>OMP_NUM_THREADS</code>, <code>MKL_NUM_THREADS</code> and <code>OPENBLAS_NUM_THREADS</code> to 1, and torch to one thread. These are the main tables.</li>
+<li><strong>Default threads.</strong> The same rows with no pinning and the default thread count of NumPy and torch. The native runtime has one thread and is not repeated.</li>
+</ul>
+<p>Repeatability: the whole benchmark was run twice, and the tables show the first run. In the first table the best times of the two runs agree within 8%, except one CPython row (17%). In the single-thread NumPy, torch and baseline rows of the array tables, 91 of 96 rows agree within 10%. The default-thread rows and the native runtime's array rows vary more (up to a factor of 1.7 for the native runtime), so ratios that use them are good to about 1.5 times.</p>
+<p>In the vector, reduce and sort tables, rows of 100,000 elements or fewer are timed in batches of about 20 ms so that the timer resolution does not matter. The script is <code>scripts/bench_performance.py</code>; the last section shows how to rerun it.</p>
+<h2 id="programs-the-interpreter-runs">Programs the interpreter runs<a class="headerlink" href="#programs-the-interpreter-runs" title="Permanent link">&para;</a></h2>
+<p>These programs spend their time in the interpreter, not in an array library. The thread count does not change them, so the single-thread figures are shown. The CPython column is the same work written in plain Python: <code>fib</code> recursion, a <code>while</code> loop, <code>functools.reduce</code> with a lambda, <code>itertools.accumulate</code>, a list comprehension, a dictionary and <code>str.join</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Program</th>
+<th>KlongPy, NumPy backend</th>
+<th>KlongPy, torch backend</th>
+<th>Native runtime</th>
+<th>CPython</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>recursive fib(24)</td>
+<td>1.28 s / 1.32 s</td>
+<td>2.67 s / 2.69 s</td>
+<td>20.4 ms / 20.6 ms</td>
+<td>3.06 ms / 3.09 ms</td>
+</tr>
+<tr>
+<td>while loop to 100000</td>
+<td>577 ms / 578 ms</td>
+<td>1.24 s / 1.26 s</td>
+<td>21.1 ms / 21.4 ms</td>
+<td>1.41 ms / 1.42 ms</td>
+</tr>
+<tr>
+<td><code>{x+y}/!100000</code></td>
+<td>319 ms / 319 ms</td>
+<td>526 ms / 529 ms</td>
+<td>11.4 ms / 11.4 ms</td>
+<td>3.17 ms / 3.19 ms</td>
+</tr>
+<tr>
+<td><code>{x+y}\!10000</code></td>
+<td>32.7 ms / 32.8 ms</td>
+<td>55.7 ms / 56.5 ms</td>
+<td>1.21 ms / 1.24 ms</td>
+<td>413 us / 423 us</td>
+</tr>
+<tr>
+<td><code>#{x*x}'!100000</code></td>
+<td>309 ms / 311 ms</td>
+<td>558 ms / 566 ms</td>
+<td>11.8 ms / 12 ms</td>
+<td>2.05 ms / 2.05 ms</td>
+</tr>
+<tr>
+<td><code>+/{x*x}'!1000000</code></td>
+<td>3.17 s / 3.19 s</td>
+<td>5.51 s / 5.54 s</td>
+<td>117 ms / 119 ms</td>
+<td>28 ms / 28.1 ms</td>
+</tr>
+<tr>
+<td>append in a loop, 2000</td>
+<td>11.6 ms / 11.6 ms</td>
+<td>18 ms / 18.1 ms</td>
+<td>557 us / 572 us</td>
+<td>1.71 ms / 1.73 ms</td>
+</tr>
+<tr>
+<td>50000 dictionary inserts and lookups</td>
+<td>473 ms / 475 ms</td>
+<td>962 ms / 987 ms</td>
+<td>18.7 ms / 19.4 ms</td>
+<td>2.97 ms / 2.98 ms</td>
+</tr>
+<tr>
+<td>20000 string keys</td>
+<td>225 ms / 226 ms</td>
+<td>392 ms / 398 ms</td>
+<td>9.19 ms / 9.23 ms</td>
+<td>1.76 ms / 1.79 ms</td>
+</tr>
+<tr>
+<td>format and join 20000 numbers</td>
+<td>19.3 ms / 19.4 ms</td>
+<td>48.4 ms / 48.9 ms</td>
+<td>1.88 ms / 1.97 ms</td>
+<td>806 us / 832 us</td>
+</tr>
+<tr>
+<td>find in a 60000 character text</td>
+<td>13.7 ms / 13.9 ms</td>
+<td>16.2 ms / 16.3 ms</td>
+<td>551 us / 585 us</td>
+<td>81.9 us / 83.1 us</td>
+</tr>
+<tr>
+<td>index a non-ASCII string, 2000</td>
+<td>7.03 ms / 7.06 ms</td>
+<td>8.8 ms / 9.01 ms</td>
+<td>253 us / 272 us</td>
+<td>35.6 us / 35.6 us</td>
+</tr>
+</tbody>
+</table>
+<p>What the table shows:</p>
+<p>Each ratio compares the best times of two columns.</p>
+<ul>
+<li>KlongPy with the NumPy backend against CPython: it takes 7 to 420 times as long over all twelve rows. Recursion and the <code>while</code> loop take 410 to 420 times as long, lambdas, dictionaries, finding text and indexing a non-ASCII string 79 to 200 times, formatting numbers 24 times and appending 6.8 times.</li>
+<li>The native runtime against KlongPy with the NumPy backend: it is 24 to 63 times faster on recursion, loops, lambdas, dictionaries, finding text and indexing a non-ASCII string, 21 times faster on appending and 10 times faster on formatting numbers.</li>
+<li>The native runtime against CPython: it takes 2.3 to 15 times as long on every row except appending, where it is 3.1 times faster.</li>
+<li>KlongPy with the torch backend against the NumPy backend: it takes 1.2 to 2.5 times as long on all twelve rows.</li>
+</ul>
+<h2 id="vector-arithmetic">Vector arithmetic<a class="headerlink" href="#vector-arithmetic" title="Permanent link">&para;</a></h2>
+<p>The expression is <code>2*1+!N</code>: a range, an addition and a multiplication, each over the whole array.</p>
+<p>Single thread:</p>
+<table>
+<thead>
+<tr>
+<th>N</th>
+<th>NumPy</th>
+<th>KlongPy, NumPy backend</th>
+<th>KlongPy, torch backend</th>
+<th>Native runtime</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1,000</td>
+<td>1.56 us / 1.56 us</td>
+<td>4.85 us / 4.86 us</td>
+<td>7.76 us / 7.77 us</td>
+<td>22.6 us / 24.9 us</td>
+</tr>
+<tr>
+<td>10,000</td>
+<td>4.94 us / 4.95 us</td>
+<td>8.24 us / 8.25 us</td>
+<td>15 us / 15 us</td>
+<td>106 us / 108 us</td>
+</tr>
+<tr>
+<td>100,000</td>
+<td>37.2 us / 37.2 us</td>
+<td>47.8 us / 47.9 us</td>
+<td>90.5 us / 92.7 us</td>
+<td>1.01 ms / 1.04 ms</td>
+</tr>
+<tr>
+<td>1,000,000</td>
+<td>357 us / 362 us</td>
+<td>425 us / 431 us</td>
+<td>794 us / 809 us</td>
+<td>11.1 ms / 11.2 ms</td>
+</tr>
+<tr>
+<td>10,000,000</td>
+<td>9.85 ms / 10.1 ms</td>
+<td>20 ms / 21 ms</td>
+<td>11.2 ms / 11.2 ms</td>
+<td>107 ms / 108 ms</td>
+</tr>
+</tbody>
+</table>
+<p>Default threads:</p>
+<table>
+<thead>
+<tr>
+<th>N</th>
+<th>NumPy</th>
+<th>KlongPy, NumPy backend</th>
+<th>KlongPy, torch backend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1,000</td>
+<td>1.63 us / 1.63 us</td>
+<td>4.82 us / 4.86 us</td>
+<td>8.49 us / 8.52 us</td>
+</tr>
+<tr>
+<td>10,000</td>
+<td>5.1 us / 5.16 us</td>
+<td>8.42 us / 8.53 us</td>
+<td>15.8 us / 15.8 us</td>
+</tr>
+<tr>
+<td>100,000</td>
+<td>38.4 us / 38.5 us</td>
+<td>49.9 us / 50.2 us</td>
+<td>47.9 us / 53.5 us</td>
+</tr>
+<tr>
+<td>1,000,000</td>
+<td>369 us / 373 us</td>
+<td>443 us / 449 us</td>
+<td>127 us / 128 us</td>
+</tr>
+<tr>
+<td>10,000,000</td>
+<td>9.82 ms / 10.3 ms</td>
+<td>17.5 ms / 18.1 ms</td>
+<td>9.07 ms / 9.42 ms</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>KlongPy with the NumPy backend against NumPy, single thread: 3.1 times as long at 1,000 elements, because the interpreter costs a few microseconds per expression. It takes 1.2 to 1.3 times as long at 100,000 and 1,000,000 elements and 2.0 times as long at 10,000,000.</li>
+<li>KlongPy with the torch backend against NumPy, single thread: it takes 1.1 to 5.0 times as long at every size.</li>
+<li>The same with default threads (16 for torch): the torch backend is 2.9 times faster than NumPy at 1,000,000 elements and 1.1 times faster at 10,000,000. Against the NumPy backend of KlongPy it is 3.5 and 1.9 times faster.</li>
+<li>The native runtime against the NumPy backend, single thread: it takes 4.7 to 26 times as long on this expression. Over all the single-thread array tables on this page the range is 1.8 to 26.</li>
+</ul>
+<h2 id="reduce-scan-and-power">Reduce, scan and power<a class="headerlink" href="#reduce-scan-and-power" title="Permanent link">&para;</a></h2>
+<p>Single thread:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>N</th>
+<th>NumPy</th>
+<th>KlongPy, NumPy backend</th>
+<th>KlongPy, torch backend</th>
+<th>Native runtime</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>+/!N</code></td>
+<td>100,000</td>
+<td>24 us / 24.1 us</td>
+<td>27.5 us / 28.3 us</td>
+<td>35 us / 35.2 us</td>
+<td>98.5 us / 160 us</td>
+</tr>
+<tr>
+<td><code>+/!N</code></td>
+<td>1,000,000</td>
+<td>237 us / 242 us</td>
+<td>239 us / 240 us</td>
+<td>285 us / 291 us</td>
+<td>870 us / 1.5 ms</td>
+</tr>
+<tr>
+<td><code>+/!N</code></td>
+<td>10,000,000</td>
+<td>6.84 ms / 6.87 ms</td>
+<td>7.11 ms / 7.19 ms</td>
+<td>3.96 ms / 3.98 ms</td>
+<td>15.1 ms / 17.1 ms</td>
+</tr>
+<tr>
+<td><code>+\!N</code> (scan)</td>
+<td>100,000</td>
+<td>45.4 us / 45.6 us</td>
+<td>48.2 us / 48.3 us</td>
+<td>54.5 us / 55.4 us</td>
+<td>207 us / 312 us</td>
+</tr>
+<tr>
+<td><code>+\!N</code> (scan)</td>
+<td>1,000,000</td>
+<td>942 us / 944 us</td>
+<td>439 us / 445 us</td>
+<td>463 us / 468 us</td>
+<td>3.01 ms / 3.32 ms</td>
+</tr>
+<tr>
+<td><code>+/(!N)*(!N)</code> (dot product)</td>
+<td>100,000</td>
+<td>74.1 us / 74.3 us</td>
+<td>65.3 us / 65.7 us</td>
+<td>99.8 us / 100 us</td>
+<td>530 us / 715 us</td>
+</tr>
+<tr>
+<td><code>+/(!N)*(!N)</code> (dot product)</td>
+<td>1,000,000</td>
+<td>1.21 ms / 1.21 ms</td>
+<td>1.4 ms / 1.41 ms</td>
+<td>899 us / 909 us</td>
+<td>6.29 ms / 7.41 ms</td>
+</tr>
+<tr>
+<td><code>(1+!N)^2</code> (power)</td>
+<td>100,000</td>
+<td>36.5 us / 36.6 us</td>
+<td>82.3 us / 82.7 us</td>
+<td>197 us / 198 us</td>
+<td>776 us / 870 us</td>
+</tr>
+<tr>
+<td><code>(1+!N)^2</code> (power)</td>
+<td>1,000,000</td>
+<td>353 us / 357 us</td>
+<td>733 us / 735 us</td>
+<td>1.8 ms / 1.81 ms</td>
+<td>8.97 ms / 9.28 ms</td>
+</tr>
+<tr>
+<td><code>+100 100^!10000</code> (transpose)</td>
+<td>10,000</td>
+<td>4.43 us / 4.44 us</td>
+<td>2.52 us / 2.53 us</td>
+<td>3.9 us / 3.96 us</td>
+<td>7.12 us / 13.1 us</td>
+</tr>
+</tbody>
+</table>
+<p>Default threads:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>N</th>
+<th>NumPy</th>
+<th>KlongPy, NumPy backend</th>
+<th>KlongPy, torch backend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>+/!N</code></td>
+<td>100,000</td>
+<td>25 us / 25.1 us</td>
+<td>28.9 us / 28.9 us</td>
+<td>22.7 us / 24.4 us</td>
+</tr>
+<tr>
+<td><code>+/!N</code></td>
+<td>1,000,000</td>
+<td>245 us / 248 us</td>
+<td>248 us / 253 us</td>
+<td>55.8 us / 57 us</td>
+</tr>
+<tr>
+<td><code>+/!N</code></td>
+<td>10,000,000</td>
+<td>6.95 ms / 7.38 ms</td>
+<td>6.89 ms / 7.39 ms</td>
+<td>1.14 ms / 2.22 ms</td>
+</tr>
+<tr>
+<td><code>+\!N</code> (scan)</td>
+<td>100,000</td>
+<td>46.8 us / 47 us</td>
+<td>49.6 us / 50 us</td>
+<td>59.8 us / 59.9 us</td>
+</tr>
+<tr>
+<td><code>+\!N</code> (scan)</td>
+<td>1,000,000</td>
+<td>991 us / 1.02 ms</td>
+<td>463 us / 467 us</td>
+<td>449 us / 463 us</td>
+</tr>
+<tr>
+<td><code>+/(!N)*(!N)</code> (dot product)</td>
+<td>100,000</td>
+<td>76.4 us / 76.8 us</td>
+<td>68.9 us / 69.2 us</td>
+<td>60.5 us / 63.8 us</td>
+</tr>
+<tr>
+<td><code>+/(!N)*(!N)</code> (dot product)</td>
+<td>1,000,000</td>
+<td>1.25 ms / 1.29 ms</td>
+<td>1.47 ms / 1.49 ms</td>
+<td>151 us / 154 us</td>
+</tr>
+<tr>
+<td><code>(1+!N)^2</code> (power)</td>
+<td>100,000</td>
+<td>37.6 us / 37.8 us</td>
+<td>83.9 us / 84.6 us</td>
+<td>90.7 us / 94.6 us</td>
+</tr>
+<tr>
+<td><code>(1+!N)^2</code> (power)</td>
+<td>1,000,000</td>
+<td>364 us / 457 us</td>
+<td>755 us / 761 us</td>
+<td>273 us / 275 us</td>
+</tr>
+<tr>
+<td><code>+100 100^!10000</code> (transpose)</td>
+<td>10,000</td>
+<td>4.61 us / 4.7 us</td>
+<td>2.29 us / 2.29 us</td>
+<td>3.8 us / 3.82 us</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>KlongPy with the NumPy backend against NumPy: a reduce (<code>+/</code>) and a dot product take 0.9 to 1.2 times as long, with one thread or many. The scan <code>+\</code> at a million elements takes half as long as <code>np.cumsum</code> (2.1 times faster).</li>
+<li>The power <code>(1+!N)^2</code> on the NumPy backend takes 2.1 to 2.3 times as long as NumPy.</li>
+<li>With 16 threads the torch backend is faster than the NumPy backend of KlongPy at a million elements: 4.4 times for <code>+/!N</code>, 9.7 times for the dot product and 2.8 times for the power. At 100,000 elements the two are within 1.3 times of each other.</li>
+<li>On one thread the torch backend takes longer than the NumPy backend in 8 of the 10 rows. It is faster for <code>+/!N</code> at 10,000,000 elements (1.8 times) and for the dot product at 1,000,000 (1.6 times).</li>
+</ul>
+<h2 id="grade-and-sort">Grade and sort<a class="headerlink" href="#grade-and-sort" title="Permanent link">&para;</a></h2>
+<p><code>&lt;x</code> (grade) returns the sort order of <code>x</code>. <code>x@&lt;x</code> sorts by indexing with it. Single thread:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>N</th>
+<th>NumPy</th>
+<th>KlongPy, NumPy backend</th>
+<th>KlongPy, torch backend</th>
+<th>Native runtime</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;!N</code> (grade of a sorted range)</td>
+<td>10,000</td>
+<td>16.9 us / 17 us</td>
+<td>19.4 us / 19.4 us</td>
+<td>54.4 us / 54.5 us</td>
+<td>35.6 us / 79.5 us</td>
+</tr>
+<tr>
+<td><code>&lt;!N</code> (grade of a sorted range)</td>
+<td>100,000</td>
+<td>162 us / 167 us</td>
+<td>164 us / 164 us</td>
+<td>990 us / 992 us</td>
+<td>490 us / 505 us</td>
+</tr>
+<tr>
+<td><code>&lt;!N</code> (grade of a sorted range)</td>
+<td>1,000,000</td>
+<td>2.08 ms / 2.35 ms</td>
+<td>1.59 ms / 1.61 ms</td>
+<td>13.7 ms / 13.8 ms</td>
+<td>4.36 ms / 5.37 ms</td>
+</tr>
+<tr>
+<td><code>&lt;r</code> (grade, random floats)</td>
+<td>10,000</td>
+<td>229 us / 229 us</td>
+<td>233 us / 233 us</td>
+<td>404 us / 416 us</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>&lt;r</code> (grade, random floats)</td>
+<td>100,000</td>
+<td>3.53 ms / 3.53 ms</td>
+<td>3.76 ms / 3.83 ms</td>
+<td>5.79 ms / 5.88 ms</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>&lt;r</code> (grade, random floats)</td>
+<td>1,000,000</td>
+<td>44.6 ms / 45.2 ms</td>
+<td>44.5 ms / 45.6 ms</td>
+<td>70.4 ms / 70.9 ms</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>r@&lt;r</code> (sort, random floats)</td>
+<td>10,000</td>
+<td>235 us / 235 us</td>
+<td>243 us / 243 us</td>
+<td>446 us / 456 us</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>r@&lt;r</code> (sort, random floats)</td>
+<td>100,000</td>
+<td>3.61 ms / 3.62 ms</td>
+<td>3.67 ms / 3.78 ms</td>
+<td>6.22 ms / 6.31 ms</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>r@&lt;r</code> (sort, random floats)</td>
+<td>1,000,000</td>
+<td>46.3 ms / 47.9 ms</td>
+<td>45.6 ms / 47 ms</td>
+<td>76.7 ms / 78.2 ms</td>
+<td>n/a</td>
+</tr>
+</tbody>
+</table>
+<p>Default threads:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>N</th>
+<th>NumPy</th>
+<th>KlongPy, NumPy backend</th>
+<th>KlongPy, torch backend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;!N</code> (grade of a sorted range)</td>
+<td>10,000</td>
+<td>17.5 us / 17.5 us</td>
+<td>19.8 us / 19.8 us</td>
+<td>56.2 us / 56.9 us</td>
+</tr>
+<tr>
+<td><code>&lt;!N</code> (grade of a sorted range)</td>
+<td>100,000</td>
+<td>166 us / 166 us</td>
+<td>169 us / 170 us</td>
+<td>582 us / 587 us</td>
+</tr>
+<tr>
+<td><code>&lt;!N</code> (grade of a sorted range)</td>
+<td>1,000,000</td>
+<td>2.14 ms / 2.15 ms</td>
+<td>1.64 ms / 1.65 ms</td>
+<td>3.94 ms / 4.3 ms</td>
+</tr>
+<tr>
+<td><code>&lt;r</code> (grade, random floats)</td>
+<td>10,000</td>
+<td>236 us / 236 us</td>
+<td>238 us / 238 us</td>
+<td>421 us / 430 us</td>
+</tr>
+<tr>
+<td><code>&lt;r</code> (grade, random floats)</td>
+<td>100,000</td>
+<td>3.62 ms / 3.63 ms</td>
+<td>3.59 ms / 3.59 ms</td>
+<td>6.55 ms / 6.59 ms</td>
+</tr>
+<tr>
+<td><code>&lt;r</code> (grade, random floats)</td>
+<td>1,000,000</td>
+<td>45.8 ms / 46.6 ms</td>
+<td>45.6 ms / 46 ms</td>
+<td>73 ms / 74.7 ms</td>
+</tr>
+<tr>
+<td><code>r@&lt;r</code> (sort, random floats)</td>
+<td>10,000</td>
+<td>242 us / 242 us</td>
+<td>248 us / 248 us</td>
+<td>480 us / 485 us</td>
+</tr>
+<tr>
+<td><code>r@&lt;r</code> (sort, random floats)</td>
+<td>100,000</td>
+<td>3.71 ms / 3.71 ms</td>
+<td>3.67 ms / 3.68 ms</td>
+<td>6.7 ms / 6.76 ms</td>
+</tr>
+<tr>
+<td><code>r@&lt;r</code> (sort, random floats)</td>
+<td>1,000,000</td>
+<td>47.5 ms / 48.4 ms</td>
+<td>46.7 ms / 51.6 ms</td>
+<td>76.5 ms / 86.6 ms</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>KlongPy with the NumPy backend against NumPy: grade takes 0.8 to 1.1 times as long as <code>np.argsort</code>, and <code>x@&lt;x</code> on random floats takes 1.0 times as long as <code>r[np.argsort(r)]</code> (within 3% at every size).</li>
+<li>KlongPy with the torch backend against the NumPy backend, on random floats (grade and sort): it takes 1.5 to 1.9 times as long at every size, with one thread or many.</li>
+<li>The same for the grade of a sorted range: 2.4 to 3.4 times as long with 16 threads, and 2.8 to 8.6 times as long on one thread (2.8 at 10,000 elements, 6.0 at 100,000, 8.6 at 1,000,000).</li>
+</ul>
+<h2 id="matrix-multiply-through-pyf">Matrix multiply through <code>.pyf</code><a class="headerlink" href="#matrix-multiply-through-pyf" title="Permanent link">&para;</a></h2>
+<p><code>.pyf</code> imports a Python function, so these rows time a library call: the work is done by NumPy or torch, and KlongPy adds no measurable time. Single thread:</p>
+<table>
+<thead>
+<tr>
+<th>N (N x N, float32)</th>
+<th>NumPy</th>
+<th><code>.pyf</code> to NumPy</th>
+<th>torch</th>
+<th><code>.pyf</code> to torch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1000</td>
+<td>12.1 ms / 12.3 ms</td>
+<td>12 ms / 12 ms</td>
+<td>12.2 ms / 13 ms</td>
+<td>12.3 ms / 12.7 ms</td>
+</tr>
+<tr>
+<td>2000</td>
+<td>96.1 ms / 96.5 ms</td>
+<td>95.8 ms / 96.2 ms</td>
+<td>101 ms / 102 ms</td>
+<td>99.8 ms / 100 ms</td>
+</tr>
+<tr>
+<td>4000</td>
+<td>765 ms / 766 ms</td>
+<td>763 ms / 764 ms</td>
+<td>818 ms / 823 ms</td>
+<td>821 ms / 834 ms</td>
+</tr>
+</tbody>
+</table>
+<p>Default threads:</p>
+<table>
+<thead>
+<tr>
+<th>N (N x N, float32)</th>
+<th>NumPy</th>
+<th><code>.pyf</code> to NumPy</th>
+<th>torch</th>
+<th><code>.pyf</code> to torch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1000</td>
+<td>1.46 ms / 1.51 ms</td>
+<td>1.4 ms / 1.41 ms</td>
+<td>2.32 ms / 2.41 ms</td>
+<td>2.44 ms / 2.6 ms</td>
+</tr>
+<tr>
+<td>2000</td>
+<td>7.86 ms / 7.98 ms</td>
+<td>7.95 ms / 7.99 ms</td>
+<td>10.7 ms / 11.7 ms</td>
+<td>10.9 ms / 11.2 ms</td>
+</tr>
+<tr>
+<td>4000</td>
+<td>62.6 ms / 66.4 ms</td>
+<td>62.6 ms / 63 ms</td>
+<td>100 ms / 108 ms</td>
+<td>94.3 ms / 102 ms</td>
+</tr>
+</tbody>
+</table>
+<p>On the CPU, NumPy is as fast as torch or faster for this float32 product. Comparing the NumPy and torch columns: torch takes 1.4 to 1.6 times as long with 16 threads and 1.0 to 1.1 times as long on one thread. Choose torch for a matrix multiply to run it on a GPU, not for the CPU.</p>
+<h2 id="the-native-engine-measured-in-process-on-one-machine">The native engine, measured in process on one machine<a class="headerlink" href="#the-native-engine-measured-in-process-on-one-machine" title="Permanent link">&para;</a></h2>
+<p>This section is a second set of measurements, from <code>native/scripts/bench_engine.py</code>. It times the engine inside one process, after a warm-up run, with no process launch per timing, and runs the same workloads in CPython and NumPy. It was made to decide what to optimise in the engine. The "before" columns are the engine as it was before any speed work (the commit of 2026-11-18, "Packaging: one abi3 wheel with the extension, kgpy and kg"), measured on 2026-11-18. The "after" columns are the engine after three rounds of speed work, measured on 2026-11-19, and the CPython and NumPy columns are from the 2026-11-19 runs. The tables above come from another machine with another method and are not repeated here.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Date</td>
+<td>"before": 2026-11-18. "after": 2026-11-19</td>
+</tr>
+<tr>
+<td>Machine</td>
+<td>Apple M2 Ultra, 24 cores, 192 GB of memory, macOS 26.6</td>
+</tr>
+<tr>
+<td>Load</td>
+<td>not idle: the machine was shared. "Before": <code>uptime</code> showed load averages of 9 to 14 during the runs (13.8, 12.9, 11.0 and 9.1 for the one-minute average at the start of the four runs). "After": the one-minute average was 15.98 at the start of the first run and 15.95 at the start of the second; the runs of the older extension build below started at 10.50</td>
+</tr>
+<tr>
+<td>Python, NumPy</td>
+<td>3.12.9, 2.5.5</td>
+</tr>
+<tr>
+<td>Rust</td>
+<td>1.90.0-nightly, <code>--release</code>, one code generation unit</td>
+</tr>
+<tr>
+<td>Engine "after"</td>
+<td>the commit "Engine speed, third round: append in place, direct calls to named functions, leaf arithmetic"</td>
+</tr>
+<tr>
+<td>Engine "before rounds two and three"</td>
+<td>the extension built from the commit before the second round, "Migration guide lists every break from 0.7; scope wording corrected; arity error for system functions". It has the first round of speed work and not the second and third. Measured on 2026-11-19, in the extension only</td>
+</tr>
+<tr>
+<td>kg</td>
+<td><code>native/target/release/kg</code>, timed with the monotonic elapsed-time clock <code>.pc()</code> around calls to the workload</td>
+</tr>
+<tr>
+<td>Extension</td>
+<td><code>klong_native</code> through <code>KlongInterpreter</code> from <code>klongpy</code> (NumPy backend), timed with the same Klong function (<code>.pc()</code>), so a result is never converted to Python</td>
+</tr>
+</tbody>
+</table>
+<p>Method: a workload runs once to warm up, and that run sizes a batch of at least 3 ms; the figure is the best of 3 to 30 batches (as many as fit in half a second), per run. A run of 2 s or more is timed once. Each cell is the better of two rounds, and the two rounds were run one after the other. "Before" and "after" were measured in different sessions, under the loads stated above, so the rows that the work did not change show the noise between sessions: in the 39 array rows that no change was aimed at (add, multiply, the two chains, dot, sum, max of integers, the grade of integers, take and drop, at the three sizes), "before" divided by "after" is between 0.90 and 1.11 in 37 rows and 0.75 and 0.76 in two (<code>add float</code> and <code>multiply float</code> at 100,000 elements, discussed below). A ratio of two cells from different sessions is good to about 10%. A workload is the body of <code>wk::{expr;0}</code>, so what is timed is making the result and dropping it. The CPython column uses lists, loops and the builtins that fit (<code>sum</code>, <code>min</code>, <code>sorted</code>, <code>itertools.accumulate</code>); the NumPy column is the vectorised form. The arrays are <code>ia</code>, ints 0 to n-1, <code>ib</code>, <code>3+ia</code>, <code>fa</code>, <code>0.5*ia</code>, <code>fb</code>, <code>1.5+fa</code>, <code>pi</code>, a permutation of 0 to n-1 (<code>(7919*ia)!n</code>) and <code>pf</code>, <code>0.5*pi</code>. The two append rows were added to the script after the first measurement, so they have no "before" figure.</p>
+<p>The historical float chain rows below used <code>(fa*fb+fa)-fb</code> in Klong. Right-to-left evaluation makes the inner expression <code>fa*(fb+fa)</code>, while the Python runners used <code>(fa*fb)+fa</code>. The harness now parenthesizes the Klong product explicitly. Those three historical rows timed different arithmetic expressions.</p>
+<h3 id="programs-the-interpreter-runs_1">Programs the interpreter runs<a class="headerlink" href="#programs-the-interpreter-runs_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Program</th>
+<th>CPython</th>
+<th>kg before</th>
+<th>kg after</th>
+<th>kg speed-up</th>
+<th>extension before</th>
+<th>extension, rounds 1 only</th>
+<th>extension after</th>
+<th>kg after / CPython</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fib(24) recursive</td>
+<td>4.17 ms</td>
+<td>28.5 ms</td>
+<td>14.9 ms</td>
+<td>1.92x</td>
+<td>27.7 ms</td>
+<td>21.5 ms</td>
+<td>14.8 ms</td>
+<td>3.56</td>
+</tr>
+<tr>
+<td>loop by while, 1e5</td>
+<td>1.54 ms</td>
+<td>28.3 ms</td>
+<td>8.85 ms</td>
+<td>3.20x</td>
+<td>28.3 ms</td>
+<td>12 ms</td>
+<td>8.97 ms</td>
+<td>5.75</td>
+</tr>
+<tr>
+<td>loop by converge, 1e5</td>
+<td>1.54 ms</td>
+<td>18.9 ms</td>
+<td>6.19 ms</td>
+<td>3.05x</td>
+<td>18.6 ms</td>
+<td>9.08 ms</td>
+<td>6.26 ms</td>
+<td>4.02</td>
+</tr>
+<tr>
+<td>reduce with a lambda, 1e5</td>
+<td>4.06 ms</td>
+<td>15.3 ms</td>
+<td>5.3 ms</td>
+<td>2.89x</td>
+<td>15.1 ms</td>
+<td>6.92 ms</td>
+<td>5.31 ms</td>
+<td>1.31</td>
+</tr>
+<tr>
+<td>each with a lambda, 1e5</td>
+<td>4.19 ms</td>
+<td>15.2 ms</td>
+<td>5.25 ms</td>
+<td>2.90x</td>
+<td>14.4 ms</td>
+<td>6.94 ms</td>
+<td>5.3 ms</td>
+<td>1.25</td>
+</tr>
+<tr>
+<td>dictionary updates, 5e4</td>
+<td>1.76 ms</td>
+<td>18.8 ms</td>
+<td>11.3 ms</td>
+<td>1.66x</td>
+<td>17.2 ms</td>
+<td>13.4 ms</td>
+<td>11.1 ms</td>
+<td>6.45</td>
+</tr>
+<tr>
+<td>string building, 2e4</td>
+<td>713 us</td>
+<td>27.1 ms</td>
+<td>19.4 ms</td>
+<td>1.40x</td>
+<td>27.3 ms</td>
+<td>19.2 ms</td>
+<td>19.1 ms</td>
+<td>27.2</td>
+</tr>
+<tr>
+<td>string append, results dropped, 2e4</td>
+<td>703 us</td>
+<td>-</td>
+<td>2 ms</td>
+<td>-</td>
+<td>-</td>
+<td>9.06 ms</td>
+<td>1.92 ms</td>
+<td>2.84</td>
+</tr>
+<tr>
+<td>vector append, results dropped, 2e4</td>
+<td>288 us</td>
+<td>-</td>
+<td>1.98 ms</td>
+<td>-</td>
+<td>-</td>
+<td>88 ms</td>
+<td>1.91 ms</td>
+<td>6.88</td>
+</tr>
+<tr>
+<td>named-parameter calls, 1e5</td>
+<td>5.91 ms</td>
+<td>25.3 ms</td>
+<td>12.8 ms</td>
+<td>1.98x</td>
+<td>24.9 ms</td>
+<td>16.8 ms</td>
+<td>12.1 ms</td>
+<td>2.16</td>
+</tr>
+<tr>
+<td>classic calls, 1e5</td>
+<td>5.89 ms</td>
+<td>23.4 ms</td>
+<td>10.6 ms</td>
+<td>2.20x</td>
+<td>22.8 ms</td>
+<td>14.3 ms</td>
+<td>10.5 ms</td>
+<td>1.81</td>
+</tr>
+<tr>
+<td>qualified calls (dictionary), 1e5</td>
+<td>6.73 ms</td>
+<td>26.5 ms</td>
+<td>14.4 ms</td>
+<td>1.84x</td>
+<td>26 ms</td>
+<td>17.4 ms</td>
+<td>14.6 ms</td>
+<td>2.15</td>
+</tr>
+<tr>
+<td>module-qualified calls, 1e5</td>
+<td>6.84 ms</td>
+<td>29 ms</td>
+<td>16.2 ms</td>
+<td>1.79x</td>
+<td>28.8 ms</td>
+<td>19.7 ms</td>
+<td>16.8 ms</td>
+<td>2.37</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><code>kg</code> and the extension run the same engine: over all the rows they differ by 1.6% at the median and by at most 25% (the comparison of integers at 100,000 elements).</li>
+<li>On the eleven program rows that have a "before", the engine is 1.4 to 3.2 times faster than before: 1.4 for string building, 1.7 to 2.2 for dictionary updates and the four kinds of call, 1.9 for recursion and 2.9 to 3.2 for the loops and the lambdas under adverbs.</li>
+<li>It is still 1.3 to 27 times slower than CPython on these programs: 1.3 for a lambda under an adverb (reduce and each), 1.8 to 2.4 for calls, 2.8 for the string append, 3.6 for recursion, 4.0 to 5.8 for loops, 6.5 for dictionary updates, 6.9 for the vector append and 27 for building a string by joining while keeping the result.</li>
+<li>The two append rows drop the result of each step, so the string or vector is held by one name only. Before rounds two and three, the extension took 9.06 ms and 88 ms on them; now it takes 1.92 ms and 1.91 ms.</li>
+</ul>
+<h3 id="arrays">Arrays<a class="headerlink" href="#arrays" title="Permanent link">&para;</a></h3>
+<p>The tables have one row per operation. "kg before" is the engine before any speed work, "kg after" the engine now, in the same units.</p>
+<p><strong>1,000 elements</strong></p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>NumPy</th>
+<th>CPython</th>
+<th>kg before</th>
+<th>kg after</th>
+<th>kg speed-up</th>
+<th>extension, round 1 only</th>
+<th>extension after</th>
+<th>kg after / NumPy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add int</code></td>
+<td>0.484 us</td>
+<td>23.2 us</td>
+<td>0.455 us</td>
+<td>0.479 us</td>
+<td>0.95x</td>
+<td>0.448 us</td>
+<td>0.466 us</td>
+<td>0.99</td>
+</tr>
+<tr>
+<td><code>multiply int</code></td>
+<td>0.798 us</td>
+<td>23.7 us</td>
+<td>0.683 us</td>
+<td>0.726 us</td>
+<td>0.94x</td>
+<td>0.721 us</td>
+<td>0.741 us</td>
+<td>0.91</td>
+</tr>
+<tr>
+<td><code>add float</code></td>
+<td>0.498 us</td>
+<td>24.4 us</td>
+<td>0.444 us</td>
+<td>0.471 us</td>
+<td>0.94x</td>
+<td>0.429 us</td>
+<td>0.473 us</td>
+<td>0.95</td>
+</tr>
+<tr>
+<td><code>multiply float</code></td>
+<td>0.487 us</td>
+<td>24.7 us</td>
+<td>0.468 us</td>
+<td>0.467 us</td>
+<td>1.00x</td>
+<td>0.443 us</td>
+<td>0.479 us</td>
+<td>0.96</td>
+</tr>
+<tr>
+<td><code>add mixed int/float</code></td>
+<td>1.02 us</td>
+<td>30.2 us</td>
+<td>3.36 us</td>
+<td>0.482 us</td>
+<td>6.98x</td>
+<td>0.442 us</td>
+<td>0.476 us</td>
+<td>0.47</td>
+</tr>
+<tr>
+<td><code>chain (a+b)*b int</code></td>
+<td>1.19 us</td>
+<td>33.4 us</td>
+<td>0.884 us</td>
+<td>0.836 us</td>
+<td>1.06x</td>
+<td>0.789 us</td>
+<td>0.816 us</td>
+<td>0.70</td>
+</tr>
+<tr>
+<td><code>chain (a*b+a)-b float</code></td>
+<td>1.37 us</td>
+<td>29.2 us</td>
+<td>0.859 us</td>
+<td>0.773 us</td>
+<td>1.11x</td>
+<td>0.72 us</td>
+<td>0.769 us</td>
+<td>0.57</td>
+</tr>
+<tr>
+<td><code>dot +/a*b float</code></td>
+<td>1.02 us</td>
+<td>27 us</td>
+<td>0.659 us</td>
+<td>0.674 us</td>
+<td>0.98x</td>
+<td>0.661 us</td>
+<td>0.671 us</td>
+<td>0.66</td>
+</tr>
+<tr>
+<td><code>compare int &lt;</code></td>
+<td>0.419 us</td>
+<td>18.7 us</td>
+<td>4.11 us</td>
+<td>0.468 us</td>
+<td>8.79x</td>
+<td>0.456 us</td>
+<td>0.465 us</td>
+<td>1.12</td>
+</tr>
+<tr>
+<td><code>sum int</code></td>
+<td>0.49 us</td>
+<td>2.32 us</td>
+<td>0.311 us</td>
+<td>0.342 us</td>
+<td>0.91x</td>
+<td>0.308 us</td>
+<td>0.327 us</td>
+<td>0.70</td>
+</tr>
+<tr>
+<td><code>sum float</code></td>
+<td>0.562 us</td>
+<td>2.09 us</td>
+<td>0.442 us</td>
+<td>0.467 us</td>
+<td>0.95x</td>
+<td>0.439 us</td>
+<td>0.458 us</td>
+<td>0.83</td>
+</tr>
+<tr>
+<td><code>min float</code></td>
+<td>0.467 us</td>
+<td>4.59 us</td>
+<td>17.5 us</td>
+<td>0.471 us</td>
+<td>37.2x</td>
+<td>0.437 us</td>
+<td>0.455 us</td>
+<td>1.01</td>
+</tr>
+<tr>
+<td><code>max int</code></td>
+<td>0.486 us</td>
+<td>6.39 us</td>
+<td>0.398 us</td>
+<td>0.424 us</td>
+<td>0.94x</td>
+<td>0.394 us</td>
+<td>0.403 us</td>
+<td>0.87</td>
+</tr>
+<tr>
+<td><code>scan +\ int</code></td>
+<td>2.45 us</td>
+<td>15.7 us</td>
+<td>0.747 us</td>
+<td>0.744 us</td>
+<td>1.00x</td>
+<td>0.709 us</td>
+<td>0.729 us</td>
+<td>0.30</td>
+</tr>
+<tr>
+<td><code>grade up int</code></td>
+<td>23.4 us</td>
+<td>56.3 us</td>
+<td>11.7 us</td>
+<td>12 us</td>
+<td>0.97x</td>
+<td>12 us</td>
+<td>12.3 us</td>
+<td>0.51</td>
+</tr>
+<tr>
+<td><code>grade up float</code></td>
+<td>25.8 us</td>
+<td>56.4 us</td>
+<td>11.5 us</td>
+<td>9.93 us</td>
+<td>1.16x</td>
+<td>9.99 us</td>
+<td>10 us</td>
+<td>0.39</td>
+</tr>
+<tr>
+<td><code>sort float (x@&lt;x)</code></td>
+<td>26.8 us</td>
+<td>34.1 us</td>
+<td>22.9 us</td>
+<td>11.2 us</td>
+<td>2.04x</td>
+<td>21 us</td>
+<td>11.3 us</td>
+<td>0.42</td>
+</tr>
+<tr>
+<td><code>take h#a</code></td>
+<td>0.315 us</td>
+<td>0.637 us</td>
+<td>0.349 us</td>
+<td>0.383 us</td>
+<td>0.91x</td>
+<td>0.346 us</td>
+<td>0.359 us</td>
+<td>1.21</td>
+</tr>
+<tr>
+<td><code>drop h_a</code></td>
+<td>0.315 us</td>
+<td>0.593 us</td>
+<td>0.356 us</td>
+<td>0.379 us</td>
+<td>0.94x</td>
+<td>0.354 us</td>
+<td>0.353 us</td>
+<td>1.20</td>
+</tr>
+<tr>
+<td><code>reshape [2 h]:^a</code></td>
+<td>0.484 us</td>
+<td>1.25 us</td>
+<td>7 us</td>
+<td>0.502 us</td>
+<td>13.9x</td>
+<td>0.499 us</td>
+<td>0.495 us</td>
+<td>1.04</td>
+</tr>
+<tr>
+<td><code>find a?(n-1)</code></td>
+<td>1.04 us</td>
+<td>26.9 us</td>
+<td>5.97 us</td>
+<td>0.685 us</td>
+<td>8.72x</td>
+<td>0.65 us</td>
+<td>0.66 us</td>
+<td>0.66</td>
+</tr>
+<tr>
+<td><code>where &amp;(p&gt;h)</code></td>
+<td>1.53 us</td>
+<td>23 us</td>
+<td>9.51 us</td>
+<td>1.07 us</td>
+<td>8.91x</td>
+<td>2.91 us</td>
+<td>1.02 us</td>
+<td>0.70</td>
+</tr>
+<tr>
+<td><code>each-pair a{x+y}'b</code></td>
+<td>0.501 us</td>
+<td>36.8 us</td>
+<td>161 us</td>
+<td>58.1 us</td>
+<td>2.77x</td>
+<td>71.9 us</td>
+<td>59 us</td>
+<td>116</td>
+</tr>
+</tbody>
+</table>
+<p><strong>100,000 elements</strong></p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>NumPy</th>
+<th>CPython</th>
+<th>kg before</th>
+<th>kg after</th>
+<th>kg speed-up</th>
+<th>extension, round 1 only</th>
+<th>extension after</th>
+<th>kg after / NumPy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add int</code></td>
+<td>18.9 us</td>
+<td>2.4 ms</td>
+<td>19.2 us</td>
+<td>18.5 us</td>
+<td>1.04x</td>
+<td>18.6 us</td>
+<td>18.7 us</td>
+<td>0.98</td>
+</tr>
+<tr>
+<td><code>multiply int</code></td>
+<td>35.9 us</td>
+<td>2.46 ms</td>
+<td>37.6 us</td>
+<td>36.5 us</td>
+<td>1.03x</td>
+<td>37.8 us</td>
+<td>37.5 us</td>
+<td>1.02</td>
+</tr>
+<tr>
+<td><code>add float</code></td>
+<td>24.2 us</td>
+<td>2.3 ms</td>
+<td>18.2 us</td>
+<td>24 us</td>
+<td>0.76x</td>
+<td>23.8 us</td>
+<td>24.2 us</td>
+<td>0.99</td>
+</tr>
+<tr>
+<td><code>multiply float</code></td>
+<td>19 us</td>
+<td>2.29 ms</td>
+<td>18.3 us</td>
+<td>24.3 us</td>
+<td>0.75x</td>
+<td>24.5 us</td>
+<td>24.3 us</td>
+<td>1.28</td>
+</tr>
+<tr>
+<td><code>add mixed int/float</code></td>
+<td>54.7 us</td>
+<td>2.87 ms</td>
+<td>301 us</td>
+<td>19.6 us</td>
+<td>15.4x</td>
+<td>18.5 us</td>
+<td>24.2 us</td>
+<td>0.36</td>
+</tr>
+<tr>
+<td><code>chain (a+b)*b int</code></td>
+<td>55.7 us</td>
+<td>3.2 ms</td>
+<td>59.4 us</td>
+<td>53.6 us</td>
+<td>1.11x</td>
+<td>53.9 us</td>
+<td>58.4 us</td>
+<td>0.96</td>
+</tr>
+<tr>
+<td><code>chain (a*b+a)-b float</code></td>
+<td>63.4 us</td>
+<td>2.78 ms</td>
+<td>58 us</td>
+<td>60.4 us</td>
+<td>0.96x</td>
+<td>65.5 us</td>
+<td>66.4 us</td>
+<td>0.95</td>
+</tr>
+<tr>
+<td><code>dot +/a*b float</code></td>
+<td>37.4 us</td>
+<td>2.76 ms</td>
+<td>41.5 us</td>
+<td>39.8 us</td>
+<td>1.04x</td>
+<td>43.8 us</td>
+<td>40.4 us</td>
+<td>1.07</td>
+</tr>
+<tr>
+<td><code>compare int &lt;</code></td>
+<td>18.5 us</td>
+<td>1.61 ms</td>
+<td>380 us</td>
+<td>19.7 us</td>
+<td>19.3x</td>
+<td>24 us</td>
+<td>24.6 us</td>
+<td>1.07</td>
+</tr>
+<tr>
+<td><code>sum int</code></td>
+<td>9.19 us</td>
+<td>248 us</td>
+<td>9.02 us</td>
+<td>9.17 us</td>
+<td>0.98x</td>
+<td>9.02 us</td>
+<td>9.27 us</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td><code>sum float</code></td>
+<td>18.2 us</td>
+<td>230 us</td>
+<td>20.7 us</td>
+<td>20.5 us</td>
+<td>1.01x</td>
+<td>20.4 us</td>
+<td>20.5 us</td>
+<td>1.13</td>
+</tr>
+<tr>
+<td><code>min float</code></td>
+<td>9.23 us</td>
+<td>451 us</td>
+<td>1.77 ms</td>
+<td>16.2 us</td>
+<td>109x</td>
+<td>15.9 us</td>
+<td>16.2 us</td>
+<td>1.75</td>
+</tr>
+<tr>
+<td><code>max int</code></td>
+<td>9.31 us</td>
+<td>605 us</td>
+<td>16 us</td>
+<td>16.2 us</td>
+<td>0.99x</td>
+<td>16.1 us</td>
+<td>16.2 us</td>
+<td>1.74</td>
+</tr>
+<tr>
+<td><code>scan +\ int</code></td>
+<td>199 us</td>
+<td>1.51 ms</td>
+<td>109 us</td>
+<td>37.9 us</td>
+<td>2.88x</td>
+<td>41.3 us</td>
+<td>38.2 us</td>
+<td>0.19</td>
+</tr>
+<tr>
+<td><code>grade up int</code></td>
+<td>6.04 ms</td>
+<td>7.23 ms</td>
+<td>2.26 ms</td>
+<td>2.26 ms</td>
+<td>1.00x</td>
+<td>2.32 ms</td>
+<td>2.26 ms</td>
+<td>0.37</td>
+</tr>
+<tr>
+<td><code>grade up float</code></td>
+<td>4.04 ms</td>
+<td>7.67 ms</td>
+<td>7.45 ms</td>
+<td>1.88 ms</td>
+<td>3.96x</td>
+<td>1.84 ms</td>
+<td>1.86 ms</td>
+<td>0.47</td>
+</tr>
+<tr>
+<td><code>sort float (x@&lt;x)</code></td>
+<td>4.12 ms</td>
+<td>4.35 ms</td>
+<td>8.64 ms</td>
+<td>2.01 ms</td>
+<td>4.30x</td>
+<td>3.04 ms</td>
+<td>2 ms</td>
+<td>0.49</td>
+</tr>
+<tr>
+<td><code>take h#a</code></td>
+<td>5.52 us</td>
+<td>100 us</td>
+<td>6.39 us</td>
+<td>6.87 us</td>
+<td>0.93x</td>
+<td>5.59 us</td>
+<td>6.66 us</td>
+<td>1.25</td>
+</tr>
+<tr>
+<td><code>drop h_a</code></td>
+<td>6.84 us</td>
+<td>81.2 us</td>
+<td>6.72 us</td>
+<td>6.91 us</td>
+<td>0.97x</td>
+<td>6.82 us</td>
+<td>6.73 us</td>
+<td>1.01</td>
+</tr>
+<tr>
+<td><code>reshape [2 h]:^a</code></td>
+<td>13.2 us</td>
+<td>193 us</td>
+<td>652 us</td>
+<td>13.1 us</td>
+<td>49.9x</td>
+<td>13.2 us</td>
+<td>13 us</td>
+<td>0.99</td>
+</tr>
+<tr>
+<td><code>find a?(n-1)</code></td>
+<td>27 us</td>
+<td>2.86 ms</td>
+<td>551 us</td>
+<td>35.6 us</td>
+<td>15.5x</td>
+<td>35.4 us</td>
+<td>35.9 us</td>
+<td>1.32</td>
+</tr>
+<tr>
+<td><code>where &amp;(p&gt;h)</code></td>
+<td>76.2 us</td>
+<td>2.47 ms</td>
+<td>885 us</td>
+<td>69 us</td>
+<td>12.8x</td>
+<td>251 us</td>
+<td>68.5 us</td>
+<td>0.90</td>
+</tr>
+<tr>
+<td><code>each-pair a{x+y}'b</code></td>
+<td>19 us</td>
+<td>3.62 ms</td>
+<td>15.7 ms</td>
+<td>5.81 ms</td>
+<td>2.70x</td>
+<td>7.28 ms</td>
+<td>6.06 ms</td>
+<td>306</td>
+</tr>
+</tbody>
+</table>
+<p><strong>10,000,000 elements</strong></p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>NumPy</th>
+<th>CPython</th>
+<th>kg before</th>
+<th>kg after</th>
+<th>kg speed-up</th>
+<th>extension, round 1 only</th>
+<th>extension after</th>
+<th>kg after / NumPy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add int</code></td>
+<td>2.64 ms</td>
+<td>302 ms</td>
+<td>2.6 ms</td>
+<td>2.88 ms</td>
+<td>0.90x</td>
+<td>2.64 ms</td>
+<td>2.83 ms</td>
+<td>1.09</td>
+</tr>
+<tr>
+<td><code>multiply int</code></td>
+<td>3.62 ms</td>
+<td>290 ms</td>
+<td>3.7 ms</td>
+<td>3.75 ms</td>
+<td>0.99x</td>
+<td>3.72 ms</td>
+<td>3.75 ms</td>
+<td>1.03</td>
+</tr>
+<tr>
+<td><code>add float</code></td>
+<td>2.64 ms</td>
+<td>305 ms</td>
+<td>2.59 ms</td>
+<td>2.81 ms</td>
+<td>0.92x</td>
+<td>2.65 ms</td>
+<td>2.64 ms</td>
+<td>1.06</td>
+</tr>
+<tr>
+<td><code>multiply float</code></td>
+<td>2.68 ms</td>
+<td>310 ms</td>
+<td>2.59 ms</td>
+<td>2.83 ms</td>
+<td>0.91x</td>
+<td>2.64 ms</td>
+<td>2.68 ms</td>
+<td>1.06</td>
+</tr>
+<tr>
+<td><code>add mixed int/float</code></td>
+<td>6 ms</td>
+<td>364 ms</td>
+<td>30.4 ms</td>
+<td>2.7 ms</td>
+<td>11.2x</td>
+<td>2.61 ms</td>
+<td>2.75 ms</td>
+<td>0.45</td>
+</tr>
+<tr>
+<td><code>chain (a+b)*b int</code></td>
+<td>6.78 ms</td>
+<td>400 ms</td>
+<td>6.27 ms</td>
+<td>6.95 ms</td>
+<td>0.90x</td>
+<td>6.47 ms</td>
+<td>6.56 ms</td>
+<td>1.03</td>
+</tr>
+<tr>
+<td><code>chain (a*b+a)-b float</code></td>
+<td>7.86 ms</td>
+<td>357 ms</td>
+<td>7.88 ms</td>
+<td>7.85 ms</td>
+<td>1.00x</td>
+<td>7.83 ms</td>
+<td>7.83 ms</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td><code>dot +/a*b float</code></td>
+<td>4.5 ms</td>
+<td>281 ms</td>
+<td>4.75 ms</td>
+<td>4.91 ms</td>
+<td>0.97x</td>
+<td>4.77 ms</td>
+<td>4.74 ms</td>
+<td>1.09</td>
+</tr>
+<tr>
+<td><code>compare int &lt;</code></td>
+<td>2.61 ms</td>
+<td>174 ms</td>
+<td>38.3 ms</td>
+<td>2.64 ms</td>
+<td>14.5x</td>
+<td>2.65 ms</td>
+<td>2.6 ms</td>
+<td>1.01</td>
+</tr>
+<tr>
+<td><code>sum int</code></td>
+<td>1.38 ms</td>
+<td>25.7 ms</td>
+<td>1.35 ms</td>
+<td>1.38 ms</td>
+<td>0.98x</td>
+<td>1.37 ms</td>
+<td>1.37 ms</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td><code>sum float</code></td>
+<td>1.88 ms</td>
+<td>23.7 ms</td>
+<td>2.13 ms</td>
+<td>2.12 ms</td>
+<td>1.00x</td>
+<td>2.1 ms</td>
+<td>2.13 ms</td>
+<td>1.13</td>
+</tr>
+<tr>
+<td><code>min float</code></td>
+<td>1.41 ms</td>
+<td>46.4 ms</td>
+<td>176 ms</td>
+<td>1.67 ms</td>
+<td>105x</td>
+<td>1.68 ms</td>
+<td>1.66 ms</td>
+<td>1.19</td>
+</tr>
+<tr>
+<td><code>max int</code></td>
+<td>1.41 ms</td>
+<td>60.8 ms</td>
+<td>1.59 ms</td>
+<td>1.67 ms</td>
+<td>0.95x</td>
+<td>1.68 ms</td>
+<td>1.66 ms</td>
+<td>1.18</td>
+</tr>
+<tr>
+<td><code>scan +\ int</code></td>
+<td>20.3 ms</td>
+<td>248 ms</td>
+<td>4.83 ms</td>
+<td>3.75 ms</td>
+<td>1.29x</td>
+<td>4.49 ms</td>
+<td>3.77 ms</td>
+<td>0.18</td>
+</tr>
+<tr>
+<td><code>grade up int</code></td>
+<td>907 ms</td>
+<td>818 ms</td>
+<td>355 ms</td>
+<td>370 ms</td>
+<td>0.96x</td>
+<td>374 ms</td>
+<td>365 ms</td>
+<td>0.41</td>
+</tr>
+<tr>
+<td><code>grade up float</code></td>
+<td>425 ms</td>
+<td>805 ms</td>
+<td>894 ms</td>
+<td>250 ms</td>
+<td>3.58x</td>
+<td>246 ms</td>
+<td>248 ms</td>
+<td>0.59</td>
+</tr>
+<tr>
+<td><code>sort float (x@&lt;x)</code></td>
+<td>455 ms</td>
+<td>377 ms</td>
+<td>1.03 s</td>
+<td>265 ms</td>
+<td>3.88x</td>
+<td>379 ms</td>
+<td>280 ms</td>
+<td>0.58</td>
+</tr>
+<tr>
+<td><code>take h#a</code></td>
+<td>697 us</td>
+<td>9.59 ms</td>
+<td>675 us</td>
+<td>679 us</td>
+<td>0.99x</td>
+<td>685 us</td>
+<td>707 us</td>
+<td>0.97</td>
+</tr>
+<tr>
+<td><code>drop h_a</code></td>
+<td>703 us</td>
+<td>9.66 ms</td>
+<td>672 us</td>
+<td>683 us</td>
+<td>0.98x</td>
+<td>685 us</td>
+<td>711 us</td>
+<td>0.97</td>
+</tr>
+<tr>
+<td><code>reshape [2 h]:^a</code></td>
+<td>1.43 ms</td>
+<td>19 ms</td>
+<td>67.9 ms</td>
+<td>1.4 ms</td>
+<td>48.4x</td>
+<td>1.41 ms</td>
+<td>1.43 ms</td>
+<td>0.98</td>
+</tr>
+<tr>
+<td><code>find a?(n-1)</code></td>
+<td>3.1 ms</td>
+<td>294 ms</td>
+<td>55.8 ms</td>
+<td>3.52 ms</td>
+<td>15.8x</td>
+<td>3.5 ms</td>
+<td>3.57 ms</td>
+<td>1.14</td>
+</tr>
+<tr>
+<td><code>where &amp;(p&gt;h)</code></td>
+<td>8.47 ms</td>
+<td>258 ms</td>
+<td>91.6 ms</td>
+<td>9.45 ms</td>
+<td>9.70x</td>
+<td>21.5 ms</td>
+<td>9.62 ms</td>
+<td>1.12</td>
+</tr>
+<tr>
+<td><code>each-pair a{x+y}'b</code></td>
+<td>2.62 ms</td>
+<td>432 ms</td>
+<td>1.62 s</td>
+<td>604 ms</td>
+<td>2.68x</td>
+<td>756 ms</td>
+<td>615 ms</td>
+<td>231</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Element-wise arithmetic, sums and <code>take</code> and <code>drop</code> run at the speed of NumPy (0.70 to 1.28 times its time) at every size, and did before. At 10,000,000 elements they are bound by memory: the same number of bytes are read and written as NumPy's.</li>
+<li>What changed in the first round is the operations that went through one boxed value per element: comparisons (8.8 to 19 times faster than before), mixed integer and float arithmetic (7.0 to 15 times), the minimum of floats (37 to 109 times), reshape (14 to 50 times), find (8.7 to 16 times), the grade of floats (3.6 to 4.0 times at 100,000 and 10,000,000 elements). After the work, <code>kg</code> takes 0.36 to 1.3 times as long as NumPy on all of these except the ones listed next.</li>
+<li>What changed in rounds two and three, between the extension built before them and now, in the same session: <code>where</code> 3.7 times faster at 100,000 elements (251 us to 68.5 us), 2.2 times at 10,000,000 and 2.9 times at 1,000; the sort of floats (<code>x@&lt;x</code>) 1.9 times at 1,000 elements, 1.5 times at 100,000 and 1.35 times at 10,000,000; each-pair with a lambda 1.2 times (7.28 ms to 6.06 ms at 100,000 elements). Over the three sizes, <code>where</code> is now 8.9 to 12.8 times faster than before, the sort of floats 2.0 to 4.3 times.</li>
+<li>Still slower than NumPy: <code>&amp;/</code> and <code>|/</code> at 1.2 to 1.8 times at 100,000 and 10,000,000 elements (eight lanes, not NumPy's SIMD minimum), <code>find</code> at 1.1 to 1.3 times, <code>take</code> and <code>drop</code> at 1.2 times at 1,000 elements, and the each-pair row, which calls a Klong lambda per pair (58 to 60 ns per pair here; NumPy does not call a function). <code>where</code> is at 0.70 to 1.12 times NumPy's time.</li>
+<li>The grade of integers takes 0.37 to 0.51 times as long as NumPy's stable argsort, the grade of floats 0.39 to 0.59 times and the sort of floats 0.42 to 0.58 times.</li>
+<li>Rows that got slower during the work, measured:</li>
+<li><code>scan +\ int</code> at 100,000 elements took 108 us after rounds two and three, against 41 to 44 us for the extension built before them. The loop itself had not been edited: the compiler produced slower code for it once the kernels for the other scans were added next to it. The loop is now a function of its own and the row is 37.9 us (3.75 ms at 10,000,000 elements). The two scan rows in the tables are from that later build, measured on its own in the same session.</li>
+<li><code>add float</code> and <code>multiply float</code> at 100,000 elements take 24 us, against 18.2 us and 18.3 us before (0.76 and 0.75 times the speed). The extension built before rounds two and three took 23.8 to 24.5 us on the same rows in this session, so rounds two and three did not cause it. The rows were 19.6 us in the first table of this section, so this is a difference between sessions or in code layout from the first round; its cause was not found. NumPy's <code>add float</code> took 24.2 us in this session and 23.8 us in the first.</li>
+</ul>
+<h3 id="what-the-profiles-said">What the profiles said<a class="headerlink" href="#what-the-profiles-said" title="Permanent link">&para;</a></h3>
+<p>Profiles of the first round were taken with <code>sample</code> (macOS, 1 ms interval, the time at the top of the stack, symbolised from a release build with line tables). They covered the rows with the worst ratios and decided the order of the work:</p>
+<ul>
+<li><strong>Calls driven by an adverb</strong> (<code>{x*x}'a</code>, <code>{x+y}/a</code>, <code>:~</code>): about a third of the time was in the allocator (<code>malloc</code> and <code>free</code>), from the argument vector, the list of layers of a projection and a frame that did not come from the frame pool, made for every call by <code>apply</code>. A function literal called with exactly the arguments it takes now skips those and uses the pool: 1.3 to 1.9 times faster.</li>
+<li><strong>Recursion</strong> (fib): no single place. <code>eval_node</code> 20% of the time itself, <code>eval_dyad</code> 11%, name resolution (<code>resolve</code> and <code>lookup</code>) 13%, copying and dropping values 12%, pushing and popping frames 7%, and the stack check and the deferred-failure check at the head of every evaluation 6%. Two numbers in a dyad now skip the pairing routine (1.13 times) and the two checks are inlined (1.12 times).</li>
+<li><strong>String building</strong> (<code>s::s,"ab"</code>): 60% in <code>memmove</code> (the whole string is copied by every join, as the value semantics of strings say), 20% counting the code points of the result again, 17% in the allocator. The count is now the sum of the two counts (1.38 times). The copy remains when the result is kept.</li>
+<li><strong>Dictionary updates</strong>: the allocator, dropping values, and the hash probe; each <code>d,x,,x*2</code> builds two small lists. Only the calls part was cut in the first round (1.3 times).</li>
+<li><strong>Comparison, mixed arithmetic, float minimum, reshape, find, where</strong>: the loop itself. They went through the generic element loop (a division per element to find the operand, a boxed <code>Value</code> per element, dispatch per element), not through the vectorised loops that addition and multiplication have. They now have loops the compiler vectorises, or a path that copies the numbers instead of boxing them.</li>
+<li><strong>Grade and sort of floats</strong>: 85% in the sort's comparison, which goes through the index to the number (a cache miss per comparison). Sorting (key, index) pairs, the key an integer that orders as the float does, makes it 3.7 to 4.0 times faster.</li>
+</ul>
+<p>Rounds two and three were also taken from profiles (their commit messages say so); the profile figures of those rounds were not kept for this page. What the code and the commit messages give as the reason for each:</p>
+<ul>
+<li><strong>Scalar path</strong> (round two): the operands that are a number or a name are read in place instead of being evaluated as a node, and the call of a function literal is cheaper. The commit message gives 15 to 28 percent faster.</li>
+<li><strong>Unique and group</strong> (round two): <code>?x</code> of a flat vector of integers or floats searched what it had kept so far, so it took time as the square of the length when most values were different. It now sorts (key, position) pairs and reads the runs. <code>=x</code> of integers is done the same way.</li>
+<li><strong>Gather</strong> (round two): <code>a@b</code> for a flat vector <code>a</code> and an in-range integer vector <code>b</code> picks the elements without making a value of each.</li>
+<li><strong>Cycling take</strong> (round two): <code>k#b</code> with <code>k</code> larger than the length of a flat vector of numbers repeats the vector without a value per element.</li>
+<li><strong>Integer divide and remainder, scan kernels</strong> (round two): the running product, minimum and maximum of integers and the division and remainder of integers have kernels.</li>
+<li><strong>Appending in a loop</strong> (round three): <code>v::v,y</code> copied the whole value on every append, so building a string or a vector in a loop took time as the square of its length. When nothing else holds the value, the append is now done in place. The commit message says so; the two append rows above are the measurement.</li>
+<li><strong>Calls to a named function, arithmetic on leaves, dictionary updates</strong> (round three): a direct call to a function held by a name, arithmetic whose operands are leaves, and a direct join for <code>d,x,,x*2</code>. The commit message gives fib 14.5 percent faster and dictionary updates 14.8 percent.</li>
+</ul>
+<p>What limits the engine now: the tree walk (dispatch in <code>eval_node</code> and <code>eval_dyad</code>, <code>Value</code> clones and drops, the frame push and pop with its table of shadowed names), the value semantics of strings and of dictionary entries (a new object per join and per entry when the result is kept), the lambda call under an adverb (52 ns per element in the each row, 58 to 60 ns per pair in the each-pair rows), and, at 10,000,000 elements, memory. This is from the profiles of the first round and the per-call times above; the engine was not profiled again after round three.</p>
+<h3 id="what-each-change-did">What each change did<a class="headerlink" href="#what-each-change-did" title="Permanent link">&para;</a></h3>
+<p>The first part of the table was measured alone, on <code>kg</code>, the same machine and load, against the engine without that change. Every change but the last two of that part is behind the cargo feature <code>speed</code> of <code>klong-core</code>, which <code>kg</code> and the extension enable and the board images do not. The second part could not be measured alone, because there is no build with one of rounds two and three and not the other; it compares the extension built before round two with the extension now, in the same session, with the load given above (10.50 at the start of the older build's runs, 15.95 at the start of the current build's second run). The commits of rounds two and three are also behind the feature <code>speed</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vectorised loops for the comparisons, mixed integer and float arithmetic, the minimum and maximum of floats, and the float reduce <code>&amp;/ |/ */</code></td>
+<td>comparison 16 times at 100,000 elements, mixed 13 times, <code>&amp;/</code> of floats 111 times (the first version, which fell back to the old fold when the minimum was a zero, gave 4.3 times)</td>
+</tr>
+<tr>
+<td>Reshape, find and where without boxing; the grade of floats by (key, index) pairs; the scan <code>+\</code> of floats</td>
+<td>reshape 63 times, find 16 times, where 3.6 times, grade of floats 4.1 times, sort of floats 2.9 times (all at 100,000 elements); the scan of 1,000,000 floats 22 times (27.9 ms to 1.26 ms, not in the set)</td>
+</tr>
+<tr>
+<td><code>apply_fast</code>: a function literal under an adverb</td>
+<td><code>{x+y}/</code> 1.74, each 1.77, while 1.87, converge 1.50, named-parameter calls 1.40, classic calls 1.44, calls through a dictionary 1.38</td>
+</tr>
+<tr>
+<td>Two numbers in a dyad skip the pairing routine</td>
+<td>fib(24) 1.13 times</td>
+</tr>
+<tr>
+<td><code>#[inline(always)]</code> on the stack check and the deferred-failure check</td>
+<td>fib(24) 1.12 times</td>
+</tr>
+<tr>
+<td>Joined text takes its code point count from its parts</td>
+<td>string building 1.38 times</td>
+</tr>
+<tr>
+<td>A temporary array is the buffer of the result (<code>(a+b)*b</code>)</td>
+<td>1.05 to 1.14 times at 100,000 elements, 0.98 to 1.01 at 10,000,000; the peak heap of a chain of four operations on a million elements fell from 40 MB to 32 MB. Kept for the second figure and the first</td>
+</tr>
+<tr>
+<td><code>codegen-units = 1</code> in the release profile</td>
+<td>the programs above 4 to 11% faster, arrays between 0.78 and 1.27 at 100,000 elements (add of floats got slower by 22% at that size, a layout effect that is not there at 1,000 or 10,000,000), the build 10% longer</td>
+</tr>
+<tr>
+<td>Fat LTO with <code>codegen-units = 1</code></td>
+<td>rejected: the geometric mean over the 55 rows measured with it is 1.027 against 1.017 without it, for 50% more build time</td>
+</tr>
+<tr>
+<td>Inlining the stack check and the deferred-failure check everywhere</td>
+<td>rejected: kept only under <code>speed</code>, so that the board image does not grow</td>
+</tr>
+<tr>
+<td>Round two: cheaper leaf operands and calls, and the per-chain adverb body (the body of the verb of an adverb chain is found once)</td>
+<td>with round three, on the extension, before rounds two and three to now: fib(24) 1.45 times, loop by while 1.34, converge 1.45, reduce 1.30, each 1.31, named-parameter calls 1.39, classic calls 1.36, qualified calls 1.19, module-qualified calls 1.17. The commit message of round two gives 15 to 28 percent faster for the scalar path</td>
+</tr>
+<tr>
+<td>Round two: sort-based unique and group, gather, cycling take, integer divide and remainder, scan kernels</td>
+<td><code>where</code> 3.7 times at 100,000 elements, the sort of floats 1.5 times at 100,000 and 1.35 times at 10,000,000, each-pair 1.2 times; not attributed to one change. Unique, group, cycling take and integer divide have no row in the set and no measurement here. The commit message says unique of a flat vector is no longer quadratic</td>
+</tr>
+<tr>
+<td>Round three: append in place</td>
+<td>string append with the result dropped 4.7 times (9.06 ms to 1.92 ms), vector append 46 times (88 ms to 1.91 ms), 20,000 appends. Building a string while keeping the result (<code>s::s,"ab"</code>) is unchanged: 19.2 ms to 19.1 ms</td>
+</tr>
+<tr>
+<td>Round three: direct calls to named functions, leaf arithmetic, direct joins for dictionary updates</td>
+<td>with round two, as in the row above. The commit message of round three gives fib(24) 14.5 percent faster and dictionary updates 14.8 percent; dictionary updates measured 1.21 times (13.4 ms to 11.1 ms) over both rounds</td>
+</tr>
+</tbody>
+</table>
+<p>Not tried: explicit SIMD kernels (the vectorised loops are at NumPy's speed where memory allows), and a name-lookup cache (<code>resolve</code> and <code>lookup</code> are 13% of recursion, so the most it could give is a few percent).</p>
+<h3 id="float32-scalars">Float32 scalars<a class="headerlink" href="#float32-scalars" title="Permanent link">&para;</a></h3>
+<p><code>Klong.set_float_width(32)</code> makes the engine of the extension compute floats as float32 does: every float value <code>eval</code> returns is the float32 nearest to it (a literal as well), and floats print as the shortest float32 text. <code>0.1+0.2</code> gives <code>0.3</code>, as torch gives in float32. With the width at 64, the default, nothing is rounded: the check costs nothing that could be measured (0.95 to 1.03 times the time of an engine without the check, on the call-heavy programs and two vector expressions, the best of three runs each). With the width at 32 the call-heavy programs take 1.0 times (integers) to 1.3 times as long (recursion with floats 1.31, a loop of float additions 1.15, each with a float lambda 1.16) and an element-wise float expression on 100,000 elements 1.6 to 1.8 times (one more pass over the result).</p>
+<h2 id="what-to-write">What to write<a class="headerlink" href="#what-to-write" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Write whole-array expressions. <code>+/x*x</code> does the work in the array library; <code>+/{x*x}'x</code> calls a lambda per element and takes 113 times as long as the same loop in CPython (NumPy backend).</li>
+<li>Avoid per-element lambdas (<code>f'x</code>) on large arrays when an operator does the job.</li>
+<li>Avoid appending to a list in a loop; build the result with one expression.</li>
+<li>Use the grade <code>&lt;x</code> when you need the order, and <code>x@&lt;x</code> to sort.</li>
+<li>Use the NumPy backend for arrays under a million elements. Use the torch backend on the CPU for reductions, dot products and element-wise work on arrays of a million elements or more, with several threads, and for gradients (see <a href="../torch_backend/">PyTorch Backend and Autograd</a>). It is slower for sorting and for scalar programs.</li>
+<li>For a loop that must be fast, use the <a href="../native/">native runtime</a> when the program fits, or compile a <a href="../static-profile/">static-profile</a> function to C.</li>
+</ul>
+<h2 id="gpu">GPU<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h2>
+<p>This page has no GPU numbers. To time your own, create the interpreter with <code>device="cuda"</code> (or <code>"mps"</code>) and wait for the device before you stop the clock, because GPU calls return before the work finishes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="o">,</span><span class="w"> </span><span class="nn">torch</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s2">"torch"</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">klong</span><span class="p">(</span><span class="s2">"a::2*1+!10000000"</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">klong</span><span class="p">(</span><span class="s2">"a+a"</span><span class="p">)</span>                       <span class="c1"># warm up</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">9</span><span class="p">):</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">klong</span><span class="p">(</span><span class="s2">"a+a"</span><span class="p">)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="nb">print</span><span class="p">((</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">t</span><span class="p">)</span> <span class="o">/</span> <span class="mi">9</span><span class="p">,</span> <span class="s2">"seconds per run"</span><span class="p">)</span>
+</code></pre></div>
+<p><code>tests/perf_vector.py</code> times a vector expression and a matrix multiply on every backend and device it finds.</p>
+<h2 id="rerun-the-measurements">Rerun the measurements<a class="headerlink" href="#rerun-the-measurements" title="Permanent link">&para;</a></h2>
+<p><code>scripts/bench_performance.py</code> measures one configuration per process and writes JSON:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python scripts/bench_performance.py --help
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>python scripts/bench_performance.py --backend numpy --out numpy.json
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>python scripts/bench_performance.py --backend torch --out torch.json
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>python scripts/bench_performance.py --native native/target/release/kg --out native.json
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>python scripts/bench_performance.py --baseline --out baseline.json
+</code></pre></div>
+<p><code>native/scripts/bench_engine.py</code> is the in-process benchmark set of the section on the native engine above (<code>--kg PATH</code>, <code>--ext DIR</code> for the directory that holds <code>klong_native.abi3.so</code>, <code>--sizes</code>, <code>--only</code>, <code>--json</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python native/scripts/bench_engine.py --ext DIR_OF_THE_EXTENSION
+</code></pre></div>
+<p>For single-thread rows, set <code>OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1</code>, pass <code>--torch-threads 1</code> and pin the process to one core.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

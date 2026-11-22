@@ -1,0 +1,2912 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://www.klongpy.org/2.0/native/console/">
+      
+      
+        <link rel="prev" href="../building/">
+      
+      
+        <link rel="next" href="../porting/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Serial Console and Upload - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#serial-console-and-upload" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Serial Console and Upload
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start Here
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../what-runs-where/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Runs Where
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The kgpy command and the REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    What's New
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whats-new-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What's New in v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migrating-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to v2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../from-numpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for NumPy users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../from-kdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong for q users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend and Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../language-additions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Additions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../strict/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Strict mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../lint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lint: kgpy lint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from Klong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../system-functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Functions and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../conformance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conformance suite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inter-Process Communication (IPC) Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Columnar tables and SQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table and Key-Value Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Native Runtime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../building/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building and Running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Console and Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-console" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The console
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The console">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-first-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A first session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-line-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-line entry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ctrl-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ctrl-C
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-and-the-line-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output and the line end
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Command mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#weak-spots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weak spots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-simulated-board" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The simulated board
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The simulated board">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-pty-and-the-upload-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --pty and the upload tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uploading-with-kguploadpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uploading with kgupload.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Uploading with kgupload.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upload-and-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upload and run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binary-files-and-the-syntax-warning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Binary files and the syntax warning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-conversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The conversation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#library-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Library use
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-conformance-suite-through-the-console" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The conformance suite through the console
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting to a Board
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../esp32-p4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESP32-P4
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pico-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two Raspberry Pi Picos calling each other
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC and Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../management-node/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Node
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Static Klong: C and FPGA
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Static Klong: C and FPGA
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../embedded/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiling Klong to C
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../static-profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The static profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Klong functions as FPGA hardware
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compiler-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-console" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The console
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The console">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-first-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A first session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-line-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-line entry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ctrl-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ctrl-C
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-and-the-line-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output and the line end
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Command mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#weak-spots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weak spots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-simulated-board" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The simulated board
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The simulated board">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-pty-and-the-upload-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --pty and the upload tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uploading-with-kguploadpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uploading with kgupload.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Uploading with kgupload.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upload-and-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upload and run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binary-files-and-the-syntax-warning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Binary files and the syntax warning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-conversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The conversation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#library-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Library use
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-conformance-suite-through-the-console" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The conformance suite through the console
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="serial-console-and-upload">Serial Console and Upload<a class="headerlink" href="#serial-console-and-upload" title="Permanent link">&para;</a></h1>
+<p>This page describes the console that a board running the native Klong runtime offers on its serial port: the prompt and line editor, the <code>^A</code> command mode that uploads files and runs programs, the simulated board <code>klong-sim</code> that you can try all of it on without hardware, and <code>native/tools/kgupload.py</code>, the desktop tool that speaks the protocol. It is for people who use a board, write tools for one, or port the runtime to one.</p>
+<p>The transcripts below use the simulated board, because a serial device is not available to everyone. The console is the same code on a simulated board and on a real one. What has run on real hardware is in the <a href="../#status-what-has-and-has-not-been-proven">status table</a>.</p>
+<p>Run the examples from the repository root with <code>klong-sim</code> on your <code>PATH</code>. The workspace build includes the diagnostic and wide-argument features used by these examples. To build the simulator by itself with those features:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cargo<span class="w"> </span>build<span class="w"> </span>--locked<span class="w"> </span>--release<span class="w"> </span>--manifest-path<span class="w"> </span>native/Cargo.toml<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>-p<span class="w"> </span>klong-sim<span class="w"> </span>--features<span class="w"> </span>klong-console/diag,klong-core/wide-args
+</code></pre></div>
+<p>The transcripts normalize the installed version to <code>VERSION</code>. <a href="../building/">Building and Running</a></p>
+<h2 id="the-console">The console<a class="headerlink" href="#the-console" title="Permanent link">&para;</a></h2>
+<p>A board with the console prints a banner when it starts and then a prompt:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Klong 0.0.1 (esp32p4, int64 float64)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>klong&gt;
+</code></pre></div>
+<p>The banner is <code>Klong VERSION (BOARD, int INTWIDTH float FLOATWIDTH)</code>, and <code>BOARD</code> is the name the port gives. You type a line, press Enter, and the board evaluates it and prints the value or the error, then a new prompt. The REPL of the desktop <code>kg</code> program has no editor. This one has an editor, history, and continuation lines.</p>
+<h3 id="a-first-session">A first session<a class="headerlink" href="#a-first-session" title="Permanent link">&para;</a></h3>
+<p><code>klong-sim</code> with no option talks over its standard input and output, so a pipe stands for the serial line. The board echoes what it receives, as a real one does, so each line you send appears after the prompt, and the answer follows. Lines are ended by CR, LF or CR LF; a real terminal sends CR.</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'1+2\n+/!10\nf::{x*x}\nf(12)\n1+"a"\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/^Klong [^ ]*/Klong VERSION/'</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">Klong VERSION (sim, int64 float64)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="go">klong&gt; 1+2</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="go">3</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="go">klong&gt; +/!10</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="go">45</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="go">klong&gt; f::{x*x}</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="go">:monad</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="go">klong&gt; f(12)</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="go">144</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="go">klong&gt; 1+"a"</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="go">1:2: type error: cannot apply + (Plus) to integer and string</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="go">  1+"a"</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="go">   ^</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="go">klong&gt;</span>
+</code></pre></div>
+<p>The <code>sim</code> in the banner is the board's name. The <code>klong&gt;</code> at the end is the prompt that was waiting when the input ended.</p>
+<h3 id="multi-line-entry">Multi-line entry<a class="headerlink" href="#multi-line-entry" title="Permanent link">&para;</a></h3>
+<p>When a line leaves a bracket, a string or a comment open, the console does not evaluate it. It prints the continuation prompt, five blanks and <code>&gt;</code>, and takes more lines, until the entry is complete. The rule is the one that KlongPy's own REPL uses to decide when an entry is complete (<code>check_complete</code>), and it was checked against KlongPy on the shared cases and on 6000 random strings. An entry is at most 8192 bytes (<code>max_entry</code>) and one line at most 1024 (<code>max_line</code>).</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x+\n   1}\nf(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/^Klong [^ ]*/Klong VERSION/'</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">Klong VERSION (sim, int64 float64)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">klong&gt; f::{x+</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">     &gt;    1}</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="go">:monad</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="go">klong&gt; f(2)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="go">3</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="go">klong&gt;</span>
+</code></pre></div>
+<h3 id="keys">Keys<a class="headerlink" href="#keys" title="Permanent link">&para;</a></h3>
+<p>Everything is bounded, and the editor works on bytes that arrive one at a time, so it does not depend on how the bytes are grouped by the serial line.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Bytes</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enter</td>
+<td>CR, LF or CR LF</td>
+<td>ends the line</td>
+</tr>
+<tr>
+<td>Backspace</td>
+<td><code>0x08</code> or <code>0x7f</code></td>
+<td>deletes the character before the cursor</td>
+</tr>
+<tr>
+<td>Delete</td>
+<td><code>ESC [ 3 ~</code></td>
+<td>deletes the character at the cursor</td>
+</tr>
+<tr>
+<td>Left, Right</td>
+<td><code>ESC [ D</code>, <code>ESC [ C</code></td>
+<td>move the cursor</td>
+</tr>
+<tr>
+<td>Home, End</td>
+<td><code>ESC [ H</code>, <code>ESC [ F</code> (also <code>ESC [ 1 ~</code>, <code>ESC [ 4 ~</code>, <code>ESC O H</code>, <code>ESC O F</code>)</td>
+<td>go to the start or end of the line</td>
+</tr>
+<tr>
+<td>Up, Down</td>
+<td><code>ESC [ A</code>, <code>ESC [ B</code></td>
+<td>recall earlier lines; the history holds 32 lines and at most 2048 bytes</td>
+</tr>
+<tr>
+<td>Ctrl-U</td>
+<td><code>0x15</code></td>
+<td>empties the line</td>
+</tr>
+<tr>
+<td>Tab</td>
+<td><code>0x09</code></td>
+<td>inserts a space</td>
+</tr>
+<tr>
+<td>Ctrl-C</td>
+<td><code>0x03</code></td>
+<td>abandons the line or entry being typed; during an evaluation it stops it</td>
+</tr>
+<tr>
+<td>Ctrl-D</td>
+<td><code>0x04</code></td>
+<td>ignored</td>
+</tr>
+<tr>
+<td>Ctrl-A</td>
+<td><code>0x01</code></td>
+<td>as the first byte of an empty line, starts a <a href="#command-mode">command</a>; anywhere else it is an ordinary character</td>
+</tr>
+</tbody>
+</table>
+<p>Text is UTF-8: a multibyte character is one position of the cursor. A character is taken to be one column wide, so a line wider than the terminal moves the cursor as well as the terminal lets it.</p>
+<h3 id="ctrl-c">Ctrl-C<a class="headerlink" href="#ctrl-c" title="Permanent link">&para;</a></h3>
+<p>A program that runs for a long time is stopped with Ctrl-C. The console looks at the serial line from inside the evaluation, every 4096 steps of the interpreter (a few milliseconds), so no interrupt handler needs to know about Ctrl-C. The program ends with an <code>interrupt</code> error, the prompt comes back, and the names the program defined stay defined. On the ESP32-P4 a runaway loop was stopped this way on 2026-11-16. Here it is on the simulated board; the Ctrl-C is sent one second after the loop is started.</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span><span class="o">(</span><span class="nb">printf</span><span class="w"> </span><span class="s1">'{1}{x+1}:~0\n'</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'\003'</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'1+1\n'</span><span class="o">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/^Klong [^ ]*/Klong VERSION/'</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">Klong VERSION (sim, int64 float64)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="go">klong&gt; {1}{x+1}:~0</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">1:1: interrupt error: interrupted</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="go">  {1}{x+1}:~0</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="go">  ^^^^^^^^^^^</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="go">klong&gt; 1+1</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="go">2</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="go">klong&gt;</span>
+</code></pre></div>
+<p>Input that arrives while a program runs is kept, in order, up to 4096 bytes, and the rest is dropped. A Ctrl-C ends the running program and discards the typed-ahead input that arrived before it; what comes after it is kept. One Ctrl-C ends one program: a second one is read at the prompt (it abandons the line being typed). It makes no difference how the bytes are split. Here the Ctrl-C comes in the same burst as the line that starts the loop, and the <code>2+</code> typed before it is discarded, while <code>1+1</code> after it is run:</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'{1}{x+1}:~0\n2+\003\n1+1\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/^Klong [^ ]*/Klong VERSION/'</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">Klong VERSION (sim, int64 float64)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="go">klong&gt; {1}{x+1}:~0</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="go">1:1: interrupt error: interrupted</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="go">  {1}{x+1}:~0</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="go">  ^^^^^^^^^^^</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="go">klong&gt;</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="go">klong&gt; 1+1</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="go">2</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="go">klong&gt;</span>
+</code></pre></div>
+<p>A Ctrl-C that arrives after the program has already finished is read at the prompt like any other. The <code>kg</code> program's own REPL has no Ctrl-C byte: on a pipe nothing can interrupt a runaway loop, and on a terminal Ctrl-C is the terminal's signal and ends the process.</p>
+<p>While a program runs the console is not answering anything else. A program that blocks the board for longer than the watchdog allows is reset by the watchdog: on the ESP32-P4 firmware the task watchdog is 30 seconds. Whether a runaway loop survives that on a board has not been tested; see the <a href="../porting/">porting checklist</a>.</p>
+<h3 id="output-and-the-line-end">Output and the line end<a class="headerlink" href="#output-and-the-line-end" title="Permanent link">&para;</a></h3>
+<p>A board sends CR LF at the end of an output line, because a terminal on a serial line expects it. <code>klong-sim --crlf</code> does the same. Tools accept both. <code>.p</code> and the other output functions write straight to the serial line.</p>
+<h2 id="command-mode">Command mode<a class="headerlink" href="#command-mode" title="Permanent link">&para;</a></h2>
+<p>The byte <code>0x01</code> (Ctrl-A, written <code>^A</code> below) as the first byte of an empty line starts a command. Tools use it to put files on the board and to run programs without the echo and the editor getting in the way. Every reply is one line that starts with <code>0x01</code>. A human at a terminal does not need it.</p>
+<p>A command line is ended like any line. Where a command is followed by data, the board answers <code>^A go</code> when it has accepted the command, and the sender waits for that before it sends the data. Without the wait, data of a refused command would be read as input lines.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>After <code>^A go</code>, the sender sends</th>
+<th>Reply</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>^A ver</code></td>
+<td>nothing</td>
+<td><code>^A ok ver=VERSION int=64 float=64 features=LIST platform=NAME fs=0\|1 heap_free=N heap_used=N heap_peak=N heap_limit=N max_line=N max_run=N max_file=N</code></td>
+</tr>
+<tr>
+<td><code>^A put PATH LENGTH CRC32</code></td>
+<td><code>LENGTH</code> raw bytes</td>
+<td><code>^A ok LENGTH CRC32</code>, followed by <code>warn syntax: MESSAGE at LINE:COL</code> for a <code>.kg</code> file that does not parse, or <code>unchecked</code> for a file larger than <code>max_run</code></td>
+</tr>
+<tr>
+<td><code>^A run LENGTH CRC32</code></td>
+<td><code>LENGTH</code> bytes of program</td>
+<td>the output of the program, then the value on its own line, then <code>^A ok value N</code> (the value is <code>N</code> bytes long) or <code>^A ok</code> when there is no value; or <code>^A err KIND: MESSAGE</code></td>
+</tr>
+<tr>
+<td><code>^A hex PATH</code></td>
+<td>Intel HEX records, one per line</td>
+<td>per record <code>^A ack N</code> or <code>^A nak N REASON</code>; at the end-of-file record <code>^A ok LENGTH CRC32</code></td>
+</tr>
+<tr>
+<td>any failure</td>
+<td></td>
+<td><code>^A err KIND: MESSAGE</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>CRC32</code> is the zlib CRC-32 of the data in eight hexadecimal digits. Paths have no blanks. The reply to <code>put</code> and <code>hex</code> carries the length and CRC-32 of the file as the board stored it (for <code>hex</code> they are read back from the stored file), and the sender compares them with its own. <code>max_file</code> (16 MiB by default) limits <code>put</code> and <code>hex</code>, and <code>max_run</code> (64 KiB) limits <code>run</code>.</p>
+<p>A transfer that gets no byte for 5 seconds is abandoned with <code>^A err system: transfer timed out</code>, the partly written file is removed and the prompt returns. Ctrl-C abandons a <code>hex</code> transfer. A file is written under the name <code>PATH.tmp</code> first and renamed at the end, so a transfer that fails leaves the old file.</p>
+<p><code>put</code> of a <code>.kg</code> file also parses it on a second, empty interpreter and reports a syntax error as a warning. It still stores the file. The running interpreter keeps its names.</p>
+<p><code>hex</code> takes records of types 00 (data), 01 (end of file), 02 and 04 (addresses); types 03 and 05 are acknowledged and ignored, and any other type is refused. Records may come in any order, and a gap reads as zero, so a binary file of any size can be sent in pieces. <code>N</code> in <code>ack</code> and <code>nak</code> counts the non-blank lines since <code>go</code>.</p>
+<p>These are the commands on the simulated board. The <code>--dumb</code> option turns the echo and the editor off, which is how a tool sees a board. The <code>cat -v</code> shows the byte <code>0x01</code> as <code>^A</code>. The <code>ver</code> examples keep the stable fields and the simulator's base features. The full response includes any additional features enabled by the build and the heap figures. <code>crc32 of 1+2</code> is <code>644ffa5c</code>.</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'\001ver\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span>--dumb<span class="w"> </span><span class="p">|</span><span class="w"> </span>cat<span class="w"> </span>-v<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-a<span class="w"> </span><span class="nv">ver</span><span class="o">=</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-d<span class="s1">' '</span><span class="w"> </span>-f2-8<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/\(features=files,lib,timers,ipc\),[^ ]*/\1/'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/ver=[^ ]*/ver=VERSION/'</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="go">^Aok ver=VERSION int=64 float=64 features=files,lib,timers,ipc platform=sim fs=1</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'\001run 3 644ffa5c\n1+2'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span>--dumb<span class="w"> </span><span class="p">|</span><span class="w"> </span>cat<span class="w"> </span>-v<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/^Klong [^ ]*/Klong VERSION/'</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="go">Klong VERSION (sim, int64 float64)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="go">klong&gt; ^Ago</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="go">3</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="go">^Aok value 1</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="go">klong&gt;</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'\001run 3 00000000\n1+2'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span>--dumb<span class="w"> </span><span class="p">|</span><span class="w"> </span>cat<span class="w"> </span>-v<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span>3p
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="go">^Aerr system: check sum 644ffa5c, expected 00000000</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'\001frob\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span>--dumb<span class="w"> </span><span class="p">|</span><span class="w"> </span>cat<span class="w"> </span>-v<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span>2p
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="go">klong&gt; ^Aerr syntax: unknown command frob: the commands are put, hex, run, ver</span>
+</code></pre></div>
+<p>The error kinds are those of the language: <code>syntax name arity type shape range system memory interrupt</code>. A damaged transfer is <code>system</code>. A program that is longer than <code>max_run</code> is <code>range</code>. A board without a file system answers <code>put</code> and <code>hex</code> with <code>err system: this board has no file system</code>, and <code>run</code> still works:</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'\001put a.kg 3 644ffa5c\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span>--dumb<span class="w"> </span>--no-fs<span class="w"> </span><span class="p">|</span><span class="w"> </span>cat<span class="w"> </span>-v<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span>2p
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="go">klong&gt; ^Aerr system: this board has no file system</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'\001run 1 83dcefb7\n1'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span>--dumb<span class="w"> </span>--max-run<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>cat<span class="w"> </span>-v<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span>2p
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="go">klong&gt; ^Aerr range: 1 bytes is more than a program sent with run may have (0)</span>
+</code></pre></div>
+<h3 id="weak-spots">Weak spots<a class="headerlink" href="#weak-spots" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The command line has no check sum. A damaged length makes the board take too few or too many raw bytes. The CRC of the data then fails, but surplus bytes of a text file are read as input lines. <code>kgupload.py</code> retries a damaged transfer and, to get a stuck board back, stays silent for longer than the board's 5 second timeout.</li>
+<li>A program that prints the byte <code>0x01</code> confuses a tool that reads the output of <code>run</code>, because that byte starts a reply.</li>
+<li>The console has no flow control. A board that cannot receive at full speed while it writes flash needs either a receive buffer big enough for the longest write, or a sender that paces itself (<code>kgupload.py --chunk</code> and <code>--chunk-delay</code>), or <code>hex</code>, where the sender never runs more than <code>--window</code> records ahead of the acknowledgements.</li>
+</ul>
+<h2 id="the-simulated-board">The simulated board<a class="headerlink" href="#the-simulated-board" title="Permanent link">&para;</a></h2>
+<p><code>klong-sim</code> is a board that is not there: the real console and the real runtime on a platform whose serial line is in memory, a pipe, or a pseudo-terminal. It is how the console is tested, and it lets you develop tools and programs without a board.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(none)</td>
+<td>the console on standard input and output; end of input ends the program</td>
+</tr>
+<tr>
+<td><code>--pty</code></td>
+<td>the console on a pseudo-terminal. The first line of standard output is <code>pty: DEVICE</code>; open the device as you would a serial port</td>
+</tr>
+<tr>
+<td><code>--dumb</code></td>
+<td>no echo, no editing, no history (scripts and tools)</td>
+</tr>
+<tr>
+<td><code>--crlf</code></td>
+<td>end output lines with CR LF, as a board does</td>
+</tr>
+<tr>
+<td><code>--no-fs</code></td>
+<td>no file system: <code>put</code> and <code>hex</code> fail</td>
+</tr>
+<tr>
+<td><code>--fs-bytes N</code></td>
+<td>size of the RAM file system (default 8M)</td>
+</tr>
+<tr>
+<td><code>--heap-limit N</code></td>
+<td>heap budget, as <code>kg --heap-limit</code></td>
+</tr>
+<tr>
+<td><code>--stack-budget N</code></td>
+<td>recursion limits as a board with a task stack of <code>N</code> bytes would have (see <a href="../building/#memory-and-stack">Building and Running</a>)</td>
+</tr>
+<tr>
+<td><code>--stack N</code></td>
+<td>native stack of the evaluating thread</td>
+</tr>
+<tr>
+<td><code>--strict N</code></td>
+<td>strict level 0, 1 or 2</td>
+</tr>
+<tr>
+<td><code>--max-line N</code>, <code>--max-entry N</code>, <code>--max-run N</code>, <code>--max-file N</code></td>
+<td>the console limits named above</td>
+</tr>
+<tr>
+<td><code>--timeout-ms N</code></td>
+<td>the transfer timeout in milliseconds (default 5000)</td>
+</tr>
+<tr>
+<td><code>--check-complete</code></td>
+<td>a test aid: reads one entry per line as hex digits and answers <code>complete</code>, <code>incomplete</code> or <code>error</code> for each, using the console's check</td>
+</tr>
+</tbody>
+</table>
+<p>Sizes take <code>K</code> and <code>M</code>. <code>.x()</code> resets the board: a new runtime, an empty file system, and the banner again, as on a real board. The simulation has IPC and timers, which a board image may not have (<code>.ver()</code> lists the features).</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'1+1\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>klong-sim<span class="w"> </span>--crlf<span class="w"> </span><span class="p">|</span><span class="w"> </span>od<span class="w"> </span>-c<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span><span class="m">3</span>,4p
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="go">0000040    a   t   6   4   )  \r  \n   k   l   o   n   g   &gt;       1   +</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="go">0000060    1  \r  \n   2  \r  \n   k   l   o   n   g   &gt;</span>
+</code></pre></div>
+<h3 id="-pty-and-the-upload-tool"><code>--pty</code> and the upload tool<a class="headerlink" href="#-pty-and-the-upload-tool" title="Permanent link">&para;</a></h3>
+<p>With <code>--pty</code> the simulated board shows up as a serial device that any program can open. This is how the tests drive it, with the same upload tool that is used on a real board. Start it in the background, keep the device name, and talk to it.</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="gp">$ </span>klong-sim<span class="w"> </span>--pty<span class="w"> </span>&gt;<span class="w"> </span>sim.txt<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$!</span><span class="w"> </span>&gt;<span class="w"> </span>sim.pid<span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span><span class="s1">'s/^pty: //p'</span><span class="w"> </span>sim.txt<span class="w"> </span>&gt;<span class="w"> </span>port<span class="p">;</span><span class="w"> </span><span class="nb">test</span><span class="w"> </span>-s<span class="w"> </span>port<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span>started
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="go">started</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>ver<span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-d<span class="s1">' '</span><span class="w"> </span>-f1-6<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/\(features=files,lib,timers,ipc\),[^ ]*/\1/'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/ver=[^ ]*/ver=VERSION/'</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="go">ver=VERSION int=64 float=64 features=files,lib,timers,ipc platform=sim fs=1</span>
+</code></pre></div>
+<p>(The device name differs on every run, <code>/dev/ttys007</code> on the machine where this was written, so the commands read it from the file <code>port</code>.) This block and the next three share one directory and one running simulation, and the last one stops it.</p>
+<h2 id="uploading-with-kguploadpy">Uploading with kgupload.py<a class="headerlink" href="#uploading-with-kguploadpy" title="Permanent link">&para;</a></h2>
+<p><code>native/tools/kgupload.py</code> is a single Python file that uses only the standard library. It opens a serial device (or the pseudo-terminal of a simulated board), makes the port raw, gets the board to its prompt, and speaks the command protocol above. It works on POSIX systems (it needs <code>termios</code>); on Windows it would need a serial library, and nothing was tried there.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>kgupload.py [OPTIONS] PORT SUBCOMMAND ...
+</code></pre></div>
+<p>The options may stand before or after the subcommand (<code>kgupload.py PORT --chunk 100 upload f.kg</code> and <code>kgupload.py PORT upload --chunk 100 f.kg</code> are the same).</p>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ver</code></td>
+<td>prints the answer of <code>^A ver</code> as <code>key=value</code> words: version, widths, features, platform, free heap and the console limits</td>
+</tr>
+<tr>
+<td><code>upload FILE [REMOTE] [--hex \| --raw]</code></td>
+<td>stores a file on the board. <code>REMOTE</code> is the name there and defaults to the file's name. A file that is valid UTF-8 text goes with <code>put</code>; anything else goes as Intel HEX. <code>--hex</code> and <code>--raw</code> force one or the other</td>
+</tr>
+<tr>
+<td><code>run FILE</code> or <code>run -e TEXT</code></td>
+<td>evaluates a program on the board without storing it. It prints what the program writes and then its value</td>
+</tr>
+<tr>
+<td><code>reset</code></td>
+<td>evaluates <code>.x(0)</code>: the board restarts, the tool waits for the banner and prints the <code>ver</code> line</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--baud N</code></td>
+<td>the speed of a real serial port (default 115200, the speed of the boards' console; 0 leaves the port as it is; a pseudo-terminal has none)</td>
+</tr>
+<tr>
+<td><code>--timeout SECONDS</code></td>
+<td>wait this long for one answer (default 10)</td>
+</tr>
+<tr>
+<td><code>--run-timeout SECONDS</code></td>
+<td>wait this long for the result of <code>run</code> (default 60)</td>
+</tr>
+<tr>
+<td><code>--retries N</code></td>
+<td>how often a damaged transfer is tried again (default 3)</td>
+</tr>
+<tr>
+<td><code>--chunk BYTES</code>, <code>--chunk-delay MS</code></td>
+<td>send raw data in pieces of this size with a pause after each, for a board whose UART has no flow control (defaults 1024 and 0)</td>
+</tr>
+<tr>
+<td><code>--record BYTES</code></td>
+<td>data bytes per Intel HEX record (default 16, at most 255)</td>
+</tr>
+<tr>
+<td><code>--window N</code></td>
+<td>HEX records sent before their acknowledgements are read (default 32)</td>
+</tr>
+<tr>
+<td><code>--board-timeout SECONDS</code></td>
+<td>how long the board waits before it abandons a transfer (default 5); the tool stays quiet that long to get a stuck board back</td>
+</tr>
+<tr>
+<td><code>-v</code></td>
+<td>show the conversation with the board on standard error</td>
+</tr>
+</tbody>
+</table>
+<p>The exit status is 0 on success, 1 when the board answers with an error (the message is <code>error: KIND: MESSAGE</code> on standard error), 2 for a bad command line or a file that cannot be read, and 3 when the board does not answer or says something the tool cannot understand.</p>
+<h3 id="upload-and-run">Upload and run<a class="headerlink" href="#upload-and-run" title="Permanent link">&para;</a></h3>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq::{x*x}\n.p("loaded")\n'</span><span class="w"> </span>&gt;<span class="w"> </span>lib.kg
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>upload<span class="w"> </span>lib.kg<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/, [0-9.]* s$//'</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="go">lib.kg: 23 bytes, crc32 b76d0bc1, put</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>run<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.l("lib.kg");sq(12)'</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="go">loaded</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="go">144</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>upload<span class="w"> </span>lib.kg<span class="w"> </span>other.kg<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/, [0-9.]* s$//'</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="go">other.kg: 23 bytes, crc32 b76d0bc1, put</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>run<span class="w"> </span>lib.kg
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="go">loaded</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="go">"loaded"</span>
+</code></pre></div>
+<p>The <code>sed</code> removes the transfer time from the line. The last command runs the file <code>lib.kg</code> from the desktop, with no copy on the board, and prints what it wrote. The value of the last statement is printed after the output, here the string that <code>.p</code> returns.</p>
+<p>A Klong error comes back as <code>error: KIND: MESSAGE at LINE:COL</code> and status 1:</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>run<span class="w"> </span>-e<span class="w"> </span><span class="s1">'1+"a"'</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="go">error: type: cannot apply + (Plus) to integer and string at 1:2</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="go">1</span>
+</code></pre></div>
+<h3 id="binary-files-and-the-syntax-warning">Binary files and the syntax warning<a class="headerlink" href="#binary-files-and-the-syntax-warning" title="Permanent link">&para;</a></h3>
+<p>A file that is not UTF-8 text is sent as Intel HEX, and the answer carries the CRC-32 of what the board read back. The tests send a 1 MiB binary file this way and also with <code>put</code>.</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gp">$ </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sys; sys.stdout.buffer.write(bytes(range(256)) * 4)'</span><span class="w"> </span>&gt;<span class="w"> </span>blob.bin
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>upload<span class="w"> </span>blob.bin<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/, [0-9.]* s$//'</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="go">blob.bin: 1024 bytes, crc32 b70b4c26, hex</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq::{x*x\n'</span><span class="w"> </span>&gt;<span class="w"> </span>bad.kg
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>upload<span class="w"> </span>bad.kg<span class="w"> </span>&gt;upload.out<span class="w"> </span><span class="m">2</span>&gt;upload.err<span class="p">;</span><span class="w"> </span>cat<span class="w"> </span>upload.err<span class="w"> </span>upload.out<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/, [0-9.]* s$//'</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="go">kgupload: bad.kg: warn syntax: expected '}' but found end of input at 2:1</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="go">bad.kg: 9 bytes, crc32 f44f241c, put</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>upload<span class="w"> </span>nofile.kg<span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="go">kgupload: nofile.kg: No such file or directory</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="go">2</span>
+</code></pre></div>
+<p>A <code>.kg</code> file that does not parse is stored all the same, with the warning. The files of the board are lost when it resets. On a simulated board and on the ESP32-P4 they live in RAM:</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>reset<span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-d<span class="s1">' '</span><span class="w"> </span>-f1-5<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/\(features=files,lib,timers,ipc\),[^ ]*/\1/'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/ver=[^ ]*/ver=VERSION/'</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="go">ver=VERSION int=64 float=64 features=files,lib,timers,ipc platform=sim</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>run<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.l("lib.kg")'</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="go">error: system: file does not exist: lib.kg (looked for lib.kg, lib/lib.kg, then the bundled library) at 1:1</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="go">1</span>
+</code></pre></div>
+<h3 id="the-conversation">The conversation<a class="headerlink" href="#the-conversation" title="Permanent link">&para;</a></h3>
+<p><code>-v</code> shows what the tool sends and what the board answers, which is the protocol above in use. The <code>grep</code> hides the <code>ver</code> with which the tool starts, whose answer holds heap figures that change.</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native; continue -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq::{x*x}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>t.kg
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>-v<span class="w"> </span>upload<span class="w"> </span>t.kg<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-v<span class="w"> </span><span class="s1">'ver'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">'s/, [0-9.]* s$//'</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="go">-&gt; put t.kg 10 465cfac9</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="go">&lt;- go</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="go">&lt;- ok 10 465cfac9</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="go">t.kg: 10 bytes, crc32 465cfac9, put</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="gp">$ </span>python<span class="w"> </span>native/tools/kgupload.py<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>port<span class="k">)</span><span class="w"> </span>-v<span class="w"> </span>run<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.p("x");1+1'</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-v<span class="w"> </span><span class="s1">'ver'</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="go">-&gt; run 11 b741af65</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="go">&lt;- go</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="go">&lt;- ok value 1</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="go">x</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="go">2</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="gp">$ </span><span class="nb">kill</span><span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>sim.pid<span class="k">)</span>
+</code></pre></div>
+<h3 id="library-use">Library use<a class="headerlink" href="#library-use" title="Permanent link">&para;</a></h3>
+<p><code>kgupload.py</code> can be imported: <code>Board(Port.open(path))</code> has the methods <code>ver()</code>, <code>put(data, remote)</code>, <code>hex(data, remote)</code>, <code>run(text)</code> and <code>reset()</code>. <code>native/scripts/console_conformance.py</code> uses it that way.</p>
+<h2 id="the-conformance-suite-through-the-console">The conformance suite through the console<a class="headerlink" href="#the-conformance-suite-through-the-console" title="Permanent link">&para;</a></h2>
+<p><code>native/scripts/console_conformance.py</code> runs every case of the conformance suite through the console, with <code>^A run</code>, and judges what comes back over the wire. For each case it sends <code>.x(0)</code> (the board resets and prints its banner, which gives a fresh interpreter), <code>.strict(N)</code> when the case has a strict tag, and then the program. It compares the value, the console output and the error kind with the case.</p>
+<p>Without <code>--port</code> it starts simulated boards, one per job, and talks to each through its pseudo-terminal with <code>kgupload.py</code>, exactly as it talks to a serial port. With <code>--port</code> it uses that one board. Options after <code>--</code> go to <code>klong-sim</code>.</p>
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native conformance -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="gp">$ </span>python<span class="w"> </span>native/scripts/console_conformance.py<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1<span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-c1-40
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="go">total                         1716  1716</span>
+</code></pre></div>
+<p>That passed 1716 of 1716 on 2026-11-19 in about 3 seconds with 8 simulated boards. To make the simulation as small as a board, add <code>-- --stack-budget 64K --heap-limit 1M --crlf</code>; the simulated runs of the project gave 1265 of 1266 (the suite of 2026-11-16; see <a href="../../conformance/#why-the-counts-differ">why the counts differ</a>) with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a <code>range</code> error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the <a href="../esp32-p4/">ESP32-P4</a> page.</p>
+<p>The runner needs a <code>System::reset</code> that really resets, because without it all cases share one interpreter and some fail. It needs a banner within <code>--timeout</code>, and a <code>max_run</code> of at least the largest case (under 4 KiB). The <code>sysio</code> cases write files, and on a board without storage you leave them out with <code>--tags</code>. <code>--narrow</code> selects the cases of a build with <code>int32,float32</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
