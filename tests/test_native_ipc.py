@@ -644,10 +644,14 @@ class TestNativeToNative(Case):
         self.native_error(self.client, 'c("1+1")', "system")
 
     def test_timers_run_while_the_node_serves(self):
-        self.server.run('n::0;tick::{n::n+1;1};th::.timer("tick";0.05;tick)')
+        interval = 0.05
+        started = time.monotonic()
+        self.server.run(f'n::0;tick::{{n::n+1;1}};th::.timer("tick";{interval};tick)')
         time.sleep(0.4)
         n = int(self.client.value("c(:n)"))
-        self.assertTrue(4 <= n <= 9, n)
+        # A delayed client can see extra ticks before its query reaches the server.
+        self.assertGreaterEqual(n, 4)
+        self.assertLessEqual(n, math.ceil((time.monotonic() - started) / interval))
         self.assertEqual(self.client.value('c(".timerc(th)")'), "1")
         n = int(self.client.value("c(:n)"))
         time.sleep(0.2)
