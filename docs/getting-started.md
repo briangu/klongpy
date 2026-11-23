@@ -6,8 +6,10 @@ The Python distribution supports Python 3.11 to 3.14. You can also install stand
 
 ## Install
 
+These commands install KlongPy 2.0.0rc1. While 2.0 is in prerelease, an unpinned `pip install klongpy` installs the stable 0.7 series instead. To stay on the pure-Python series, use `python -m pip install "klongpy<2"`.
+
 ```bash
-pip install klongpy
+python -m pip install "klongpy==2.0.0rc1"
 ```
 
 That installs two commands:
@@ -23,19 +25,19 @@ The package also installs NumPy and colorama. That is enough for everything on t
 
 | Install | Adds | Use it for |
 |---|---|---|
-| `pip install "klongpy[torch]"` | PyTorch | The torch backend: GPU arrays and gradients with `:>`. Start it with `kgpy --backend torch`. See [PyTorch Backend and Autograd](torch_backend.md). |
-| `pip install "klongpy[db]"` | pandas and Python DuckDB | DataFrame conversion and the legacy database and key-value store adapters. Use the built-in `.table` and `.db` directly for Klong tables and SQL. See [Columnar tables and SQL](fast_columnar_database.md). |
-| `pip install "klongpy[web]"` | aiohttp | The `.web` HTTP server. See [Web Server](web_server.md). |
-| `pip install "klongpy[ws]"` | websockets | WebSocket clients; there is no server. See [WebSockets](websockets.md). |
-| `pip install "klongpy[all]"` | Everything above | One command for all of it. `klongpy[full]` adds pytest to that, for running the tests. |
-| `pip install "klongpy[repl]"` | Nothing new | Kept so that older instructions still work. The REPL needs no extra. |
+| `python -m pip install "klongpy[torch]==2.0.0rc1"` | PyTorch | The torch backend: GPU arrays and gradients with `:>`. Start it with `kgpy --backend torch`. See [PyTorch Backend and Autograd](torch_backend.md). |
+| `python -m pip install "klongpy[db]==2.0.0rc1"` | pandas and Python DuckDB | DataFrame conversion and the legacy database and key-value store adapters. Use the built-in `.table` and `.db` directly for Klong tables and SQL. See [Columnar tables and SQL](fast_columnar_database.md). |
+| `python -m pip install "klongpy[web]==2.0.0rc1"` | aiohttp | The `.web` HTTP server. See [Web Server](web_server.md). |
+| `python -m pip install "klongpy[ws]==2.0.0rc1"` | websockets | WebSocket clients; there is no server. See [WebSockets](websockets.md). |
+| `python -m pip install "klongpy[all]==2.0.0rc1"` | Everything above | One command for all of it. `klongpy[full]` adds pytest to that, for running the tests. |
+| `python -m pip install "klongpy[repl]==2.0.0rc1"` | Nothing new | Kept so that older instructions still work. The REPL needs no extra. |
 
 Two more extras are for people who work on KlongPy itself: `dev` (the test tools) and `docs` (the documentation build). Work in a virtual environment if you want the packages kept apart from other projects:
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install klongpy
+python -m pip install "klongpy==2.0.0rc1"
 ```
 
 Check that it works:
