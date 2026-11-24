@@ -48,15 +48,15 @@ kg -e '+/!100'                   # 4950
 
 Type `kg` for the REPL or `kg trades.kg` to run a script. Tools and coding agents can read `kg --capabilities` as JSON. Firmware builders can select a board and its features separately. [Native build guide](docs/native/building.md)
 
-For the Python distribution, choose the packages you use.
+For the Python distribution, choose the packages you use. These commands install KlongPy 2.0.0rc1. While 2.0 is in prerelease, an unpinned `pip install klongpy` installs the stable 0.7 series instead.
 
 ```bash
-pip install klongpy              # the kgpy and kg commands (NumPy arrays)
-pip install "klongpy[torch]"     # the torch backend: GPU arrays and gradients
-pip install "klongpy[db]"        # pandas, Python DuckDB, legacy key-value store
-pip install "klongpy[web]"       # the .web HTTP server (aiohttp)
-pip install "klongpy[ws]"        # WebSockets
-pip install "klongpy[all]"       # all of the above
+python -m pip install "klongpy==2.0.0rc1"              # the kgpy and kg commands (NumPy arrays)
+python -m pip install "klongpy[torch]==2.0.0rc1"     # the torch backend: GPU arrays and gradients
+python -m pip install "klongpy[db]==2.0.0rc1"        # pandas, Python DuckDB, legacy key-value store
+python -m pip install "klongpy[web]==2.0.0rc1"       # the .web HTTP server (aiohttp)
+python -m pip install "klongpy[ws]==2.0.0rc1"        # WebSockets
+python -m pip install "klongpy[all]==2.0.0rc1"       # all of the above
 ```
 
 KlongPy 2 needs Python 3.11 to 3.14. The REPL needs no extra: `kgpy` or `kg` starts it. `kgpy --backend torch` selects the torch backend.
