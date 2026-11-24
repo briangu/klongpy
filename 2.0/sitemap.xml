@@ -2,174 +2,174 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://www.klongpy.org/2.0/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/compiler-roadmap/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/conformance/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/contributing/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/design-principles/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/differences/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/embedded/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/errors/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/examples/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/fast_columnar_database/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/from-kdb/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/from-numpy/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/getting-started/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/hardware/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/ipc_capabilities/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/language-additions/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/lint/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/migrating-to-v2/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/operators/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/performance/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/python_integration/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/release-notes/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/repl/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/roadmap/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/static-profile/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/strict/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/system-functions/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/table_and_key_value_stores/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/timer/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/torch_backend/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/tutorial/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/web_server/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/websockets/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/what-runs-where/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/whats-new-v2/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/building/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/console/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/esp32-p4/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/ipc/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/management-node/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/pico-bench/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
     <url>
          <loc>https://www.klongpy.org/2.0/native/porting/</loc>
-         <lastmod>2026-11-22</lastmod>
+         <lastmod>2026-11-24</lastmod>
     </url>
 </urlset>
