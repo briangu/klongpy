@@ -1,0 +1,10 @@
+:" Exercise the native head's local journal in a fresh working directory."
+w::.tickerwal("log")
+check(ok;msg)::{:[ok;1;.err("range";msg)]}
+check([0 0 0]~w([;:open;0]);"fresh journal state")
+check(0=#w([;:read;0]);"fresh journal EOF")
+check(2~w([;:append;0;0;[100 101];[7 8];[202 203];[3 4]]);"durable watermark")
+check([0 0 0]~w([;:open;0]);"reopen")
+b::w([;:read;0])
+check([;0;[100 101];[7 8];[202 203];[3 4]]~b;"replay original trade fields")
+check(0=#w([;:read;2]);"restored journal EOF")

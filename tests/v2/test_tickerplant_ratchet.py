@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from examples.stocks.tickerplant.bench import endpoint
 from tests.ipc_helpers import FakeKdbServer
 from examples.stocks.tickerplant.ratchet import find_rate, on_time, select_shape
@@ -66,11 +68,15 @@ def test_sweep_selects_measured_batch_workers_and_pipeline():
     assert (262144, 8, 8) in tried
 
 
-def test_published_rate_searches_replay():
-    receipt = Path(__file__).resolve().parents[2] / "examples/stocks/tickerplant/results/2026-11-25-100gbe.jsonl"
+@pytest.mark.parametrize(("filename", "profiles"), [
+    ("2026-11-25-100gbe.jsonl", {"peakram", "steadyram", "peakjournal"}),
+    ("2026-11-26-native-100gbe.jsonl", {"nativewal", "peaknowal", "strictnowal", "strictwal"}),
+])
+def test_published_rate_searches_replay(filename, profiles):
+    receipt = Path(__file__).resolve().parents[2] / "examples/stocks/tickerplant/results" / filename
     rows = [json.loads(line) for line in receipt.read_text().splitlines()]
     selections = [row for row in rows if row["kind"] == "selection"]
-    assert {row["profile"] for row in selections} == {"peakram", "steadyram", "peakjournal"}
+    assert {row["profile"] for row in selections} == profiles
     for config in selections:
         results = [row for row in rows if row["kind"] == "rate_search" and row["profile"] == config["profile"]]
         attempts = iter(row for row in results if row.get("phase") in {"probe", "confirm"})

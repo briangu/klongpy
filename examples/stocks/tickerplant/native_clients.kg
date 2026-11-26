@@ -1,0 +1,32 @@
+:" Native load and quote clients for the 100 GbE benchmark. The harness calls one role per process."
+passFile::"";peer::0;asyncSend::0;base::0;firstSeq::0;batchSize::0;depth::0;rate::0;window::0
+sentRows::0;ackRows::0;historyDay::0;slot::0;frequency::0;stopFile::""
+emit(value)::{.p(.json(value));1}
+readLine(path)::{[f old s];f::.ic(path);old::.fc(f);s::.rl();.fc(old);.cc(f);s}
+address(a)::{:[#passFile;a,":bench:",readLine(passFile);a]}
+openPeer(a)::{[h];h::.cli(address(a));.clit(h;180);h}
+begins(target)::{.pc()+target-.now()}
+elapsed()::{.pc()-base}
+scheduled()::{:[rate;sentRows%rate;0]}
+more()::{:[rate;scheduled()<window;elapsed()<window]}
+canSend()::{(more()&(~elapsed()<scheduled()))&((sentRows-ackRows)<depth*batchSize)}
+submit(dummy)::{[s q t sym p v];s::firstSeq+sentRows;q::s+!batchSize;
+    t::1700000000000000000+((q*1000)+20*q!523);sym::q!1024;p::10000+(17*q)!100003;v::1+q!97;
+    sentRows::sentRows+batchSize;emit([;"send";sentRows;elapsed()]);
+    asyncSend([;:publish;s;t;sym;p;v]);0}
+receipt(watermark)::{[at];at::elapsed();ackRows::ackRows+batchSize;
+    :[watermark~firstSeq+ackRows;1;{emit([;"error";"out-of-order acknowledgment"]);.x(1)}()];
+    emit([;"ack";ackRows;at]);1}
+pump()::{ {x;canSend()} submit:~0;
+    :[(~more())&(sentRows=ackRows);{emit([;"done";ackRows;elapsed()]);.x(0)}();1]}
+publisher(a;first;n;d;r;seconds;target)::{peer::openPeer(a);firstSeq::first;batchSize::n;depth::d;rate::r;window::seconds;
+    base::begins(target);asyncSend::.async(peer;receipt);.timer("publish";0.001;pump)}
+stopped()::{[r];r::.try({.ic(stopFile)};[]);:[r@0;{.cc(r@1);1}();0]}
+quoteTick()::{[due sym from result until seq px];due::slot%frequency;
+    :[elapsed()<due;1;{:[stopped();{emit([;"stopped";slot]);.x(0)}();1];
+        sym::(slot*113)!1024;from::elapsed();
+        result:::[historyDay<0;peer([;:latest;sym]);peer([;:historyQuote;historyDay;sym])];until::elapsed();
+        seq:::[#result;result@0;-1];px:::[#result;result@1;-1];
+        emit([;"quote";sym;from;until;due;seq;px]);slot::(slot+1)|1+_until*frequency;1}()]}
+quotes(a;day;hz;target;stop)::{peer::openPeer(a);historyDay::day;frequency::hz;base::begins(target);stopFile::stop;
+    .timer("quote";0.001;quoteTick)}

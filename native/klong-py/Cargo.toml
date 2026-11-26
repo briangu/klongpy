@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 klong-core = { path = "../klong-core", features = ["bigint", "diag", "host", "speed"] }
 klong-rt = { path = "../klong-rt", features = ["bigint", "diag", "tables"] }
-klong-host = { path = "../klong-host", features = ["bigint", "diag", "duckdb"] }
+klong-host = { path = "../klong-host", features = ["bigint", "diag", "duckdb", "ticker-wal"] }
 klong-ipc = { path = "../klong-ipc", features = ["bigint", "tables"] }
 klong-lint = { path = "../klong-lint" }
 klong-static = { path = "../klong-static" }

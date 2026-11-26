@@ -140,3 +140,17 @@ Fixed during RC1 qualification. A timer callback that printed `"closing"` and ca
 ### Receiving a reply as an IPC call times out
 
 Fixed during RC1 qualification. Two Python threads issued blocking calls through the same Klong connection after setting `.clit(c;0.5)`. If both callers resumed after their deadlines, each could raise a distinct timeout. A caller could also discard a reply or disconnect that the I/O thread had already delivered. The regression checks synchronize both calls after registration and delay a caller until a terminal result is available. Both callers now receive the same terminal error on timeout, and a delivered reply survives a scheduling delay. [Blocking-call regressions](../test_ipc_endpoint.py)
+
+### Sending a journal operation over native IPC
+
+While testing ticker plant rollover, the request `wal([;:closing;dayNo;nextSeq])` reached the journal with the integer `0` as its operation. The head already bound `closing` to its local session flag. Using the unbound operation symbol `:beginClose` preserved the name on the wire. The pending-rollover test restarts the head with the HDB offline and checks that the journal retained the close intent. [Ticker plant regression](test_tickerplant.py)
+
+A direct native probe initially failed with `undefined function: .tickerwal`. The desktop build now registers this optional writer. The probe opens a local directory, appends a batch, rewinds, and checks every replayed field in Klong. [Native WAL probe](programs/tickerplant_native_wal.kg)
+
+On the first launch of one freshly linked arm64 macOS build, three checks exceeded their startup deadlines. A simultaneous standalone WAL probe sampled entirely at `_dyld_start`, with only the executable and loader mapped. Once that probe finished, the same binary passed all 28 ticker-plant and rate-search checks in 6.45 seconds. The startup timeouts stayed in place.
+
+The first native benchmark publisher wrote `>=` in a timer predicate. The runtime read two verbs, reported a group operation on a scalar, cancelled the timer, and the CLI then exited successfully. The publisher now spells the condition with Klong's negated less-than. The harness requires the terminal acknowledgment event as well as a successful exit, and rejects timer or asynchronous-call diagnostics. [Native benchmark clients](../../examples/stocks/tickerplant/native_clients.kg)
+
+### Restarting successive ticker plant profiles on the same port
+
+On the 100 GbE hosts, stopping one benchmark profile and immediately starting a fresh HDB twice produced an `address in use` error from `.srv`. A TCP connection check alone briefly succeeded during one handoff, but the new server had exited by the time the native client queried it. For sequential runs, check that the new process stays alive and answers an authenticated application request before starting the timer. Fresh ports on the same benchmark interfaces let the strict-deadline profile start immediately.

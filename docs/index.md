@@ -13,7 +13,7 @@ The same interpreter is in firmware for microcontroller boards, and the tools `l
 
 ## Targets and status
 
-The native ticker plant example ingests trades over kdb+ IPC, serves quotes and rolls the trading day into a separate historical database. Its experimental in-memory RDB sustained **3.01M trades/s with a synchronous journal** and **5.24M/s in RAM only** on two 100 GbE hosts. Each rate passed two one-minute trials with both subscribers and both query clients active. [Hardware, rollover, query latency and missed reads](performance.md#finding-the-sustained-rate)
+A post-RC1 build of the native ticker plant sustained **3.80M offered trades/s with its in-process WAL** on two AMD EPYC hosts connected by 100 GbE. The head kept the intraday RDB in RAM and synced each batch to local NVMe. Two native `kg` subscribers acknowledged trades while native clients queried live and historical quotes. Both one-minute confirmations verified 228,065,280 trades after rollover, averaging **2.26–2.27M trades/s** including the handoff to the HDB. [Throughput, latency and missed queries](performance.md#native-wal-and-native-clients-on-100-gbe)
 
 | Target | Status | More |
 |---|---|---|

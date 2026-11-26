@@ -96,6 +96,7 @@ RUNNABLE = {
     "examples/python/threading/pool.kg": PLAIN,
     "examples/python/threading/pool_async.kg": PLAIN,
     "examples/stocks/options/black-scholes.kg": PLAIN,
+    "examples/stocks/tickerplant/native_clients.kg": PLAIN,
 }
 
 # Not run: path -> why. (All of these are still linted and parsed.)

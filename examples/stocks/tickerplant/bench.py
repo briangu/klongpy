@@ -10,7 +10,6 @@ import math
 import os
 from pathlib import Path
 import select
-import statistics
 import threading
 import time
 
@@ -20,9 +19,7 @@ from klongpy.core import KGSym
 from klongpy.ipc import Message
 from tests.v2.peer import connect
 
-
-EPOCH = 1700000000000000000
-SYMBOLS = 1024
+from .benchmark_metrics import EPOCH, SYMBOLS, archive_checks, last_symbol_seq, timings, volume_before
 
 
 @dataclass
@@ -44,19 +41,6 @@ def columns(first, n):
     seq = np.arange(first, first + n, dtype=np.int64)
     return (EPOCH + seq * 1000 + (seq % 523) * 20, seq % SYMBOLS,
             10000 + (seq * 17) % 100003, 1 + seq % 97)
-
-
-def quantile(values, q):
-    return sorted(values)[math.ceil(q * len(values)) - 1] if values else None
-
-
-def timings(samples):
-    return dict(samples=len(samples), p50_ms=statistics.median(samples) if samples else None,
-                p99_ms=quantile(samples, .99), max_ms=max(samples, default=None))
-
-
-def last_symbol_seq(end, symbol):
-    return end - 1 - ((end - 1 - symbol) % SYMBOLS)
 
 
 def read_quotes(client, stop, hz, first, bounds, previous=None):
@@ -101,20 +85,9 @@ def read_quotes(client, stop, hz, first, bounds, previous=None):
 
 def verify(hist, day, first, end):
     np.testing.assert_array_equal(hist.call("archived", day), [end - first, first, end - 1])
-    # Bound the distinct-count hash table even when a session has tens of millions of rows.
-    for low in range(first, end, 1000000):
-        high = min(low + 1000000, end)
-        sql = (f"SELECT count(*),count(DISTINCT seq),count(*) FILTER (WHERE "
-               f"ts IS DISTINCT FROM {EPOCH}+seq*1000+(seq%523)*20 OR sym IS DISTINCT FROM seq%{SYMBOLS} "
-               "OR px IS DISTINCT FROM 10000+(seq*17)%100003 OR qty IS DISTINCT FROM 1+seq%97) "
-               f"FROM trades WHERE dayno={day} AND seq>={low} AND seq<{high}")
+    for count, sql in archive_checks(day, first, end):
         actual = hist.request(f'history("{sql}")')
-        np.testing.assert_array_equal(actual, [high - low, high - low, 0], err_msg=f"day {day}, seq {low}..{high-1}")
-
-
-def volume_before(end):
-    cycles, rest = divmod(end, 97)
-    return cycles * (97 * 98 // 2) + rest * (rest + 1) // 2
+        np.testing.assert_array_equal(actual, [count, count, 0], err_msg=f"day {day}")
 
 
 def roll_with_probes(args, head, day, end, previous):

@@ -1,5 +1,7 @@
 :" Run with the head functions loaded in a new data directory."
 tpCheck(ok;message)::{:[ok;1;.err("range";message)]}
+tpCheck("<memory>"~live("SELECT coalesce(path,'<memory>') FROM duckdb_databases() WHERE database_name='rdb'");"open trades must reside in RAM")
+tpCheck(""~live("SELECT current_setting('temp_directory')");"live queries must not spill to disk")
 tpCheck(0=nextSeq;"new head must start at zero")
 tpCheck(3=publish(0;[100 102 101];[4 7 4];[990 800 995];[2 1 3]);"ack after three trades")
 tpCheck([2 995]~latest(4);"latest report uses arrival sequence")

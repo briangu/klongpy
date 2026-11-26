@@ -66,7 +66,7 @@ The test named `caseReplayIdempotent`, for example, can also run directly with `
 
 ## Performance budgets
 
-The native ticker-plant cases exercise durable batch acknowledgments, competing publishers, subscriber delivery and replay, and a head or HDB crash during rollover. Variable-width batches and multi-block rollback run through the same IPC entry point. The [ticker-plant example](../../examples/stocks/tickerplant/README.md) includes the cross-node load driver. When staging installed-wheel tests outside the checkout, copy the example directory from the candidate sdist alongside the tests.
+The native ticker-plant cases check an in-process native WAL and RAM-only RDB, takeover of the external benchmark writer's files, a short write at the OS file-size limit, automatic WAL replay before serving, a lost publish reply after WAL sync, torn tails, checksum failures, competing publishers, subscriber delivery, and a head or HDB crash during rollover. Variable-width batches and multi-block rollback run through the same IPC entry point. The [ticker-plant example](../../examples/stocks/tickerplant/README.md) includes the cross-node load driver. When staging installed-wheel tests outside the checkout, copy the example directory from the candidate sdist alongside the tests.
 
 The dense integer grade test orders 262,144 signed keys under a 5 MiB Klong heap limit. It checks the length and endpoints of all three groups. The numerical regression cases also cover stable ties, descending grades, 64-bit integer limits, reductions over each matrix axis and wrapping sums. Run the separate [NumPy comparison](../../docs/performance.md#native-kg-and-numpy-on-resident-cpu-arrays) to measure the kernels against NumPy on the same inputs.
 

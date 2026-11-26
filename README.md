@@ -25,7 +25,7 @@ The same interpreter is in firmware for microcontroller boards, and the tools `l
 
 Full documentation: [https://www.klongpy.org/](https://www.klongpy.org/). New here? Read [Start Here](docs/getting-started.md).
 
-The native ticker plant takes ordered trades over kdb+ IPC, serves live quotes and hands each completed trading day to a separate historical database. On two AMD EPYC hosts connected by 100 GbE, an experimental in-memory RDB sustained **3.01M trades/s with a synchronous journal** and **5.24M/s in RAM only**, each across two one-minute runs with two subscribers and both query clients active. Including rollover, the journaled runs averaged **1.99–2.05M/s**. [Throughput, query latency and missed reads](docs/performance.md#finding-the-sustained-rate) · [Run the sweep](examples/stocks/tickerplant/README.md#reproduce-the-in-memory-sweep)
+A post-RC1 build of the native ticker plant sustained **3.80M offered trades/s with its in-process WAL** on two AMD EPYC hosts connected by 100 GbE. The head kept the intraday RDB in RAM and synced each batch to local NVMe. Two native `kg` subscribers acknowledged trades while native clients queried live and historical quotes. Both one-minute confirmations verified 228,065,280 trades after rollover, averaging **2.26–2.27M trades/s** including the handoff to the HDB. [Throughput, latency and missed queries](docs/performance.md#native-wal-and-native-clients-on-100-gbe) · [Run the native sweep](examples/stocks/tickerplant/README.md#run-a-native-publisher-and-quote-clients)
 
 ## Where it runs
 
