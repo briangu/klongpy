@@ -1753,6 +1753,31 @@ then the columns are returned.  If "x" is a database, then a dict of
 table name to table is returned.
 ```
 
+## Ticker plant journal
+
+Available on a local filesystem with the native `ticker-wal` feature.
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.tickerwal(x)` | Ticker-Plant-Journal | Open the ticker plant's local write-ahead log for durable trade batches and replay. |
+
+### `.tickerwal`
+
+`.tickerwal(x)` [Ticker-Plant-Journal]
+
+```text
+Open the journal directory x and return a function that accepts
+journal requests. To initialize a journal at a known trading day
+and first sequence, pass [directory day first] as x.
+
+Call w([;:open;0]) to obtain [day first closing]. Read batches
+with w([;:read;cursor]), advancing the cursor by the number of
+trades in each batch, until the result is empty. After replay,
+w([;:append;day;first;ts;sym;px;qty]) syncs the batch and returns
+its exclusive ending sequence. At rollover, beginClose and
+finishClose each take the trading day and ending sequence.
+```
+
 ## Key-value and table storage
 
 Load with `.py("klongpy.db")`. See [Table and Key-Value Stores](table_and_key_value_stores.md).
