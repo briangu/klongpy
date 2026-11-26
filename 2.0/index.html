@@ -2160,6 +2160,7 @@
 </table>
 <p>The same interpreter is in firmware for microcontroller boards, and the tools <code>lint</code>, <code>check</code>, <code>compile c</code>, <code>fpga source</code> and <code>ast</code> run from either command. <a href="what-runs-where/">What Runs Where</a> says which part does what.</p>
 <h2 id="targets-and-status">Targets and status<a class="headerlink" href="#targets-and-status" title="Permanent link">&para;</a></h2>
+<p>The native ticker plant example ingests trades over kdb+ IPC, serves quotes and rolls the trading day into a separate historical database. Its experimental in-memory RDB sustained <strong>3.01M trades/s with a synchronous journal</strong> and <strong>5.24M/s in RAM only</strong> on two 100 GbE hosts. Each rate passed two one-minute trials with both subscribers and both query clients active. <a href="performance/#finding-the-sustained-rate">Hardware, rollover, query latency and missed reads</a></p>
 <table>
 <thead>
 <tr>
