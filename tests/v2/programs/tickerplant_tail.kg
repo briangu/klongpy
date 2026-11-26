@@ -1,0 +1,12 @@
+:" Run on an empty RAM RDB with the native WAL. The last trade for symbol 99 falls outside the tail."
+assertTail(ok;message)::{:[ok;1;.err("range";message)]}
+i::!4097;s::(,99),4096#7
+publish(0;|i;s;100+i;4097#1)
+assertTail([0 100]~latest(99);"sparse symbol in earlier part of latest batch")
+assertTail([4096 4196]~latest(7);"latest by sequence despite reverse timestamps")
+assertTail(0=#latest(404);"absent")
+assertTail(0=*.try({publish(4097;,0;,99;,200;,:bad)};[]);"reject invalid WAL batch")
+assertTail([0 100]~latest(99);"rejected batch changed sparse price")
+publish(4097;,0;,9;,222;,1)
+assertTail([4097 222]~latest(9);"one-row last batch")
+assertTail([4096 4196]~latest(7);"previous batch")

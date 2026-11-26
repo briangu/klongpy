@@ -107,3 +107,13 @@ def test_benchmark_reads_ipc_password_from_file(tmp_path, monkeypatch):
         assert peer.greetings[0][:2] == ("bench", "local-test-only")
     finally:
         peer.stop()
+
+
+def test_search_progresses_when_ceiling_is_between_grid_points():
+    probes = []
+    def trial(rate, phase):
+        if phase == "probe":
+            assert rate not in probes
+            probes.append(rate)
+        return rate <= 8
+    assert find_rate(8, 15, 4, 2, trial) == (8, 12)

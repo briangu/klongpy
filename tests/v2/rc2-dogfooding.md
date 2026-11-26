@@ -154,3 +154,9 @@ The first native benchmark publisher wrote `>=` in a timer predicate. The runtim
 ### Restarting successive ticker plant profiles on the same port
 
 On the 100 GbE hosts, stopping one benchmark profile and immediately starting a fresh HDB twice produced an `address in use` error from `.srv`. A TCP connection check alone briefly succeeded during one handoff, but the new server had exited by the time the native client queried it. For sequential runs, check that the new process stays alive and answers an authenticated application request before starting the timer. Fresh ports on the same benchmark interfaces let the strict-deadline profile start immediately.
+
+### Timing small native feed messages
+
+The load generator and both subscriber processes ran on Tinkara. Each process had its own origin for `.pc()`. Subtracting those values across processes would give the wrong delivery latency. The benchmark uses a common host epoch to join subscriber receipts by watermark, and monotonic elapsed time for batch formation and acknowledgment within the publisher. Across Milan and Tinkara it records a short round-trip clock calibration before and after the sample. See the [native feed](../../examples/stocks/tickerplant/native_feed.kg) and [trace reader](../../examples/stocks/tickerplant/profile_report.py).
+
+A 1 ms native timer can observe a 2 ms flush threshold late. One outstanding durable write can also delay sending an already sealed batch. The feed records sealing and sending separately, alongside scheduled arrival. This makes backpressure visible when a timer-based batching policy is used.

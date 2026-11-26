@@ -16,6 +16,23 @@ def timings(samples):
                 p99_ms=quantile(samples, .99), max_ms=max(samples, default=None))
 
 
+def quote_budget(responses, seconds, hz, target_ms, phase=0):
+    """Score one native reader against every slot due during the offered window."""
+    planned = max(0, math.ceil((seconds-phase) * hz))
+    latency = {}
+    for due, finished in responses:
+        slot = round((due-phase) * hz)
+        if 0 <= slot < planned:
+            if slot in latency:
+                raise ValueError("duplicate scheduled quote slot")
+            latency[slot] = (finished - due) * 1000
+    within = sum(ms <= target_ms for ms in latency.values())
+    return dict(planned=planned, answered=len(latency), skipped=planned-len(latency),
+                late=len(latency)-within, within_target=within, target_ms=target_ms,
+                scheduled=timings(list(latency.values())),
+                passed=planned > 0 and within * 100 >= planned * 99)
+
+
 def last_symbol_seq(end, symbol):
     return end - 1 - ((end - 1 - symbol) % SYMBOLS)
 

@@ -15,7 +15,8 @@ import numpy as np
 import pytest
 
 from examples.stocks.tickerplant.native_bench import NativeClients, native_session
-from examples.stocks.tickerplant.sweep_head import render
+from examples.stocks.tickerplant.profile_report import profile, subscriber_delivery
+from examples.stocks.tickerplant.sweep_head import profiled_head, profiled_subscriber, render
 from examples.stocks.tickerplant.journal import records
 from tests.ipc_helpers import free_port
 from .peer import connect
@@ -427,7 +428,87 @@ def test_native_traffic_clients_and_rollover(kg, tmp_path, unused_tcp_port_facto
             hosts.enter_context(running(kg, script, port, tmp_path, *peers))
         seed = native_session(args, clients, 4000, .25, 64, 1, None)
         measured = native_session(args, clients, 50000, 1, 128, 4, (0, 0, seed["end"]))
+        cmd = [sys.executable, "-m", "examples.stocks.tickerplant.native_bench", "--mode", "repeat",
+               "--kg", kg[0], "--head", args.head, "--hdb", args.hdb,
+               "--subscriber", args.subscriber[0], "--subscriber", args.subscriber[1],
+               "--rate", "8192", "--batch", "128", "--depth", "2", "--workers", "1",
+               "--confirm-seconds", "1", "--confirm-runs", "2", "--archive-probes", "2"]
+        output = subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True, text=True, timeout=25)
+        repeats = [json.loads(line) for line in output.stdout.splitlines()]
+        assert repeats[0]["result"]["archive_probes"][0]["hits"]["samples"] == 2
+        assert [(row["phase"], row["result"]["day"], row["result"]["verified_rows"])
+                for row in repeats] == [("repeat", 2, 8192), ("repeat", 3, 8192)]
     assert measured["verified_rows"] == 391 * 128
     assert measured["subscribers"] == 2
     assert measured["ack"]["samples"] == 391
     assert all(measured[k]["round_trip"]["samples"] for k in ("live", "history"))
+
+
+def test_historical_quote_index_and_legacy_days(kg, tmp_path):
+    (tmp_path / "transfer").mkdir()
+    expression = f'.l("{EXAMPLE / "hdb.kg"}");.l("{PROGRAMS / "tickerplant_history.kg"}");1'
+    subprocess.run([*kg, "-e", expression], cwd=tmp_path, check=True, capture_output=True)
+
+
+@pytest.mark.parametrize("age", [0, 4])
+def test_native_small_message_feed(kg, tmp_path, unused_tcp_port_factory, age):
+    (tmp_path / "transfer").mkdir()
+    head, hdb, sub = (unused_tcp_port_factory() for _ in range(3))
+    addr = lambda p: f"127.0.0.1:{p}"
+    args = SimpleNamespace(head=addr(head), hdb=addr(hdb), subscriber=[addr(sub)], query_hz=20,
+                           feed_message_rows=8, burst_messages=4, max_age_ms=age)
+    c = NativeClients(kg[0], tmp_path, None)
+    with ExitStack() as servers:
+        for script, port, peers in [("hdb.kg", hdb, []), ("head.kg", head, [addr(hdb)]),
+                                    ("subscriber.kg", sub, [addr(head)])]:
+            servers.enter_context(running(kg, script, port, tmp_path, *peers))
+        session = native_session(args, c, 4096, .51, 256, 1, None)
+    assert session["verified_rows"] == 2096
+    assert session["feed"]["first_arrival_to_ack"]["samples"] == session["ack"]["samples"]
+    assert session["feed"]["messages"] == 262
+    assert session["feed"]["max_batch"] <= 256
+    if age:
+        assert session["feed"]["batches"] > 9
+    else:
+        assert session["feed"]["batches"] == 9
+
+
+def test_latest_quote_tail_restart_and_roll(kg, tmp_path):
+    (tmp_path / "transfer").mkdir()
+    hdb, head = free_port(), free_port()
+    peer = f"127.0.0.1:{hdb}"
+    with running(kg, "head.kg", head, tmp_path, peer), connect(head) as writer:
+        assert writer.request(f'.l("{PROGRAMS / "tickerplant_tail.kg"}");1') == 1
+    with running(kg, "hdb.kg", hdb, tmp_path), running(kg, "head.kg", head, tmp_path, peer), connect(head) as writer:
+        np.testing.assert_array_equal(writer.call("latest", 9), [4097, 222])
+        assert writer.call("roll", 0) == 4098
+        assert len(writer.call("latest", 9)) == 0
+
+def test_native_ticker_stage_and_delivery_trace(kg, tmp_path, unused_tcp_port_factory, monkeypatch):
+    (tmp_path / "transfer").mkdir()
+    head, hdb, sub = (unused_tcp_port_factory() for _ in range(3))
+    addr = lambda port: f"127.0.0.1:{port}"
+    args = SimpleNamespace(head=addr(head), hdb=addr(hdb), subscriber=[addr(sub)], query_hz=20,
+                           trace_dir=tmp_path / "traces", feed_message_rows=8, burst_messages=4, max_age_ms=4)
+    monkeypatch.setenv("KG_TICKER_WAL_PROFILE", "1")
+    head_script = tmp_path / "profile-head.kg"
+    head_script.write_text(profiled_head((EXAMPLE / "head.kg").read_text()))
+    sub_script = tmp_path / "profile-sub.kg"
+    sub_script.write_text(profiled_subscriber((EXAMPLE / "subscriber.kg").read_text()))
+    clients = NativeClients(kg[0], tmp_path, None)
+    with ExitStack() as servers:
+        for script, port, peers in [("hdb.kg", hdb, []), (str(head_script), head, [addr(hdb)]),
+                                    (str(sub_script), sub, [addr(head)])]:
+            servers.enter_context(running(kg, script, port, tmp_path, *peers))
+        result = native_session(args, clients, 4096, .5, 256, 1, None)
+    trace = json.loads((args.trace_dir / "day-0.json").read_text())
+    head_events = [json.loads(s) for s in head_script.with_suffix(".kg.log").read_text().splitlines()
+                   if s.startswith(('["stage"', '["wal_us"', '["parquet"'))]
+    applied = [json.loads(s) for s in sub_script.with_suffix(".kg.log").read_text().splitlines() if s.startswith('["applied"')]
+    report = profile(trace, head_events)
+    assert report["wal"]["fdatasync"]["samples"] == result["feed"]["batches"]
+    assert report["wal_bytes"] == result["verified_rows"] * 32 + 32 * result["feed"]["batches"]
+    assert report["parquet"][1] == 2
+    assert report["quote"]["handler"]["samples"] > 0
+    [delivery] = subscriber_delivery(trace, [applied])
+    assert delivery["first_arrival_to_applied"]["samples"] == result["feed"]["batches"]

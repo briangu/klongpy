@@ -43,6 +43,8 @@ python -m examples.stocks.tickerplant.bench --subscriber 127.0.0.1:5512 \
 
 ### Run a native publisher and quote clients
 
+The [100 GbE qualification](optimization.md#five-experiment-qualification) includes the durable rate with a 50 ms quote target, a small-message replay and matched historical archive results. The [reproduction commands](optimization.md#reproduce-the-measurements) run the same rate grid, timing probes and archive checks.
+
 The standard head, HDB and each subscriber are separate native `kg` processes. The native benchmark also runs the publisher, live quote reader and historical quote reader as independent `kg` processes. The publisher generates the trade columns in Klong and pipelines ordered IPC requests through `.async`. Python's standard library schedules the trials and checks the receipts. All IPC, including the checks against the HDB, goes through `kg`.
 
 With two subscribers running and an empty open day, run the fixed-resource suite from the load host. Use `--head` and `--hdb` for the servers' benchmark interfaces and `--kg` for the candidate binary.
@@ -60,6 +62,8 @@ For the rate search, use a fresh data directory and generate the wide head as de
 The [native 100 GbE measurements](results/2026-11-26-native-100gbe.jsonl) record the executable and script hashes, hardware and pod limits, per-trial network counters, both deadline policies and WAL crash recovery. The [performance notes](../../../docs/performance.md#native-wal-and-native-clients-on-100-gbe) compare ingest, end-of-day rollover and quote latency.
 
 ### Find a sustained rate
+
+To compare two configurations at the same offered rate, use `--mode repeat` with the same server and subscriber arguments as the native benchmark above. For example, add `--rate 3145728 --batch 262144 --depth 2 --workers 4 --confirm-seconds 60 --confirm-runs 3`. Each run closes and verifies a trading day even when its acknowledgments miss the deadline. Start each configuration with fresh data and use the first full day to warm the HDB before comparing the remaining two. The repeat mode keeps the offered rate fixed for every run.
 
 Start the servers above, then run the rate search against a fresh benchmark data directory.
 
@@ -107,7 +111,7 @@ The November 25 journaled benchmark used a separate Python writer on the head ho
 ## IPC contract
 
 - `publish(first;ts;sym;px;qty)` takes four equal-length integer vectors containing nanosecond timestamps, instrument IDs, prices in ticks and quantities. The head assigns consecutive sequence numbers starting at `first`. A successful reply gives the next expected sequence. A gap or overlap fails before any row is written. After losing a reply, read `nextSeq` and resume at that offset. Multiple publishers must coordinate their offsets.
-- `latest(sym)` returns the last sequence and price in arrival order. A late exchange timestamp keeps its original value. `ticksFrom(first;n)` returns up to 65,536 ordered rows for a live-session replay. Both endpoints return an empty list for no match. A single SQL row returns its fields directly.
+- `latest(sym)` returns the last sequence and price in arrival order. The durable head checks the most recent 2,048 rows of its last committed batch in RAM and looks up other symbols in the RDB. A late exchange timestamp keeps its original value. `ticksFrom(first;n)` returns up to 65,536 ordered rows for a live-session replay. Both endpoints return an empty list for no match. A single SQL row returns its fields directly.
 - A subscriber calls `subscribe(0)` on its feed connection and receives the first sequence it should expect. The head calls `onTicks(first;ts;sym;px;qty)` back on that connection. Each subscriber returns the new cursor. Fan-out is synchronous and serial. A failed, timed-out or incorrect subscriber acknowledgment removes that subscriber and increments `lostSubs`. A subscriber has two seconds to respond. A reconnecting consumer can request missed rows using the live and historical replay calls.
 - `roll(dayNo)` closes a nonempty session and returns its exclusive ending sequence. The head records that it is closing, writes the current session to Parquet in the transfer directory, and asks the HDB to import it. The HDB checks the file's count and sequence bounds, commits the import, and acknowledges. Only then does the head clear the RDB and advance the day. A repeat of the last close returns the same watermark. After a crash in the handoff, retry the close before publishing. Queries and writes on the head can wait during rollover. The HDB also serializes requests while importing a partition.
 - `historyQuote(day;sym)`, `historyStats(day)`, and `historyFrom(day;first;n)` query the HDB. The HDB commits archived rows to its own DuckDB file.

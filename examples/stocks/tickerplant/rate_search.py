@@ -36,7 +36,7 @@ def find_rate(start, ceiling, step, confirmations, trial):
         high = candidate
 
     while high is not None and high - low > step:
-        candidate = low + ((high - low) // (2 * step)) * step
+        candidate = low + max(1, (high - low) // (2 * step)) * step
         if trial(candidate, "probe"):
             low = candidate
         else:
@@ -59,7 +59,7 @@ def find_rate(start, ceiling, step, confirmations, trial):
         candidate = max(0, high - distance)
     low = candidate
     while high - low > step:
-        candidate = low + ((high - low) // (2 * step)) * step
+        candidate = low + max(1, (high - low) // (2 * step)) * step
         if confirmed(candidate):
             low = candidate
         else:
@@ -89,3 +89,15 @@ def select_shape(measure):
         pipelines.append((measure(batch, workers, 8), batch, 8))
         _, batch, depth = max(pipelines)
     return batch, workers, depth
+
+
+def find_grid_rate(start, ceiling, step, confirmations, trial):
+    """Screen every higher grid point, even if synchronized traffic makes latency nonmonotonic."""
+    if (ceiling-start) % step:
+        raise ValueError("grid ceiling must be an integral number of steps above start")
+    miss = None
+    for rate in range(ceiling, start-1, -step):
+        if trial(rate, "probe") and all(trial(rate, "confirm") for _ in range(confirmations)):
+            return rate, miss
+        miss = rate
+    return 0, miss

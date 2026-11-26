@@ -1,0 +1,23 @@
+:" Synthetic small-message feed on the load host. native_clients.kg supplies IPC and the clock."
+fMsg::0;fCap::0;fBurst::0;fAge::0;fTotal::0;fMade::0;fBusy::0
+fTs::[];fSym::[];fPx::[];fQty::[];fDue::0;fAt::0;fSealed::0;sealedAt::0
+messageDue()::{((fMade:%(fMsg*fBurst))*fMsg*fBurst)%rate}
+aged()::{:[(#fTs)&fAge>0;~(elapsed()-fAt)<fAge;0]}
+acceptMessage(ts;sym;px;qty;due)::{:[0=#fTs;{fDue::due;fAt::elapsed()}();0];
+    fTs::fTs,ts;fSym::fSym,sym;fPx::fPx,px;fQty::fQty,qty;fMade::fMade+#ts;0}
+nextMessage(dummy)::{[q due];due::messageDue();q::(firstSeq+fMade)+!fMsg&fTotal-fMade;
+    acceptMessage(1700000000000000000+((q*1000)+20*q!523);q!1024;10000+(17*q)!100003;1+q!97;due)}
+canAccept()::{(~fSealed)&((fMade<fTotal)&((#fTs)<fCap))&((~aged())&(~elapsed()<messageDue()))}
+flushFeed()::{[n at];n::#fTs;at::elapsed();fBusy::1;sentRows::fMade;
+    emit([;"feedBatch";sentRows;n;fDue;fAt;at;sealedAt]);emit([;"send";sentRows;at]);
+    asyncSend([;:publish;firstSeq+sentRows-n;fTs;fSym;fPx;fQty]);
+    fTs::[];fSym::[];fPx::[];fQty::[];fSealed::0;1}
+feedReceipt(watermark)::{[at];at::elapsed();ackRows::watermark-firstSeq;
+    :[ackRows~sentRows;1;.err("range";"incorrect feed watermark")];emit([;"ack";ackRows;at]);fBusy::0}
+feedTick()::{ {x;canAccept()} nextMessage:~0;
+    :[((~fSealed)&(#fTs)>0)&(((#fTs)=fCap)|((fMade=fTotal)|aged()));{sealedAt::elapsed();fSealed::1}();0];
+    :[fSealed&~fBusy;flushFeed();0];
+    :[ackRows=fTotal;{emit([;"done";ackRows;elapsed()]);.x(0)}();1]}
+feedPublisher(a;first;msg;cap;burst;age;r;count;target)::{peer::openPeer(a);firstSeq::first;
+    fMsg::msg;fCap::cap;fBurst::burst;fAge::age;rate::r;fTotal::count;base::begins(target);
+    asyncSend::.async(peer;feedReceipt);.timer("feed";0.001;feedTick)}

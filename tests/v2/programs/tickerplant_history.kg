@@ -1,0 +1,18 @@
+:" Run against a freshly created HDB. Day 5 represents an archive written by the old version."
+check(ok;message)::{:[ok;1;.err("range";message)]}
+history("INSERT INTO trades VALUES (5,40,20,17,551,1),(5,41,10,17,552,1)")
+check([41 552]~historyQuote(5;17);"legacy latest by arrival")
+check([2 40 41]~archived(5);"legacy day bounds")
+history("COPY (SELECT * FROM (VALUES (42,10,9,100,1),(43,8,17,123,2),(44,7,9,101,1)) t(seq,ts,sym,px,qty)) TO 'transfer/day-6.parquet'")
+check(45=seal(6;42;45);"seal")
+check(45=seal(6;42;45);"duplicate seal")
+check([44 101]~historyQuote(6;9);"new day latest by sequence")
+check([43 123]~historyQuote(6;17);"sparse symbol")
+check(0=#historyQuote(6;77);"absent symbol")
+check(2=history("SELECT count(*) FROM closing_quotes WHERE dayno=6");"one closing quote per symbol")
+history("COPY (SELECT 45 seq,7 ts,9 sym,555 px,1 qty) TO 'transfer/day-7.parquet'")
+history("INSERT INTO closing_quotes VALUES(7,9,45,555)")
+check(0=*.try({seal(7;45;46)};[]);"injected summary conflict")
+check([0 -1 -1]~archived(7);"failed summary must roll back inserted trades")
+history("DELETE FROM closing_quotes WHERE dayno=7")
+check(46=seal(7;45;46);"retry failed archive")

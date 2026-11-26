@@ -6,7 +6,7 @@ use std::{
     io::{self, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     rc::Rc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use klong_core::{error::Result, value::Func, Error, Int, Interp, Value};
@@ -71,6 +71,7 @@ struct Journal {
     closing_end: Option<Int>,
     next: Int,
     phase: Phase,
+    profile: bool,
 }
 
 impl Journal {
@@ -152,6 +153,7 @@ impl Journal {
             closing_end,
             next: first,
             phase: Phase::NeedsOpen,
+            profile: std::env::var_os("KG_TICKER_WAL_PROFILE").as_deref() == Some(std::ffi::OsStr::new("1")),
         })
     }
 
@@ -210,6 +212,7 @@ impl Journal {
         let end = first
             .checked_add(n as Int)
             .ok_or_else(|| Error::range("journal sequence overflow"))?;
+        let started = self.profile.then(Instant::now);
         let mut record = Vec::new();
         record.try_reserve_exact(32 + n * 32).map_err(|_| Error::memory())?;
         record.extend_from_slice(b"KGT2");
@@ -224,13 +227,21 @@ impl Journal {
                 }
             }
         }
+        let encoded = self.profile.then(Instant::now);
         let payload_crc = crc32fast::hash(&record[32..]);
         record[24..28].copy_from_slice(&payload_crc.to_le_bytes());
         let header_crc = crc32fast::hash(&record[..HEADER]);
         record[28..32].copy_from_slice(&header_crc.to_le_bytes());
         self.phase = Phase::NeedsOpen;
+        let checked = self.profile.then(Instant::now);
         self.file.write_all(&record).map_err(storage)?;
+        let written = self.profile.then(Instant::now);
         self.file.sync_data().map_err(storage)?;
+        if let (Some(a), Some(b), Some(c), Some(d)) = (started, encoded, checked, written) {
+            // Tracing must never change the success of a durable append, even with a closed stderr.
+            let _ = writeln!(io::stderr().lock(), "[\"wal_us\",{day},{first},{},{},{},{},{}]",
+                record.len(), (b-a).as_micros(), (c-b).as_micros(), (d-c).as_micros(), d.elapsed().as_micros());
+        }
         self.next = end;
         self.phase = Phase::Ready;
         Ok(Value::Int(end))

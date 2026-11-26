@@ -21,14 +21,16 @@ insertLarge(first;ts;sym;px;qty)::{[chunks];chunks::1+((#ts)-1):%65536;
     {insertChunk(x;first;ts;sym;px;qty)}'!chunks;1}
 insertBatch(first;ts;sym;px;qty)::{[n];n::#ts;
     :[n>65536;insertLarge(first;ts;sym;px;qty);insertBlock(first;ts;sym;px;qty)]}
+quoteSymbols::[];quotePrices::[]
+rememberQuotes(sym;px)::{[count];count::2048&#sym;quoteSymbols::(-count)#sym;quotePrices::(-count)#px;1}
 replayBatch(batch)::{[first];first::batch@0;need(first~nextSeq;"WAL sequence gap");
     insertBatch(first;batch@1;batch@2;batch@3;batch@4);
-    recentFirst::first;nextSeq::first+#(batch@1);wal([;:read;nextSeq])}
+    rememberQuotes(batch@2;batch@3);recentFirst::first;nextSeq::first+#(batch@1);wal([;:read;nextSeq])}
 openJournal()::{[state batch peer];wal:::[#journalAddr;{peer::.cli(journalAddr);.clit(peer;180);peer}();.tickerwal(journalDir)];
     state::wal([;:open;0]);dayNo::state@0;dayFirst::state@1;closing::state@2;
     nextSeq::dayFirst;recentFirst::dayFirst;batch::wal([;:read;nextSeq]);
     {#x} replayBatch:~batch;1}
-startHead(address)::{histAddr::address;makeBuffer'widths;live::.db(buffers);
+startHead(address)::{histAddr::address;quoteSymbols::[];quotePrices::[];makeBuffer'widths;live::.db(buffers);
     live("SET threads=least(current_setting('threads')::INTEGER,4)");live("SET temp_directory=''");
     need(0=live("SELECT count(*) FROM glob('rdb.duckdb')");"finish the legacy rdb.duckdb rollover and use a fresh head directory");
     live("ATTACH ':memory:' AS rdb");
@@ -50,10 +52,12 @@ publish(first;ts;sym;px;qty)::{[n reply];healthy();n::#ts;
         ready::0;:[#journalDir;logBatch(first;ts;sym;px;qty);1];
         live("COMMIT");1};[]);
     :[reply@0;1;{live("ROLLBACK");.err(reply@1)}()];
-    recentFirst::first;nextSeq::first+n;ready::1;:[#subs;fanout([;:onTicks;first;ts;sym;px;qty];nextSeq);0];nextSeq}
-latest(sym)::{[query result];healthy();query::"SELECT seq,px FROM rdb.ticks WHERE sym=",number(sym);
+    :[#journalDir;rememberQuotes(sym;px);{quoteSymbols::[];quotePrices::[]}()];recentFirst::first;nextSeq::first+n;ready::1;:[#subs;fanout([;:onTicks;first;ts;sym;px;qty];nextSeq);0];nextSeq}
+sqlQuote(key)::{[query result];query::"SELECT seq,px FROM rdb.ticks WHERE sym=",key;
     result::live(query," AND seq>=",(number(recentFirst))," ORDER BY seq DESC LIMIT 1");
     :[(#result)|recentFirst=dayFirst;result;live(query," ORDER BY seq DESC LIMIT 1")]}
+latest(sym)::{[key hits idx];healthy();key::number(sym);hits::quoteSymbols?sym;
+    :[#hits;{idx::hits@((#hits)-1);[;(nextSeq-#quoteSymbols)+idx;quotePrices@idx]}();sqlQuote(key)]}
 ticksFrom(first;n)::{healthy();need((n>0)&n<65537;"request 1 to 65536 rows");
     live("SELECT * FROM rdb.ticks WHERE seq>=",(number(first))," ORDER BY seq LIMIT ",number(n))}
 
@@ -61,13 +65,13 @@ liveStats()::{healthy();live("SELECT count(*),coalesce(sum(seq),0),coalesce(sum(
 closeSession()::{[path peer reply problem];need(nextSeq>dayFirst;"empty session");
     ready::0;:[#journalDir;need(nextSeq~wal([;:beginClose;dayNo;nextSeq]);"WAL close watermark mismatch");1];
     closing::1;ready::1;path::part(dayNo);
-    live("COPY rdb.ticks TO '",path,"' (FORMAT PARQUET)");
+    live("COPY rdb.ticks TO '",path,"' (FORMAT PARQUET, PARQUET_VERSION V2)");
     peer::.cli(histAddr);.clit(peer;180);reply::.try({peer([;:seal;dayNo;dayFirst;nextSeq])};[]);.clic(peer);
     :[reply@0;1;{problem::reply@1;.err(problem@"kind";problem@"message")}()];
     need(nextSeq~reply@1;"HDB did not confirm the closing watermark");
     ready::0;:[#journalDir;need(nextSeq~wal([;:finishClose;dayNo;nextSeq]);"WAL seal watermark mismatch");1];
     live("DELETE FROM rdb.ticks");
-    dayNo::dayNo+1;dayFirst::nextSeq;recentFirst::nextSeq;closing::0;ready::1;discardTransfer(dayNo-1);nextSeq}
+    quoteSymbols::[];quotePrices::[];dayNo::dayNo+1;dayFirst::nextSeq;recentFirst::nextSeq;closing::0;ready::1;discardTransfer(dayNo-1);nextSeq}
 roll(day)::{healthy();:[day~dayNo;closeSession():|(dayNo>0)&(day~dayNo-1);dayFirst;.err("range";"unexpected trading session")]}
 setJournal(path)::{need(0<#path;"journal directory required");
     :[("127.0.0.1:"~10#path)|("localhost:"~10#path);journalAddr::path;journalDir::path]}
