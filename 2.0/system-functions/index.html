@@ -6574,6 +6574,13 @@
 <a id="__codelineno-106-8" name="__codelineno-106-8" href="#__codelineno-106-8"></a>w([;:append;day;first;ts;sym;px;qty]) syncs the batch and returns
 <a id="__codelineno-106-9" name="__codelineno-106-9" href="#__codelineno-106-9"></a>its exclusive ending sequence. At rollover, beginClose and
 <a id="__codelineno-106-10" name="__codelineno-106-10" href="#__codelineno-106-10"></a>finishClose each take the trading day and ending sequence.
+<a id="__codelineno-106-11" name="__codelineno-106-11" href="#__codelineno-106-11"></a>
+<a id="__codelineno-106-12" name="__codelineno-106-12" href="#__codelineno-106-12"></a>Scan a daily WAL file with .tickerwal([;:scan;path;day;first]).
+<a id="__codelineno-106-13" name="__codelineno-106-13" href="#__codelineno-106-13"></a>The read-only scan returns status, reason, batches, validBytes
+<a id="__codelineno-106-14" name="__codelineno-106-14" href="#__codelineno-106-14"></a>and nextSeq for the consecutive verified prefix. Status is clean,
+<a id="__codelineno-106-15" name="__codelineno-106-15" href="#__codelineno-106-15"></a>torn or corrupt. Pass an optional one-argument function after
+<a id="__codelineno-106-16" name="__codelineno-106-16" href="#__codelineno-106-16"></a>first to receive each verified [first ts sym px qty] batch.
+<a id="__codelineno-106-17" name="__codelineno-106-17" href="#__codelineno-106-17"></a>Use a stopped writer's file or a stable copy.
 </code></pre></div>
 <h2 id="key-value-and-table-storage">Key-value and table storage<a class="headerlink" href="#key-value-and-table-storage" title="Permanent link">&para;</a></h2>
 <p>Load with <code>.py("klongpy.db")</code>. See <a href="../table_and_key_value_stores/">Table and Key-Value Stores</a>.</p>
