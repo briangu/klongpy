@@ -1,4 +1,5 @@
 :" Synthetic small-message feed on the load host. native_clients.kg supplies IPC and the clock."
+.l("./native_clients.kg")
 fMsg::0;fCap::0;fBurst::0;fAge::0;fTotal::0;fMade::0;fBusy::0
 fTs::[];fSym::[];fPx::[];fQty::[];fDue::0;fAt::0;fSealed::0;sealedAt::0
 messageDue()::{((fMade:%(fMsg*fBurst))*fMsg*fBurst)%rate}

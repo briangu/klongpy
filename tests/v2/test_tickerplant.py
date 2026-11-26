@@ -450,6 +450,16 @@ def test_historical_quote_index_and_legacy_days(kg, tmp_path):
     subprocess.run([*kg, "-e", expression], cwd=tmp_path, check=True, capture_output=True)
 
 
+def test_native_feed_keeps_configured_credentials(kg, tmp_path):
+    password = tmp_path / "password"
+    password.write_text("fixture\n")
+    clients = NativeClients(kg[0], tmp_path, password)
+    script = clients.script("feed-auth", 'emit(address("feed")~"feed:bench:fixture")',
+                            library=EXAMPLE / "native_feed.kg")
+    result = subprocess.run(script, cwd=tmp_path, capture_output=True, text=True, check=True)
+    assert json.loads(result.stdout) == 1
+
+
 @pytest.mark.parametrize("age", [0, 4])
 def test_native_small_message_feed(kg, tmp_path, unused_tcp_port_factory, age):
     (tmp_path / "transfer").mkdir()

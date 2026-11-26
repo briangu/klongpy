@@ -28,11 +28,11 @@ def emit(row):
 class NativeClients:
     def __init__(self, kg, directory, password_file):
         self.kg, self.directory = kg, directory
-        self.prelude = f'.l({literal(CLIENTS)});passFile::{literal(password_file or "")}\n'
+        self.password_file = password_file or ""
 
-    def script(self, name, source):
+    def script(self, name, source, *, library=CLIENTS):
         path = self.directory / (name + ".kg")
-        path.write_text(self.prelude + source)
+        path.write_text(f'.l({literal(library)});passFile::{literal(self.password_file)}\n' + source)
         return [self.kg, str(path)]
 
     def control(self, address, expressions):
@@ -55,12 +55,12 @@ class NativeClients:
         run = subprocess.run(self.script("clock", source), capture_output=True, text=True, check=True, timeout=30)
         return min(map(json.loads, run.stdout.splitlines()), key=lambda pair: pair[1]-pair[0])
 
-    def launch(self, stack, name, source):
+    def launch(self, stack, name, source, *, library=CLIENTS):
         log = self.directory / (name + ".jsonl")
         err = self.directory / (name + ".err")
         out = stack.enter_context(log.open("w"))
         errors = stack.enter_context(err.open("w"))
-        p = subprocess.Popen(self.script(name, source), stdout=out, stderr=errors)
+        p = subprocess.Popen(self.script(name, source, library=library), stdout=out, stderr=errors)
         def reap():
             if p.poll() is None:
                 p.kill()
@@ -144,15 +144,16 @@ def native_session(args, clients, rate, seconds, batch, depth, previous, phase=0
     message_rows = getattr(args, "feed_message_rows", None) if use_feed else None
     if message_rows:
         total = math.ceil(rate * seconds / message_rows) * message_rows
-        publisher = (f'.l({literal(CLIENTS.with_name("native_feed.kg"))});'
-                     f'feedPublisher({literal(args.head)};{first};{message_rows};{batch};{args.burst_messages};'
+        library = CLIENTS.with_name("native_feed.kg")
+        publisher = (f'feedPublisher({literal(args.head)};{first};{message_rows};{batch};{args.burst_messages};'
                      f'{args.max_age_ms/1000};{rate};{total};{start})')
     else:
+        library = CLIENTS
         publisher = f"publisher({literal(args.head)};{first};{batch};{depth};{rate};{seconds};{start})"
     with ExitStack() as stack:
         probes = [clients.launch(stack, f"quotes{i}", f"quotePhase::{phase};quotes({literal(addr)};{d};{args.query_hz};{start};{literal(stop)})")
                   for i, (addr, d) in enumerate(queries)]
-        pub = clients.launch(stack, "publisher", publisher)
+        pub = clients.launch(stack, "publisher", publisher, library=library)
         log = events(pub, "done", max(180, seconds*4))
         sent = [row[2] for row in log if row[0] == "send"]
         ack = [row[2] for row in log if row[0] == "ack"]

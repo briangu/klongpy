@@ -128,6 +128,8 @@ The new handoff selects DuckDB’s Parquet v2 encoding. Monotonic sequences and 
 
 ### Reproduce the measurements
 
+The qualification record lists SHA-256 hashes for the seven final harness files. Use the measured revision to reproduce those hashes. [Benchmark source at a17775c](https://github.com/briangu/klongpy/tree/a17775c87ad9b89d807c3a65512c77966141e6e9/examples/stocks/tickerplant)
+
 Use fresh working directories per configuration and preserve them through its consecutive sessions. Start two native subscribers using the [example instructions](README.md). Substitute your four IPC addresses and choose the 524,288-row staging limit in the head renderer. The cumulative sequence watermark, every archived row and both subscribers are checked before advancing the rate.
 
 ```sh
