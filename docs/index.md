@@ -13,6 +13,8 @@ The same interpreter is in firmware for microcontroller boards, and the tools `l
 
 ## Targets and status
 
+The native ticker plant example ingests trades over kdb+ IPC, serves quotes and rolls the trading day into a separate historical database. Its experimental in-memory RDB sustained **3.01M trades/s with a synchronous journal** and **5.24M/s in RAM only** on two 100 GbE hosts. Each rate passed two one-minute trials with both subscribers and both query clients active. [Hardware, rollover, query latency and missed reads](performance.md#finding-the-sustained-rate)
+
 | Target | Status | More |
 |---|---|---|
 | CPU (`kg`, and `kgpy` with NumPy) | stable; passes the conformance suite | [Start Here](getting-started.md) |

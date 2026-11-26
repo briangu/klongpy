@@ -1,19 +1,34 @@
 """Crash the live and historical servers on both sides of an end-of-day handoff."""
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, contextmanager
+import json
+import os
+import socket
 import subprocess
+import sys
 import threading
 import time
 
 import numpy as np
 import pytest
 
+from examples.stocks.tickerplant.sweep_head import render
+from examples.stocks.tickerplant.sweep_journal import records, replay
 from tests.ipc_helpers import free_port
 from .peer import connect
 from .runtime import ROOT, PROGRAMS
 
 
 EXAMPLE = ROOT / "examples/stocks/tickerplant"
+
+
+def test_tickerplant_duckdb_worker_budget(kg, tmp_path):
+    expression = (
+        f'.l("{(EXAMPLE / "head.kg").as_posix()}");startHead("");'
+        f'.l("{(EXAMPLE / "hdb.kg").as_posix()}");'
+        f'.l("{(PROGRAMS / "tickerplant_workers.kg").as_posix()}")'
+    )
+    subprocess.run([*kg, "-e", expression], cwd=tmp_path, check=True, timeout=20)
 
 
 @contextmanager
@@ -118,3 +133,87 @@ def test_tickerplant_two_publishers_claim_the_same_sequence(kg, tmp_path):
         assert writer.request("nextSeq") == 1
         row = writer.call("ticksFrom", 0, 8).tolist()
         assert row in ([0, 10, 7, 100, 2], [0, 10, 7, 101, 2])
+
+
+@pytest.mark.parametrize("rate,seconds", [(10000, .15), (0, 1.05)])
+def test_tickerplant_pipelined_publisher(kg, tmp_path, rate, seconds):
+    (tmp_path / "transfer").mkdir()
+    ports = set()
+    while len(ports) < 3:
+        ports.add(free_port())
+    head, hdb, subscriber = [f"127.0.0.1:{p}" for p in ports]
+    with ExitStack() as hosts:
+        for script, addr, peers in [("hdb.kg", hdb, []), ("head.kg", head, [hdb]),
+                                    ("subscriber.kg", subscriber, [head])]:
+            hosts.enter_context(running(kg, script, int(addr.split(":")[1]), tmp_path, *peers))
+        result = subprocess.run([sys.executable, "-m", "examples.stocks.tickerplant.bench",
+                                 "--head", head, "--hdb", hdb, "--subscriber", subscriber,
+                                 "--in-flight", "4", "--batch-cycle", "64", "128", "--rate", str(rate),
+                                 "--seconds", str(seconds), "--sessions", "2"], cwd=ROOT,
+                                capture_output=True, text=True, timeout=30)
+        assert result.returncode == 0, result.stderr
+        warm, measured = map(json.loads, result.stdout.splitlines())
+        assert measured["first"] == warm["end"]
+        assert measured["verified_rows"] == measured["end"] - measured["first"] >= max(64, rate * seconds)
+        assert measured["in_flight"] == 4 and measured["subscribers"] == 1
+        assert measured["live"]["round_trip"]["samples"] and measured["history"]["round_trip"]["samples"]
+        checkpoints = measured["acknowledged_each_second"]
+        assert len(checkpoints) == int(seconds)
+        assert all(0 < n <= measured["acknowledged_by_deadline"] for n in checkpoints)
+
+
+def test_tickerplant_wide_memory_fixture(kg, tmp_path):
+    source = tmp_path / "sweep-head.kg"
+    source.write_text(render((EXAMPLE / "head.kg").read_text(), 131072, True))
+    expression = f'.l("{source.as_posix()}");startHead("");.l("{(PROGRAMS / "tickerplant_sweep.kg").as_posix()}")'
+    subprocess.run([*kg, "-e", expression], cwd=tmp_path, check=True, timeout=20)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="the journal fixture uses POSIX file and directory sync")
+def test_tickerplant_sweep_journal_replay(kg, tmp_path):
+    (tmp_path / "transfer").mkdir()
+    ports = set()
+    while len(ports) < 3:
+        ports.add(free_port())
+    head, hdb, journal = ports
+    archive = f"127.0.0.1:{hdb}"
+    directory = tmp_path / "log"
+    password = tmp_path / "password"
+    password.write_text("ReplayTest")
+    source = tmp_path / "head-sweep.kg"
+    source.write_text(render((EXAMPLE / "head.kg").read_text(), 65536, True, str(journal), password.read_text()))
+    payload = np.arange(17)
+    with running(kg, "hdb.kg", hdb, tmp_path):
+        for restart in (False, True):
+            proc = subprocess.Popen([sys.executable, "-m", "examples.stocks.tickerplant.sweep_journal", "serve",
+                                     "--port", str(journal), "--directory", str(directory),
+                                     "--password-file", str(password)], cwd=ROOT)
+            try:
+                deadline = time.monotonic() + 10
+                while not directory.is_dir() and time.monotonic() < deadline:
+                    time.sleep(.02)
+                # A TCP connection checks the listener without sending a journal request.
+                while time.monotonic() < deadline:
+                    try:
+                        with socket.create_connection(("127.0.0.1", journal), timeout=.1):
+                            break
+                    except OSError:
+                        time.sleep(.02)
+                with running(kg, str(source), head, tmp_path, archive), connect(head) as client:
+                    if not restart:
+                        assert client.call("publish", 0, *([payload] * 4)) == 17
+                    else:
+                        assert replay(directory, f"127.0.0.1:{head}", archive) == (0, 17)
+                        result = client.call("ticksFrom", 0, 17)
+                        np.testing.assert_array_equal(result, np.column_stack([payload] * 5))
+                        assert client.call("publish", 17, *([payload] * 4)) == client.call("roll", 0) == 34
+            finally:
+                proc.kill()
+                proc.wait(timeout=5)
+    path = directory / "day-0.wal"
+    assert [seq for seq, _ in records(path, 0)] == [0, 17]
+    data = bytearray(path.read_bytes())
+    data[-1] ^= 1
+    path.write_bytes(data)
+    with pytest.raises(ValueError, match="damaged"):
+        list(records(path, 0))

@@ -1,0 +1,7 @@
+:" Run after starting the generated RAM head with a single-block limit of 131072."
+need("<memory>"~live("SELECT coalesce(path,'<memory>') FROM duckdb_databases() WHERE database_name='rdb'");"expected in-memory RDB")
+need(""~live("SELECT current_setting('temp_directory')");"spill must be disabled")
+insertLarge(first;ts;sym;px;qty)::{.err("range";"wide staging unexpectedly split the batch")}
+n::131072;a::!n
+need(n~publish(0;a;a;a;a);"wide batch watermark")
+need(n~live("SELECT count(*) FROM rdb.ticks");"wide batch count")

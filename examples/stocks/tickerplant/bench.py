@@ -1,16 +1,23 @@
 """Measure a native kg ticker plant over TCP. Run as a module from the source distribution."""
 import argparse
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 import json
+from itertools import accumulate
 import math
+import os
+from pathlib import Path
+import select
 import statistics
 import threading
 import time
 
 import numpy as np
 
+from klongpy.core import KGSym
+from klongpy.ipc import Message
 from tests.v2.peer import connect
 
 
@@ -27,6 +34,9 @@ class Watermarks:
 
 def endpoint(address):
     host, port = address.rsplit(":", 1)
+    path = os.environ.get("KG_TICKER_BENCH_PASSWORD_FILE")
+    if path:
+        return connect(int(port), host, timeout=180, user="bench", password=Path(path).read_text().rstrip("\r\n"))
     return connect(int(port), host, timeout=180)
 
 
@@ -145,6 +155,58 @@ def roll_with_probes(args, head, day, end, previous):
         return elapsed, live_probe.result(), hist_probe.result() if hist_probe else None
 
 
+def publish_batches(args, head, first, start, bounds):
+    """Keep a bounded number of ordered sync calls on one publisher connection."""
+    finish = start + args.seconds
+    seq, count = first, 0
+    pending = deque()
+    while True:
+        now = time.perf_counter()
+        due = start + (seq - first) / args.rate if args.rate else 0
+        more = count == 0 or (due or now) < finish
+        can_send = more and len(pending) < args.in_flight
+        if pending:
+            wait = max(0, pending[0][1] + head.timeout - now)
+            if can_send:
+                wait = min(wait, max(0, due - now))
+            if select.select([head.sock], [], [], wait)[0]:
+                data = head.sock.recv(65536)
+                received = time.perf_counter()
+                if not data:
+                    raise ConnectionError("publisher lost its connection waiting for a batch acknowledgment")
+                for event in head.session.feed(data):
+                    expected, sent, scheduled, request = pending.popleft()
+                    if (not isinstance(event, Message) or event.pending is not request or event.error
+                            or event.value != expected):
+                        raise ValueError(f"expected batch watermark {expected}, received {event}")
+                    yield expected, sent, scheduled, received
+                continue
+            if time.perf_counter() >= pending[0][1] + head.timeout:
+                raise TimeoutError("batch acknowledgment deadline expired")
+            if not can_send:
+                continue
+        if not more:
+            return
+        if due:
+            time.sleep(max(0, due - time.perf_counter()))
+        batch = args.batch_cycle[count % len(args.batch_cycle)] if args.batch_cycle else args.batch
+        payload = columns(seq, batch)
+        end = seq + batch
+        with bounds.lock:
+            bounds.submitted = end
+        sent = time.perf_counter()
+        if args.in_flight == 1:
+            ack = head.call("publish", seq, *payload)
+            if ack != end:
+                raise ValueError(f"unexpected watermark {ack} after {seq}")
+            yield end, sent, due, time.perf_counter()
+        else:
+            packet, request = head.session.send_sync([KGSym("publish"), seq, *payload], call=True, blocking=False)
+            head.sock.sendall(packet)
+            pending.append((end, sent, due, request))
+        seq, count = end, count + 1
+
+
 def run_session(args, head, hist, previous):
     day, first, day_first, closing = map(int, head.request("[;dayNo;nextSeq;dayFirst;closing]"))
     if first != day_first or closing:
@@ -152,6 +214,7 @@ def run_session(args, head, hist, previous):
     stop = threading.Event()
     next_seq = first
     acknowledged_in_window = 0
+    acknowledged_each_second = [0] * math.floor(args.seconds)
     acks, lag = [], []
     with ExitStack() as stack:
         readers = stack.enter_context(ThreadPoolExecutor(max_workers=2))
@@ -167,24 +230,12 @@ def run_session(args, head, hist, previous):
         try:
             start = time.perf_counter()
             finish = start + args.seconds
-            while True:
-                due = start + (next_seq - first) / args.rate if args.rate else 0
-                if acks and (due or time.perf_counter()) >= finish:
-                    break
-                if due:
-                    time.sleep(max(0, due - time.perf_counter()))
-                batch = args.batch_cycle[len(acks) % len(args.batch_cycle)] if args.batch_cycle else args.batch
-                payload = columns(next_seq, batch)
-                with bounds.lock:
-                    bounds.submitted = next_seq + batch
-                sent = time.perf_counter()
-                ack = head.call("publish", next_seq, *payload)
-                now = time.perf_counter()
-                if ack != next_seq + batch:
-                    raise ValueError(f"unexpected watermark {ack} after {next_seq}")
-                next_seq = ack
+            for next_seq, sent, due, now in publish_batches(args, head, first, start, bounds):
                 if now <= finish:
                     acknowledged_in_window = next_seq - first
+                    second = max(1, math.ceil(now - start))
+                    if second <= len(acknowledged_each_second):
+                        acknowledged_each_second[second - 1] = acknowledged_in_window
                 with bounds.lock:
                     bounds.acknowledged = next_seq
                 acks.append((now - sent) * 1000)
@@ -204,8 +255,9 @@ def run_session(args, head, hist, previous):
     n = next_seq - first
     return dict(day=day, first=first, end=next_seq, verified_rows=n, batch=args.batch_cycle or args.batch,
                 target_rows_s=args.rate, window_s=args.seconds, acknowledged_by_deadline=acknowledged_in_window,
+                acknowledged_each_second=list(accumulate(acknowledged_each_second, max)),
                 backlog_at_deadline=n-acknowledged_in_window, drain_s=max(0.0, ingest_seconds-args.seconds),
-                query_hz=args.query_hz, subscribers=len(subscribers), ingest_s=ingest_seconds,
+                query_hz=args.query_hz, in_flight=args.in_flight, subscribers=len(subscribers), ingest_s=ingest_seconds,
                 rows_s=n / ingest_seconds, roll_s=roll_seconds, ingest_and_roll_rows_s=n/(ingest_seconds+roll_seconds),
                 ack=timings(acks), ack_from_schedule=timings(lag), live=live_metrics, history=history_metrics,
                 roll_live=roll_live, roll_history=roll_hist)
@@ -216,6 +268,7 @@ def main():
     parser.add_argument("--head", default="127.0.0.1:5510")
     parser.add_argument("--hdb", default="127.0.0.1:5511")
     parser.add_argument("--subscriber", action="append", default=[], help="check this subscriber's receipt, repeat for fan-out")
+    parser.add_argument("--in-flight", type=int, default=1, help="maximum ordered batches awaiting reply")
     parser.add_argument("--batch", type=int, default=4096)
     parser.add_argument("--batch-cycle", type=int, nargs="+", help="rotate through these batch lengths")
     parser.add_argument("--seconds", type=float, default=10)
@@ -223,8 +276,10 @@ def main():
     parser.add_argument("--rate", type=float, default=0, help="offered trades/sec; zero saturates a synchronous publisher")
     parser.add_argument("--query-hz", type=float, default=20)
     args = parser.parse_args()
-    if min(args.batch, args.seconds, args.sessions, args.query_hz, *(args.batch_cycle or [])) <= 0 or args.rate < 0:
-        parser.error("batch, seconds, sessions and query-hz must be positive; rate must be nonnegative")
+    if min(args.in_flight, args.batch, args.seconds, args.sessions, args.query_hz, *(args.batch_cycle or [])) <= 0:
+        parser.error("batch sizes, in-flight limit, duration, sessions and query frequency must be positive")
+    if args.rate < 0:
+        parser.error("the offered rate must be nonnegative")
     with endpoint(args.head) as head, endpoint(args.hdb) as hist:
         day = int(head.request("dayNo"))
         previous = None

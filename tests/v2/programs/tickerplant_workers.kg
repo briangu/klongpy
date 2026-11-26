@@ -1,0 +1,5 @@
+:" Both databases can use up to four workers within DuckDB's detected CPU budget."
+defaults::.db(:{})
+budget::defaults("SELECT least(current_setting('threads')::INTEGER,4)")
+workers(db)::{db("SELECT current_setting('threads')::INTEGER")}
+:[(budget=workers(live))&(budget=workers(history));1;.err("range";"ticker plant worker budget mismatch")]

@@ -12,10 +12,10 @@ from .runtime import environment
 
 
 class Client:
-    def __init__(self, sock, timeout=10):
+    def __init__(self, sock, timeout=10, *, user="", password=""):
         self.sock = sock
         self.timeout = timeout
-        self.session = Session.client()
+        self.session = Session.client(user, password)
         sock.sendall(self.session.hello())
         event = self.receive()
         assert isinstance(event, HandshakeAccepted), f"IPC handshake failed: {event}"
@@ -48,10 +48,10 @@ class Client:
 
 
 @contextmanager
-def connect(port, host="127.0.0.1", timeout=10):
+def connect(port, host="127.0.0.1", timeout=10, *, user="", password=""):
     with closing(socket.create_connection((host, port), timeout=5)) as sock:
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        yield Client(sock, timeout)
+        yield Client(sock, timeout, user=user, password=password)
 
 
 @contextmanager

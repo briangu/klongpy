@@ -21,7 +21,7 @@ insertLarge(first;ts;sym;px;qty)::{[chunks reply problem];chunks::1+((#ts)-1):%6
     reply::.try({{insertChunk(x;first;ts;sym;px;qty)}'!chunks;live("COMMIT");1};[]);
     :[reply@0;1;{live("ROLLBACK");problem::reply@1;.err(problem@"kind";problem@"message")}()]}
 startHead(address)::{[state];histAddr::address;makeBuffer'widths;live::.db(buffers);
-    live("SET threads=1");live("ATTACH 'rdb.duckdb' AS rdb");
+    live("SET threads=least(current_setting('threads')::INTEGER,4)");live("ATTACH 'rdb.duckdb' AS rdb");
     live("CREATE TABLE IF NOT EXISTS rdb.ticks(seq BIGINT NOT NULL,ts BIGINT NOT NULL,sym BIGINT NOT NULL,px BIGINT NOT NULL,qty BIGINT NOT NULL)");
     live("CREATE TABLE IF NOT EXISTS rdb.control AS SELECT 0::BIGINT dayno,0::BIGINT firstseq,false closing");
     state::live("SELECT dayno,firstseq,closing::BIGINT FROM rdb.control");

@@ -71,7 +71,17 @@ The grouping timer starts after constructing the input and stops before checking
 
 ## Ticker plant throughput and rollover
 
-The native ticker plant accepts kdb+ IPC batches, commits them to the RDB and sends each batch to two subscribers. A separate native HDB imports closed sessions. The test used three Kubernetes nodes, with the head on an AMD EPYC node, the HDB on a separate Intel node, and the publisher, subscribers and query clients on a third node. Each pod had a four-CPU limit and 8 GiB of memory. The databases used node-local storage. Only the Parquet handoff crossed the shared filesystem. The Linux servers ran the previously qualified x86-64 RC1 binary with the new Klong example programs.
+On November 21, 2026, the native ticker plant sustained **750,150–750,235 synthetic trades/s** across three one-minute runs. Including end-of-session rollover, the three rates ranged from **662,072 to 664,659 trades/s**. In each run, the publisher sent batches of 32,768 trades over kdb+ IPC. The head committed each batch to the real-time database (RDB) and waited for both subscribers to acknowledge it. A separate historical database (HDB) served the previous session while the head ingested the current one.
+
+The benchmark ran on three Linux x86-64 Kubernetes nodes, with one pod per node. Kubernetes limited **each pod to four CPUs and 8 GiB of RAM**.
+
+| Pod role | Host processor | Physical cores / hardware threads on host |
+|---|---|---:|
+| Ticker plant head and RDB | AMD EPYC 7773X | 64 / 128 |
+| HDB | Intel Core i9-11900K | 8 / 16 |
+| Publisher, two subscribers and both query clients | Intel Core i7-11700K | 8 / 16 |
+
+Both databases used node-local NVMe storage with ext4. The head transferred closed sessions to the HDB as Parquet files over NFS. The servers ran the native `kg` executable from the November 19 RC1 Linux wheel (SHA-256 prefix `c8855a024400`) with the new Klong example programs.
 
 The feed had 1,024 instrument IDs, integer prices, quantities and nanosecond timestamps. One ordered publisher waited for each batch acknowledgment. Both subscribers checked sequence continuity, returned their processed watermark and had their total volume checked. Independent IPC clients requested the latest live and historical prices at 20 queries per second each. After each rollover the driver checked every stored payload field, distinct sequence coverage and row count.
 
@@ -84,11 +94,91 @@ The feed had 1,024 instrument IDs, integer prices, quantities and nanosecond tim
 
 The variable-size feed initially managed 74k–79k trades/s because the head reopened its database when the batch width changed. Reusing power-of-two staging buffers on one connection made the median rate 5.9× higher. A partial batch writes only valid rows. Larger messages can span multiple buffers inside a single transaction.
 
-The run with rollover probes processed 45,023,232 trades in 60.012 seconds. Batch acknowledgment p99 was 108.8 ms. During ingestion, live-query round-trip p99 was 97.4 ms and historical-query p99 was 20.4 ms. The live client missed 101 scheduled query slots. The historical client missed zero. The last batch drained 12 ms after the offer window. Closing this session took 7.99 s. A live query issued during the handoff waited 7.98 s and a historical query waited 3.06 s.
+Each one-minute run verified 45,023,232 trades. Ingest time includes generation, IPC, database commits and subscriber acknowledgments through the final batch. Dividing the verified count by ingest time plus rollover time gives the last column. The independent check of archived rows ran outside the timer.
+
+| One-minute session | Ingest (s) | Rollover (s) | Ingest (trades/s) | Including rollover (trades/s) |
+|---|---:|---:|---:|---:|
+| 33 | 60.019 | 7.896 | 750,150 | 662,931 |
+| 39 | 60.014 | 7.725 | 750,216 | 664,659 |
+| 41 (queries also measured during rollover) | 60.012 | 7.991 | 750,235 | 662,072 |
+
+In session 41, the final batch drained 12 ms after the offer window. Batch acknowledgment p99 was 108.8 ms. During ingestion, live-query round-trip p99 was 97.4 ms and historical-query p99 was 20.4 ms. The live client missed 101 scheduled query slots. The historical client missed zero. During rollover, a live query waited 7.98 s and a historical query waited 3.06 s.
 
 After the load runs, the publisher left 1,048,576 acknowledged trades in an open session. Both database processes were killed. The recovered head returned the same watermark and rolled the open session. After another forced restart, the verifier checked every payload field and sequence for **352,108,704 trades across 43 sessions**. This tests process death with the same storage available.
 
 At an offered 1.6M trades/s, 1,179,648 trades were still awaiting acknowledgment at the end of the 15-second window. Draining the queue took another 0.59 s and the HDB handoff took 4.28 s. The measured arrival schedule begins when a batch is due. A live feed must also budget for the time it takes to fill the batch. [Example and commands](https://github.com/briangu/klongpy/tree/main/examples/stocks/tickerplant)
+
+### Milan and Tinkara over 100 GbE
+
+On November 25, the same Linux RC1 executable and workload ran on two AMD EPYC 7773X hosts. Milan ran the head. Tinkara ran the HDB and load generator in separate pods, with both subscribers and query clients on the load generator. Each pod retained its four-CPU and 8 GiB limits. The publisher and both subscriber streams used the hosts' 100 GbE interfaces. Historical queries stayed on Tinkara. Both databases used local NVMe, and the Parquet handoff used the NFS server on the 10 GbE network. The control runs changed the IPC addresses to the same hosts' 10 GbE interfaces.
+
+| Two-subscriber workload | 100 GbE ingest | 10 GbE ingest | 100 GbE including rollover | 10 GbE including rollover |
+|---|---:|---:|---:|---:|
+| 750k trades/s offered for 60 s, batches of 32,768 | 750k/s | 750k/s | 660k–666k/s | 666k/s |
+| Unpaced for 8 s, batches of 65,536 (median of three runs per link) | 1.412M/s | 1.359M/s | 1.111M/s | 1.075M/s |
+| Unpaced for 60 s, batches of 65,536 (one run per link) | 1.372M/s | 1.441M/s | 1.096M/s | 1.131M/s |
+
+The unpaced 100 GbE minute verified 82,313,216 trades. Live-query round-trip p99 was 110.2 ms, with 206 missed query slots. Historical-query p99 was 10.2 ms with none missed. During 54 interior one-second samples, Milan's 100 GbE interface averaged 0.37 Gbit/s received and 0.73 Gbit/s transmitted. Those are host interface counters. The faster link won the short-run median, and the 10 GbE control won the one-minute pair.
+
+### Tuning durable commits and rollover
+
+On the same 100 GbE route, a 12-second profile split 247 batches into explicit transactions. The head spent 7.16 s in DuckDB's `COMMIT`, 0.88 s executing the inserts and 0.12 s in `BEGIN`. A separate 12-second run timed 1.59 s delivering batches to the two subscribers. This led to a change in the ticker plant example: both databases can now use up to four DuckDB workers within the engine's detected CPU budget. The RC1 example used one worker on the head and two on the HDB. The comparison used standard disk sync, the default 16 MiB checkpoint threshold and the same RC1 executable for both configurations.
+
+At **750,000 trades/s offered**, each configuration verified 45,023,232 rows in one minute. With the higher worker limits, batch acknowledgment p99 fell from **103.3 to 63.7 ms**, live-query p99 from **83.0 to 53.3 ms**, and missed live-query slots from 53 to 14. Rollover fell from **7.99 to 5.88 s**. Throughput including rollover rose from **662,103 to 683,376 trades/s**. This fixed-work comparison used one run per configuration and 32,768 trades per batch.
+
+The unpaced comparison used three paired one-minute trials with 65,536 trades per batch and alternated which configuration ran first. The HDB accumulated sessions throughout. The figures below are medians across runs, including medians of the individual run p99s.
+
+| Unpaced workload | RC1 worker limits | Up to four workers per database |
+|---|---:|---:|
+| Ingest rate | 1.712M trades/s | 1.633M trades/s |
+| Rate including rollover | 1.264M trades/s | 1.318M trades/s |
+| Batch acknowledgment p99 | 116.0 ms | 88.9 ms |
+| Live-query round-trip p99 | 106.8 ms | 75.5 ms |
+| Historical-query round-trip p99 | 34.7 ms | 35.9 ms |
+
+### In-memory intraday trades on 100 GbE
+
+On November 25, Milan hosted the ticker plant and Tinkara hosted two subscribers, the publisher, both quote clients and a separate disk-backed HDB. The head and HDB each used four DuckDB workers. All three pods had four CPUs. The head had 16 GiB of memory and each Tinkara pod had 8 GiB. Each configuration started with a fresh trading history, seeded a day, ran a minute at 750,000 trades/s with 32,768 trades per batch, then ran an unpaced minute with 65,536 trades per batch. The two RAM configurations attached DuckDB's `:memory:` database and disabled temporary-file spill. The disk control used local NVMe. All three used the same RC1 Linux executable, synthetic trades, subscriber checks, concurrent quote queries and Parquet handoff to the HDB.
+
+| One unpaced minute, one run per configuration | Disk RDB | RAM RDB + synchronous journal | RAM RDB only |
+|---|---:|---:|---:|
+| Verified trades | 87,162,880 | 104,726,528 | 182,517,760 |
+| Ingest, million trades/s | 1.452 | 1.745 | 3.042 |
+| Including rollover, million trades/s | 1.189 | 1.388 | 2.024 |
+| Rollover | 13.24 s | 15.43 s | 30.17 s |
+| Batch acknowledgment p99 | 89.5 ms | 54.4 ms | 33.7 ms |
+| Live quote p99 | 77.8 ms | 39.3 ms | 25.6 ms |
+| Historical quote p99 | 7.5 ms | 7.9 ms | 9.4 ms |
+
+At the fixed 750,000/s offer, each run verified 45,023,232 trades. Live-quote p99 was 65.0 ms on disk, 31.3 ms with the journal, and 14.6 ms in RAM only. Rollover took 6.27, 6.36 and 5.61 seconds, respectively. The original 8 GiB head could hold the paced session. In its unpaced RAM-only run, DuckDB reached its 6.3 GiB allocation limit after 155,648,000 acknowledgments and rejected the next batch. The table uses the reruns with equal headroom across storage configurations.
+
+The experimental journal runs as a separate process on Milan. For every batch it appends the sequence watermark and four integer columns to a checksummed daily file, calls `fdatasync` on local NVMe, and replies before the head forwards the batch to the subscribers. In a separate recovery check, both head and journal processes were killed after acknowledging three batches. Replaying the journal into an empty RDB restored all 491 trades and their fields. The restarted head accepted 59 further trades and the HDB verified the complete 550-row session. This checks process recovery on the same disk. RAM-only acknowledgments depend on the head staying alive until rollover. The shipped RC1 example uses the disk RDB.
+
+#### Finding the sustained rate
+
+The rate search kept the same two hosts, one native head, two synchronous subscribers and both query clients. It raised the head pod limits to 24 CPUs and 40 GiB, the HDB to 16 CPUs and 24 GiB, and the load pod to 16 CPUs and 16 GiB. The experimental head could stage a single batch of up to 524,288 trades. Five-second probes varied batch size, DuckDB worker count and the number of ordered batches awaiting acknowledgment on one publisher connection. Every trial closed its session and verified its HDB data. [Load driver and rate-search commands](https://github.com/briangu/klongpy/tree/main/examples/stocks/tickerplant)
+
+In RAM-only trials with 524,288 trades per batch, eight DuckDB workers on each database and up to four batches in flight, the eight-second probe passed at 6,553,600 offered trades/s with a four-batch backlog allowance. The full minute at the same rate fell 160 batches behind and took another 18.76 seconds to drain. A separate strict-deadline search confirmed 3,538,944 trades/s in two minutes run as separate trading days. All 212,336,640 trades per day were acknowledged before the deadline. Live quotes missed 313 and 227 scheduled slots during ingest, and rollover took 33.05 and 35.32 seconds.
+
+With at most four outstanding scheduled batches allowed at each one-second checkpoint, the RAM-only search confirmed **5,242,880 offered trades/s** twice. Each run verified **314,572,800 trades**. The first had one batch outstanding at the deadline and drained it in 49 ms. The second acknowledged every trade inside the minute. At the next step, **5,373,952/s**, the head caught up by the deadline but reached six outstanding batches during ingest. Across the two passing runs, Milan's 100 GbE host interface averaged about **1.40 Gbit/s received and 2.81 Gbit/s transmitted** during ingest.
+
+The journaled sweep selected 262,144 trades per batch, 8 RDB workers and up to 4 batches in flight. It confirmed **3,014,656 offered trades/s** twice. The next rate seen to miss was **3,145,728/s**. The four-batch budget and second-half progress check applied to both configurations. Each quote client targeted 20 reads/s. The HDB accumulated trading days throughout each search.
+
+| Two one-minute confirmations | RAM RDB + synchronous journal | RAM RDB only |
+|---|---:|---:|
+| Offered trades/s | 3,014,656 | 5,242,880 |
+| Verified trades per minute | 180,879,360 | 314,572,800 |
+| Trades acknowledged by the deadline | 180,879,360 | 314,048,512–314,572,800 |
+| Drain after the deadline | 0.0 ms | 0.0–49.2 ms |
+| Rate including rollover | 1.986–2.050M trades/s | 2.640–2.731M trades/s |
+| Rollover | 28.23–31.07 s | 55.21–59.09 s |
+| Batch acknowledgment p99 | 114.8–118.4 ms | 159.7–161.7 ms |
+| Live quote p99 | 75.0–77.4 ms | 63.1–74.3 ms |
+| Historical quote p99 | 65.9–71.4 ms | 171.7–177.1 ms |
+| Missed live quote slots | 244–253 | 86–174 |
+| Missed historical quote slots | 273–364 | 828–838 |
+
+A passing rate qualifies the trade stream under the stated backlog budget. The quote clients skipped slots when a preceding request was still in flight. Every completed quote and all archived trade fields were checked. The [machine-readable measurements](https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/results/2026-11-25-100gbe.jsonl) include the failed attempts, one-second progress in the bounded-backlog searches and each run’s query timings.
 
 ## Streaming tables and queries
 
