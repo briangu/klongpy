@@ -912,6 +912,34 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#native-wal-and-native-clients-on-100-gbe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native WAL and native clients on 100 GbE
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Native WAL and native clients on 100 GbE">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-this-compares-with-kdbtick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How this compares with kdb+tick
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2461,6 +2489,34 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#native-wal-and-native-clients-on-100-gbe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native WAL and native clients on 100 GbE
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Native WAL and native clients on 100 GbE">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-this-compares-with-kdbtick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How this compares with kdb+tick
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3139,7 +3195,7 @@
 <th>One unpaced minute, one run per configuration</th>
 <th style="text-align: right;">Disk RDB</th>
 <th style="text-align: right;">RAM RDB + synchronous journal</th>
-<th style="text-align: right;">RAM RDB only</th>
+<th style="text-align: right;">RAM RDB, WAL disabled</th>
 </tr>
 </thead>
 <tbody>
@@ -3187,19 +3243,19 @@
 </tr>
 </tbody>
 </table>
-<p>At the fixed 750,000/s offer, each run verified 45,023,232 trades. Live-quote p99 was 65.0 ms on disk, 31.3 ms with the journal, and 14.6 ms in RAM only. Rollover took 6.27, 6.36 and 5.61 seconds, respectively. The original 8 GiB head could hold the paced session. In its unpaced RAM-only run, DuckDB reached its 6.3 GiB allocation limit after 155,648,000 acknowledgments and rejected the next batch. The table uses the reruns with equal headroom across storage configurations.</p>
-<p>The experimental journal runs as a separate process on Milan. For every batch it appends the sequence watermark and four integer columns to a checksummed daily file, calls <code>fdatasync</code> on local NVMe, and replies before the head forwards the batch to the subscribers. In a separate recovery check, both head and journal processes were killed after acknowledging three batches. Replaying the journal into an empty RDB restored all 491 trades and their fields. The restarted head accepted 59 further trades and the HDB verified the complete 550-row session. This checks process recovery on the same disk. RAM-only acknowledgments depend on the head staying alive until rollover. The shipped RC1 example uses the disk RDB.</p>
+<p>At the fixed 750,000/s offer, each run verified 45,023,232 trades. Live-quote p99 was 65.0 ms on disk, 31.3 ms with the journal, and 14.6 ms with the WAL disabled. Rollover took 6.27, 6.36 and 5.61 seconds, respectively. The original 8 GiB head could hold the paced session. In its unpaced run with the WAL disabled, DuckDB reached its 6.3 GiB allocation limit after 155,648,000 acknowledgments and rejected the next batch. The table uses the reruns with equal headroom across storage configurations.</p>
+<p>The November 25 benchmark ran its Python journal writer as a separate process on Milan. For every batch it appended the sequence watermark and four integer columns to a checksummed daily file, called <code>fdatasync</code> on local NVMe, and replied before the head forwarded the batch to the subscribers. In a separate recovery check, both head and journal processes were killed after acknowledging three batches. Replaying the journal into an empty RDB restored all 491 trades and their fields. The restarted head accepted 59 further trades and the HDB verified the complete 550-row session. This checks process recovery on the same disk. With the WAL disabled, the head must stay up through rollover to retain the open day. The tagged RC1 example used the disk RDB. In the current source example, the native head writes the WAL in-process and replays it into a RAM RDB before serving. The November 25 rates below describe the earlier writer. <a href="https://github.com/briangu/klongpy/tree/main/examples/stocks/tickerplant#restart-and-rollover">Startup and recovery</a></p>
 <h4 id="finding-the-sustained-rate">Finding the sustained rate<a class="headerlink" href="#finding-the-sustained-rate" title="Permanent link">&para;</a></h4>
 <p>The rate search kept the same two hosts, one native head, two synchronous subscribers and both query clients. It raised the head pod limits to 24 CPUs and 40 GiB, the HDB to 16 CPUs and 24 GiB, and the load pod to 16 CPUs and 16 GiB. The experimental head could stage a single batch of up to 524,288 trades. Five-second probes varied batch size, DuckDB worker count and the number of ordered batches awaiting acknowledgment on one publisher connection. Every trial closed its session and verified its HDB data. <a href="https://github.com/briangu/klongpy/tree/main/examples/stocks/tickerplant">Load driver and rate-search commands</a></p>
-<p>In RAM-only trials with 524,288 trades per batch, eight DuckDB workers on each database and up to four batches in flight, the eight-second probe passed at 6,553,600 offered trades/s with a four-batch backlog allowance. The full minute at the same rate fell 160 batches behind and took another 18.76 seconds to drain. A separate strict-deadline search confirmed 3,538,944 trades/s in two minutes run as separate trading days. All 212,336,640 trades per day were acknowledged before the deadline. Live quotes missed 313 and 227 scheduled slots during ingest, and rollover took 33.05 and 35.32 seconds.</p>
-<p>With at most four outstanding scheduled batches allowed at each one-second checkpoint, the RAM-only search confirmed <strong>5,242,880 offered trades/s</strong> twice. Each run verified <strong>314,572,800 trades</strong>. The first had one batch outstanding at the deadline and drained it in 49 ms. The second acknowledged every trade inside the minute. At the next step, <strong>5,373,952/s</strong>, the head caught up by the deadline but reached six outstanding batches during ingest. Across the two passing runs, Milan's 100 GbE host interface averaged about <strong>1.40 Gbit/s received and 2.81 Gbit/s transmitted</strong> during ingest.</p>
+<p>In trials with the WAL disabled, 524,288 trades per batch, eight DuckDB workers on each database and up to four batches in flight, the eight-second probe passed at 6,553,600 offered trades/s with a four-batch backlog allowance. The full minute at the same rate fell 160 batches behind and took another 18.76 seconds to drain. A separate strict-deadline search confirmed 3,538,944 trades/s in two minutes run as separate trading days. All 212,336,640 trades per day were acknowledged before the deadline. Live quotes missed 313 and 227 scheduled slots during ingest, and rollover took 33.05 and 35.32 seconds.</p>
+<p>With at most four outstanding scheduled batches allowed at each one-second checkpoint, the search with the WAL disabled confirmed <strong>5,242,880 offered trades/s</strong> twice. Each run verified <strong>314,572,800 trades</strong>. The first had one batch outstanding at the deadline and drained it in 49 ms. The second acknowledged every trade inside the minute. At the next step, <strong>5,373,952/s</strong>, the head caught up by the deadline but reached six outstanding batches during ingest. Across the two passing runs, Milan's 100 GbE host interface averaged about <strong>1.40 Gbit/s received and 2.81 Gbit/s transmitted</strong> during ingest.</p>
 <p>The journaled sweep selected 262,144 trades per batch, 8 RDB workers and up to 4 batches in flight. It confirmed <strong>3,014,656 offered trades/s</strong> twice. The next rate seen to miss was <strong>3,145,728/s</strong>. The four-batch budget and second-half progress check applied to both configurations. Each quote client targeted 20 reads/s. The HDB accumulated trading days throughout each search.</p>
 <table>
 <thead>
 <tr>
 <th>Two one-minute confirmations</th>
 <th style="text-align: right;">RAM RDB + synchronous journal</th>
-<th style="text-align: right;">RAM RDB only</th>
+<th style="text-align: right;">RAM RDB, WAL disabled</th>
 </tr>
 </thead>
 <tbody>
@@ -3261,6 +3317,112 @@
 </tbody>
 </table>
 <p>A passing rate qualifies the trade stream under the stated backlog budget. The quote clients skipped slots when a preceding request was still in flight. Every completed quote and all archived trade fields were checked. The <a href="https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/results/2026-11-25-100gbe.jsonl">machine-readable measurements</a> include the failed attempts, one-second progress in the bounded-backlog searches and each run’s query timings.</p>
+<h3 id="native-wal-and-native-clients-on-100-gbe">Native WAL and native clients on 100 GbE<a class="headerlink" href="#native-wal-and-native-clients-on-100-gbe" title="Permanent link">&para;</a></h3>
+<p>On November 26 UTC (November 25 in California), Milan ran one native <code>kg</code> head with a RAM-only DuckDB RDB. Its in-process WAL synced each batch on local NVMe before subscriber delivery. Tinkara ran the publisher, two subscribers, two quote readers and the disk-backed HDB as six separate native <code>kg</code> processes. Both subscribers checked the incoming sequence and returned their cursors before the publisher received its acknowledgment. The Python benchmark harness launched the clients, collected timings and verified their output. Every IPC request and reply used native <code>kg</code>. This run used a Linux build from the source checkout, SHA-256 <code>e172c476fcc9…</code>.</p>
+<p>The fixed-resource tests used the same four-CPU pod limits and memory budgets as the previous in-memory comparison. Each workload ran for one minute with four DuckDB workers per database and one publisher batch in flight. Both quote readers targeted 20 queries/s. The HDB verified every archived trade after rollover.</p>
+<table>
+<thead>
+<tr>
+<th>Workload</th>
+<th>WAL</th>
+<th style="text-align: right;">Verified trades</th>
+<th style="text-align: right;">Ingest trades/s</th>
+<th style="text-align: right;">Including rollover</th>
+<th style="text-align: right;">Live / historical query p99</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>750,000/s offered</td>
+<td>Native</td>
+<td style="text-align: right;">45,023,232</td>
+<td style="text-align: right;">750,309</td>
+<td style="text-align: right;">686,966/s</td>
+<td style="text-align: right;">25.8 / 4.1 ms</td>
+</tr>
+<tr>
+<td>Unpaced</td>
+<td>Native</td>
+<td style="text-align: right;">106,954,752</td>
+<td style="text-align: right;">1,781,461</td>
+<td style="text-align: right;">1,409,253/s</td>
+<td style="text-align: right;">40.0 / 5.6 ms</td>
+</tr>
+<tr>
+<td>750,000/s offered</td>
+<td>Disabled</td>
+<td style="text-align: right;">45,023,232</td>
+<td style="text-align: right;">750,364</td>
+<td style="text-align: right;">682,691/s</td>
+<td style="text-align: right;">13.2 / 4.1 ms</td>
+</tr>
+<tr>
+<td>Unpaced</td>
+<td>Disabled</td>
+<td style="text-align: right;">199,688,192</td>
+<td style="text-align: right;">3,327,752</td>
+<td style="text-align: right;">2,151,627/s</td>
+<td style="text-align: right;">21.5 / 5.9 ms</td>
+</tr>
+</tbody>
+</table>
+<p>The expanded native-WAL sweep selected 524,288 trades per batch, four RDB workers, eight HDB workers and up to eight batches in flight. It confirmed <strong>3,801,088 offered trades/s</strong> in two one-minute runs, 26% above the earlier 3,014,656/s result on the same hosts. The WAL implementation, publisher, quote readers and selected batch settings all changed between runs. Each native-WAL run verified 228,065,280 trades. At the deadline, 227,540,992 trades had been acknowledged. The last batch drained in 13–36 ms. Milan’s 100 GbE interface averaged 1.02 Gbit/s received and 2.04 Gbit/s transmitted during ingest, with zero observed drops or errors.</p>
+<p>Each expanded search selected its own batch size, worker count and pipeline depth. The four-batch budget checks the backlog at every one-second checkpoint and bounds the final drain. The end-of-minute rule requires every whole batch due by 60 seconds to have been acknowledged. All winning rates below scheduled an exact number of batches. The HDB started fresh in each search and accumulated the earlier trials.</p>
+<table>
+<thead>
+<tr>
+<th>WAL</th>
+<th>Deadline rule</th>
+<th style="text-align: right;">Confirmed offered trades/s</th>
+<th style="text-align: right;">Next observed miss</th>
+<th style="text-align: right;">Including rollover, M trades/s</th>
+<th style="text-align: right;">Live quote p99</th>
+<th style="text-align: right;">Historical quote p99</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Native</td>
+<td>Four-batch budget</td>
+<td style="text-align: right;">3,801,088</td>
+<td style="text-align: right;">3,932,160</td>
+<td style="text-align: right;">2.26–2.27</td>
+<td style="text-align: right;">124.7–126.2 ms</td>
+<td style="text-align: right;">89.8–99.5 ms</td>
+</tr>
+<tr>
+<td>Disabled</td>
+<td>Four-batch budget</td>
+<td style="text-align: right;">4,980,736</td>
+<td style="text-align: right;">5,111,808</td>
+<td style="text-align: right;">2.58–2.60</td>
+<td style="text-align: right;">83.0–84.4 ms</td>
+<td style="text-align: right;">174.4–189.7 ms</td>
+</tr>
+<tr>
+<td>Native</td>
+<td>End-of-minute</td>
+<td style="text-align: right;">3,145,728</td>
+<td style="text-align: right;">3,276,800</td>
+<td style="text-align: right;">1.98–2.03</td>
+<td style="text-align: right;">126.6–132.5 ms</td>
+<td style="text-align: right;">82.8–85.1 ms</td>
+</tr>
+<tr>
+<td>Disabled</td>
+<td>End-of-minute</td>
+<td style="text-align: right;">3,407,872</td>
+<td style="text-align: right;">3,538,944</td>
+<td style="text-align: right;">2.17–2.23</td>
+<td style="text-align: right;">49.9–59.4 ms</td>
+<td style="text-align: right;">158.7–159.1 ms</td>
+</tr>
+</tbody>
+</table>
+<p>Both WAL-disabled confirmations under the four-batch rule acknowledged all 298,844,160 trades by the deadline. In the corresponding native-WAL confirmations, the live reader missed 509 and 530 scheduled slots and the historical reader missed 601 and 603. With the WAL disabled, the live reader missed 286 and 341 slots and the historical reader missed 821 and 868. Each reader targeted 1,200 slots per minute. Query p99 covers completed calls.</p>
+<p>A separate recovery trial killed the native head with <code>SIGKILL</code> after 491 acknowledged trades. On restart it replayed all 491 from its WAL into an empty RDB. Two subscribers connected at the restored cursor, the publisher added 59 trades, and the HDB verified all 550 after rollover. This exercised process loss with the local WAL disk intact. Across the fixed workloads and all four searches, the HDB verified 13,652,017,152 synthetic trades in 149 sessions, including seeds and failed rate attempts. The separate recovery check verified another 550 rows. <a href="https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/results/2026-11-26-native-100gbe.jsonl">Trial records, hardware, executable hashes and counters</a></p>
+<h4 id="how-this-compares-with-kdbtick">How this compares with kdb+tick<a class="headerlink" href="#how-this-compares-with-kdbtick" title="Permanent link">&para;</a></h4>
+<p>KX gives a sizing figure of up to 4.5 million streaming records/s per core and up to 10 million records/s with batching. Its reference ticker plant publishes updates asynchronously. Our 3.80M trades/s measurement includes a local WAL sync and acknowledgment by two subscribers, with four DuckDB workers configured for the RDB. We have yet to measure KX q on Milan and Tinkara with the same durability, subscriber, query and rollover requirements. Our direct comparison with PeachQ below uses a separate single-threaded workload. <a href="https://code.kx.com/q/wp/disaster-recovery/">KX sizing guidance</a> · <a href="https://github.com/KxSystems/kdb-tick/blob/master/tick/u.q">KX subscriber implementation</a></p>
 <h2 id="streaming-tables-and-queries">Streaming tables and queries<a class="headerlink" href="#streaming-tables-and-queries" title="Permanent link">&para;</a></h2>
 <p>On 2026-11-20 UTC, standalone <code>kg</code> from the installed <strong>2.0.0rc1</strong> Linux x86-64 wheel ingested <strong>0.959–0.977 million rows/s</strong> over six controlled trials on an AMD EPYC 7773X. A loopback client loaded 1,048,576 rows into memory in 256-row batches. In a separate phase, a writer offered 25,600 rows/s against 32,768 preloaded rows while two clients queried last price and as-of bid. Each trial checked the query results and final row counts. Query latency runs from the scheduled time to the reply.</p>
 <p>The reference was PeachQ 0.92. Both servers used one query-engine thread. Each series contains three paired <code>kg</code>/PeachQ trials, alternating which server ran first. In the controlled series, each server ran on CPU 8 and the clients used CPUs 9–12 on the same socket. All processes shared a six-CPU container quota. The source archive SHA-256 starts with <code>547dd7b9e927</code>, the Linux wheel's with <code>9b6fcffb0e85</code>, the standalone executable's with <code>c8855a024400</code>, and the PeachQ executable's with <code>69a0befb1abc</code>.</p>

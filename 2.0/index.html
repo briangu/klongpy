@@ -2160,7 +2160,7 @@
 </table>
 <p>The same interpreter is in firmware for microcontroller boards, and the tools <code>lint</code>, <code>check</code>, <code>compile c</code>, <code>fpga source</code> and <code>ast</code> run from either command. <a href="what-runs-where/">What Runs Where</a> says which part does what.</p>
 <h2 id="targets-and-status">Targets and status<a class="headerlink" href="#targets-and-status" title="Permanent link">&para;</a></h2>
-<p>The native ticker plant example ingests trades over kdb+ IPC, serves quotes and rolls the trading day into a separate historical database. Its experimental in-memory RDB sustained <strong>3.01M trades/s with a synchronous journal</strong> and <strong>5.24M/s in RAM only</strong> on two 100 GbE hosts. Each rate passed two one-minute trials with both subscribers and both query clients active. <a href="performance/#finding-the-sustained-rate">Hardware, rollover, query latency and missed reads</a></p>
+<p>A post-RC1 build of the native ticker plant sustained <strong>3.80M offered trades/s with its in-process WAL</strong> on two AMD EPYC hosts connected by 100 GbE. The head kept the intraday RDB in RAM and synced each batch to local NVMe. Two native <code>kg</code> subscribers acknowledged trades while native clients queried live and historical quotes. Both one-minute confirmations verified 228,065,280 trades after rollover, averaging <strong>2.26–2.27M trades/s</strong> including the handoff to the HDB. <a href="performance/#native-wal-and-native-clients-on-100-gbe">Throughput, latency and missed queries</a></p>
 <table>
 <thead>
 <tr>
