@@ -8,3 +8,8 @@ check([0 0 0]~w([;:open;0]);"reopen")
 b::w([;:read;0])
 check([;0;[100 101];[7 8];[202 203];[3 4]]~b;"replay original trade fields")
 check(0=#w([;:read;2]);"restored journal EOF")
+scanArgs::[;:scan;"log/day-0.wal";0;0]
+failVisit(batch)::{.err("range";"visitor failed")}
+failure::.try({.tickerwal(scanArgs,,failVisit)};[])
+check((0=failure@0)&"visitor failed"~(failure@1)@"message";"propagate scan visitor error")
+check(0=*.try({.tickerwal([;:scan;"missing.wal";0;0])};[]);"missing file must raise")

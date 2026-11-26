@@ -1776,6 +1776,13 @@ trades in each batch, until the result is empty. After replay,
 w([;:append;day;first;ts;sym;px;qty]) syncs the batch and returns
 its exclusive ending sequence. At rollover, beginClose and
 finishClose each take the trading day and ending sequence.
+
+Scan a daily WAL file with .tickerwal([;:scan;path;day;first]).
+The read-only scan returns status, reason, batches, validBytes
+and nextSeq for the consecutive verified prefix. Status is clean,
+torn or corrupt. Pass an optional one-argument function after
+first to receive each verified [first ts sym px qty] batch.
+Use a stopped writer's file or a stable copy.
 ```
 
 ## Key-value and table storage

@@ -26,6 +26,26 @@ Restart the head with the same WAL directory. When taking over a directory previ
 
 If a write was interrupted, replay can discard an incomplete final record of the open day. A checksum mismatch or sequence gap stops startup. The journal records the closing watermark before the head exports the day and advances the checkpoint only after the HDB confirms the import. If the head restarts with `closing=1`, bring up the HDB and retry `roll(dayNo)`. The HDB recognizes a day it already committed. Sealed WAL files remain in the journal directory.
 
+#### Reading a damaged WAL
+
+The native writer appends one KGT2 record per trade batch to `log/day-<day>.wal`. Each record has a 32-byte header and four columns of signed 64-bit values (time, symbol, price and quantity). One CRC32 covers the header fields, including the day, starting sequence, row count and payload CRC32. The other covers all four columns. The separate `log/session.sqlite3` checkpoint stores the current day, its first sequence and the expected ending sequence once rollover begins.
+
+Use a stopped writer's file or a stable copy. Pass its trading day and its expected first sequence. This example reads day zero starting at sequence zero.
+
+```kg
+report::.tickerwal([;:scan;"log/day-0.wal";0;0])
+.p(.json(report))
+```
+
+A scan reports `status` (`"clean"`, `"torn"` or `"corrupt"`), `reason`, the number of verified `batches`, `validBytes` and `nextSeq`. The last two are the exclusive end of the valid prefix in bytes and in trade sequence numbers. To read the trades, pass a one-argument function. It receives each verified batch as `[first ts sym px qty]` in order. The scan stops before the first invalid batch and leaves the file untouched.
+
+```kg
+emit(batch)::{.p(.json(batch))}
+report::.tickerwal([;:scan;"log/day-0.wal";0;0;emit])
+```
+
+For an open day with a bad CRC or sequence gap, preserve the original file. If the upstream feed retained the trades, an operator can copy the first `validBytes` bytes into a replacement daily WAL, restart the isolated head, and resend the missing trades from `nextSeq` before reconnecting clients. A verified backup can also restore the damaged data. A file that lost entire records from the end can still scan as `"clean"`. Compare `nextSeq` with the publisher's last acknowledged sequence (exclusive) or the recorded closing watermark. A pending close requires the complete WAL through that watermark before the HDB handoff can finish.
+
 **Upgrading an RC1 data directory.** Stop the feed, finish any open day using the old head, and record `dayNo` and `dayFirst` from the now-empty head. Keep the old files. Start the new head in a fresh directory with the same transfer mount and HDB. On the first head launch, append `WAL-DIRECTORY DAY FIRST-SEQUENCE` after the HDB address to initialize the new journal at those coordinates. For a legacy benchmark journal without a session checkpoint, use the day and first sequence following the HDB's last archived trade (`coalesce(max(dayno)+1,0), coalesce(max(seq)+1,0)` from `trades`). The journal can replay complete records from the earlier binary format.
 
 ## Run the benchmark

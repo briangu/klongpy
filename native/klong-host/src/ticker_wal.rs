@@ -9,7 +9,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use klong_core::{error::Result, value::Func, Error, Int, Interp, Value};
+use klong_core::{
+    error::Result, fmt::func_arity, value::{Dict, Func}, Error, Int, Interp, Value,
+};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 
 const HEADER: usize = 28;
@@ -172,15 +174,13 @@ impl Journal {
         self.phase = Phase::NeedsOpen;
         let offset = self.file.stream_position().map_err(storage)?;
         match read_record(&mut self.file, self.day, self.next)? {
-            Record::Batch(cols, end) => {
-                let first = self.next;
+            Record::Batch(data, end) => {
+                let batch = batch_value(&data, self.next, end)?;
                 self.next = end;
-                let mut reply = vec![Value::Int(first)];
-                reply.extend(cols);
-                let batch = Value::raw_list(reply)?;
                 self.phase = Phase::Replaying;
                 return Ok(batch);
             }
+            Record::Invalid(error) => return Err(error),
             Record::Torn if self.closing_end.is_some() => return Err(storage("incomplete closing journal")),
             Record::Torn => {
                 self.file.set_len(offset).map_err(storage)?;
@@ -285,7 +285,8 @@ impl Journal {
 enum Record {
     End,
     Torn,
-    Batch(Vec<Value>, Int),
+    Invalid(Error),
+    Batch(Vec<u8>, Int),
 }
 
 fn read_until_eof(file: &mut File, buf: &mut [u8]) -> io::Result<usize> {
@@ -309,7 +310,7 @@ fn read_record(file: &mut File, day: Int, first: Int) -> Result<Record> {
     }
     let prefix = &header[..got.min(4)];
     if !b"KGT1".starts_with(prefix) && !b"KGT2".starts_with(prefix) {
-        return Err(storage("invalid journal header"));
+        return Ok(Record::Invalid(storage("invalid journal header")));
     }
     if got != HEADER {
         return Ok(Record::Torn);
@@ -321,30 +322,36 @@ fn read_record(file: &mut File, day: Int, first: Int) -> Result<Record> {
             return Ok(Record::Torn);
         }
         if u32::from_le_bytes(crc) != crc32fast::hash(&header) {
-            return Err(storage("damaged journal header"));
+            return Ok(Record::Invalid(storage("damaged journal header")));
         }
     }
     let n = u32::from_le_bytes(header[20..24].try_into().unwrap()) as usize;
     if header[4..12] != (day as u64).to_le_bytes() || header[12..20] != (first as u64).to_le_bytes() || !(1..=MAX_ROWS).contains(&n) {
-        return Err(storage("invalid or discontinuous journal record"));
+        return Ok(Record::Invalid(storage("invalid or discontinuous journal record")));
     }
-    let end = first
-        .checked_add(n as Int)
-        .ok_or_else(|| Error::range("journal sequence overflow"))?;
+    let Some(end) = first.checked_add(n as Int) else {
+        return Ok(Record::Invalid(Error::range("journal sequence overflow")));
+    };
     let mut data = Vec::new();
     data.try_reserve_exact(n * 32).map_err(|_| Error::memory())?;
     data.resize(n * 32, 0);
     if read_until_eof(file, &mut data).map_err(storage)? != data.len() {
         return if legacy {
-            Err(storage("incomplete legacy journal record with unchecked length"))
+            Ok(Record::Invalid(storage("incomplete legacy journal record with unchecked length")))
         } else {
             Ok(Record::Torn)
         };
     }
     if header[24..28] != crc32fast::hash(&data).to_le_bytes() {
-        return Err(storage("damaged journal record"));
+        return Ok(Record::Invalid(storage("damaged journal record")));
     }
-    let mut cols = Vec::with_capacity(4);
+    Ok(Record::Batch(data, end))
+}
+
+fn batch_value(data: &[u8], first: Int, end: Int) -> Result<Value> {
+    let n = (end - first) as usize;
+    let mut batch = Vec::with_capacity(5);
+    batch.push(Value::Int(first));
     for block in data.chunks_exact(n * 8) {
         let mut col = Vec::new();
         col.try_reserve_exact(n).map_err(|_| Error::memory())?;
@@ -352,9 +359,52 @@ fn read_record(file: &mut File, day: Int, first: Int) -> Result<Record> {
             let v = i64::from_le_bytes(item.try_into().unwrap());
             col.push(Int::try_from(v).map_err(|_| Error::range("journal value exceeds integer width"))?);
         }
-        cols.push(Value::ints(col));
+        batch.push(Value::ints(col));
     }
-    Ok(Record::Batch(cols, end))
+    Value::raw_list(batch)
+}
+
+fn scan(ip: &mut Interp, args: &[Value]) -> Result<Value> {
+    let [Value::Str(path), Value::Int(day), Value::Int(first), rest @ ..] = args else {
+        return Err(Error::typ("WAL scan expects a file, trading day, first sequence and optional visitor"));
+    };
+    if *day < 0 || *first < 0 {
+        return Err(Error::range("WAL scan needs a nonnegative day and first sequence"));
+    }
+    let visitor = match rest {
+        [] => None,
+        [v @ Value::Fn(f)] if func_arity(f) == 1 => Some(v),
+        _ => return Err(Error::typ("WAL scan visitor must be a one-argument function")),
+    };
+    let mut file = File::open(path.as_str()).map_err(storage)?;
+    let mut next = *first;
+    let mut batches = 0;
+    let mut valid_bytes = 0u64;
+    let (status, reason) = loop {
+        match read_record(&mut file, *day, next)? {
+            Record::Batch(data, end) => {
+                if let Some(visit) = visitor {
+                    let batch = batch_value(&data, next, end)?;
+                    ip.apply(visit, vec![batch], Some(1))?;
+                }
+                valid_bytes = file.stream_position().map_err(storage)?;
+                next = end;
+                batches += 1;
+            }
+            Record::End => break ("clean", Value::text("")?),
+            Record::Torn => break ("torn", Value::text("incomplete final record")?),
+            Record::Invalid(error) => break ("corrupt", Value::text(&error.message)?),
+        }
+    };
+    let bytes = Int::try_from(valid_bytes).map_err(|_| Error::range("WAL offset exceeds integer width"))?;
+    let mut report = Dict::default();
+    for (key, value) in [
+        ("status", Value::text(status)?), ("reason", reason), ("validBytes", Value::Int(bytes)),
+        ("batches", Value::Int(batches)), ("nextSeq", Value::Int(next)),
+    ] {
+        report.set(Value::text(key)?, value)?;
+    }
+    Ok(Value::dict(report))
 }
 
 pub(crate) fn register(ip: &mut Interp) {
@@ -365,6 +415,7 @@ pub(crate) fn register(ip: &mut Interp) {
             let (dir, initial) = match &args[0] {
                 Value::Str(dir) => (dir, None),
                 Value::List(list) => match &list[..] {
+                    [Value::Sym(op), args @ ..] if ip.syms.name(*op) == "scan" => return scan(ip, args),
                     [Value::Str(dir), Value::Int(day), Value::Int(first)] => (dir, Some((*day, *first))),
                     _ => return Err(Error::typ("expected [directory day first-sequence]")),
                 },

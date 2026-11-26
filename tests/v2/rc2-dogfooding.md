@@ -107,6 +107,10 @@ On November 20 the bench supervisor verified the RC1 flash on node 2, but `klong
 
 ## Fixed in the working tree
 
+### Reading verified trades from a damaged WAL
+
+The head's replay interface reported checksum failures, but opening a journal for replay could also truncate an incomplete tail. We needed to inspect an offline copy and recover its intact batches. The [Klong scan fixture](programs/tickerplant_scan.kg) initially failed at `.tickerwal` with `expected [directory day first-sequence]`. With the rebuilt runtime it streams the valid prefix and reports its ending byte offset and next sequence. The recovery tests compare the damaged file byte for byte after scanning and reconstruct the original WAL from the verified prefix and the publisher's feed.
+
 ### Interpreting the benchmark clock
 
 While timing table corrections, the engine benchmark described `.pc()` as CPU time. Starting the clock before reading from a named pipe and delaying its writer by 250 ms produced 253 ms in `kg` and 252 ms in `kgpy` on the M2 Ultra. Both include time spent waiting. The benchmark instructions and performance guide now identify the desktop clock as monotonic elapsed time.

@@ -53,6 +53,12 @@ def test_native_ticker_wal(kg, tmp_path):
     subprocess.run([*kg, str(PROGRAMS / "tickerplant_native_wal.kg")], cwd=tmp_path, check=True, timeout=15)
 
 
+def scan_wal(kg, path, day, first):
+    result = subprocess.run([*kg, str(PROGRAMS / "tickerplant_scan.kg"), str(path), str(day), str(first)],
+                            cwd=path.parent, capture_output=True, text=True, timeout=10, check=True)
+    return json.loads(result.stdout)
+
+
 def test_tickerplant_duckdb_worker_budget(kg, tmp_path):
     expression = (
         f'.l("{(EXAMPLE / "head.kg").as_posix()}");startHead("");'
@@ -256,7 +262,9 @@ def test_replay_after_wal_sync_before_publish_reply(kg, tmp_path):
     assert not (tmp_path / "rdb.duckdb").exists()
 
 
-def test_replay_open_day_after_roll_with_torn_tail(kg, tmp_path, unused_tcp_port_factory):
+@pytest.mark.parametrize("cut", [1, 9, 28, 31, 32, 63],
+                         ids=["magic", "header", "before-header-crc", "header-crc", "before-payload", "payload"])
+def test_replay_open_day_after_roll_with_torn_tail(kg, tmp_path, unused_tcp_port_factory, cut):
     (tmp_path / "transfer").mkdir()
     head, hdb = (unused_tcp_port_factory() for _ in range(2))
     log = tmp_path / "log"
@@ -270,33 +278,79 @@ def test_replay_open_day_after_roll_with_torn_tail(kg, tmp_path, unused_tcp_port
         assert writer.call("publish", 3, [13], [7], [104], [5]) == 4
     active = log / "day-1.wal"
     committed = active.read_bytes()
-    with active.open("ab") as stream:
-        stream.write(committed[:9])
+    # Simulate an interrupted append of the next one-trade KGT2 record.
+    payload = struct.pack("<4q", 14, 2, 105, 1)
+    header = struct.pack("<4sQQII", b"KGT2", 1, 4, 1, zlib.crc32(payload))
+    tail = header + struct.pack("<I", zlib.crc32(header)) + payload
+    active.write_bytes(committed + tail[:cut])
+    report, batches = scan_wal(kg, active, 1, 1)
+    assert report == dict(status="torn", reason="incomplete final record", validBytes=len(committed),
+                          batches=2, nextSeq=4)
+    assert batches == [[1, [11, 12], [2, 3], [102, 103], [3, 4]], [3, [13], [7], [104], [5]]]
+    assert active.read_bytes() == committed + tail[:cut]
     with running(kg, "head.kg", head, tmp_path, *addresses), connect(head) as reader:
         assert reader.request("[;dayNo;dayFirst;nextSeq;closing]").tolist() == [1, 1, 4, 0]
         np.testing.assert_array_equal(reader.call("ticksFrom", 0, 8),
                                       [[1, 11, 2, 102, 3], [2, 12, 3, 103, 4], [3, 13, 7, 104, 5]])
         assert active.read_bytes() == committed
         assert reader.call("publish", 4, [14], [2], [105], [1]) == 5
-    assert [seq for seq, _ in records(active, 1)] == [1, 3, 4]
+    assert active.read_bytes() == committed + tail
 
 
-@pytest.mark.parametrize(("offset", "error"), [(-1, "damaged journal record"), (20, "damaged journal header")])
-def test_corrupt_wal_prevents_serving(kg, tmp_path, offset, error):
+@pytest.mark.parametrize(("broken", "damage", "error"), [
+    (0, "header", "damaged journal header"),
+    (1, "payload", "damaged journal record"),
+    (2, "payload", "damaged journal record"),
+    (1, "missing", "invalid or discontinuous journal record"),
+])
+def test_corrupt_wal_recovers_verified_prefix_and_resumes(kg, tmp_path, broken, damage, error):
     port = free_port()
-    with running(kg, "head.kg", port, tmp_path, "127.0.0.1:1"), connect(port) as writer:
-        for i in range(2):
-            assert writer.call("publish", i, [10], [1], [101], [2]) == i + 1
     path = tmp_path / "log/day-0.wal"
-    damaged = bytearray(path.read_bytes())
-    damaged[offset] ^= 1
+    # Authoritative upstream feed, retained independently of the WAL.
+    feed = [[0, [10], [1], [101], [2]], [1, [11, 12], [2, 1], [103, 104], [3, 4]],
+            [3, [13], [5], [102], [7]]]
+    boundaries = [0]
+    with running(kg, "head.kg", port, tmp_path, "127.0.0.1:1"), connect(port) as writer:
+        for batch in feed:
+            assert writer.call("publish", *batch) == batch[0] + len(batch[1])
+            boundaries.append(path.stat().st_size)
+    original = path.read_bytes()
+    damaged = bytearray(original)
+    start, end = boundaries[broken:broken + 2]
+    if damage == "missing":
+        del damaged[start:end]
+    else:
+        offset = start + 20 if damage == "header" else end - 1
+        damaged[offset] ^= 1
     path.write_bytes(damaged)
+    report, batches = scan_wal(kg, path, 0, 0)
+    assert report == dict(status="corrupt", reason=f"ticker WAL: {error}", validBytes=start,
+                          batches=broken, nextSeq=feed[broken][0])
+    assert batches == feed[:broken]
     proc = subprocess.run([*kg, str(EXAMPLE / "head.kg"), f"127.0.0.1:{port}", "127.0.0.1:1"],
                           cwd=tmp_path, capture_output=True, text=True, timeout=10)
     assert proc.returncode != 0 and error in proc.stderr
     with pytest.raises(ConnectionRefusedError):
         socket.create_connection(("127.0.0.1", port), timeout=.2)
     assert path.read_bytes() == damaged
+
+    # Explicit offline repair. Keep the evidence and roll forward from the
+    # reported boundary with the publisher's copy of the missing trades.
+    saved = path.rename(tmp_path / "damaged.wal")
+    with saved.open("rb") as source:
+        path.write_bytes(source.read(report["validBytes"]))
+    with running(kg, "head.kg", port, tmp_path, "127.0.0.1:1"), connect(port) as writer:
+        assert writer.request("nextSeq") == report["nextSeq"]
+        for batch in feed[report["batches"]:]:
+            assert writer.call("publish", *batch) == batch[0] + len(batch[1])
+        np.testing.assert_array_equal(writer.call("ticksFrom", 0, 8),
+                                      [[0, 10, 1, 101, 2], [1, 11, 2, 103, 3],
+                                       [2, 12, 1, 104, 4], [3, 13, 5, 102, 7]])
+    assert saved.read_bytes() == damaged
+    assert path.read_bytes() == original
+    clean, batches = scan_wal(kg, path, 0, 0)
+    assert clean == dict(status="clean", reason="", validBytes=len(original), batches=3, nextSeq=4)
+    assert batches == feed
 
 
 def test_legacy_sweep_wal_resumes_at_hdb_checkpoint(kg, tmp_path):
@@ -314,6 +368,44 @@ def test_legacy_sweep_wal_resumes_at_hdb_checkpoint(kg, tmp_path):
         assert client.call("publish", 202, [14], [5], [120], [2]) == 203
     assert path.read_bytes().startswith(legacy)
     assert [seq for seq, _ in records(path, 7)] == [200, 202]
+    snapshot = tmp_path / "detached.wal"
+    snapshot.write_bytes(path.read_bytes())
+    report, batches = scan_wal(kg, snapshot, 7, 200)
+    assert report == dict(status="clean", reason="", validBytes=snapshot.stat().st_size, batches=2, nextSeq=203)
+    assert batches == [[200, *cols.tolist()], [202, [14], [5], [120], [2]]]
+
+
+@pytest.mark.parametrize(("removed", "status", "error"), [
+    (1, "torn", "incomplete closing journal"),
+    (64, "clean", "journal does not reach the closing watermark"),
+])
+def test_damaged_closing_wal_requires_restoring_watermark(kg, tmp_path, unused_tcp_port_factory, removed, status, error):
+    (tmp_path / "transfer").mkdir()
+    head, hdb = (unused_tcp_port_factory() for _ in range(2))
+    archive = f"127.0.0.1:{hdb}"
+    path = tmp_path / "log/day-0.wal"
+    with running(kg, "head.kg", head, tmp_path, archive), connect(head) as writer:
+        assert writer.call("publish", 0, [10], [1], [100], [2]) == 1
+        prefix = path.read_bytes()
+        assert writer.call("publish", 1, [11], [2], [103], [4]) == 2
+        with pytest.raises(AssertionError):
+            writer.call("roll", 0)  # HDB offline after the closing watermark was recorded.
+        assert writer.request("closing") == 1
+    backup = path.read_bytes()
+    path.write_bytes(backup[:-removed])
+    scan, batches = scan_wal(kg, path, 0, 0)
+    assert (scan["status"], scan["validBytes"], scan["nextSeq"]) == (status, len(prefix), 1)
+    assert batches == [[0, [10], [1], [100], [2]]]
+    proc = subprocess.run([*kg, str(EXAMPLE / "head.kg"), f"127.0.0.1:{head}", archive],
+                          cwd=tmp_path, capture_output=True, text=True, timeout=10)
+    assert proc.returncode != 0 and error in proc.stderr
+    assert path.read_bytes() == backup[:-removed]
+    path.write_bytes(backup)
+    with running(kg, "hdb.kg", hdb, tmp_path), running(kg, "head.kg", head, tmp_path, archive), \
+            connect(head) as writer, connect(hdb) as hist:
+        assert writer.call("roll", 0) == 2
+        np.testing.assert_array_equal(hist.call("historyFrom", 0, 0, 8), [[0, 10, 1, 100, 2], [1, 11, 2, 103, 4]])
+        assert writer.call("publish", 2, [12], [2], [104], [1]) == 3
 
 
 def test_wal_outage_blocks_publish_until_recovery(kg, tmp_path, unused_tcp_port_factory):
