@@ -962,6 +962,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#fpga-analytics-on-committed-trades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FPGA analytics on committed trades
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2561,6 +2572,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#fpga-analytics-on-committed-trades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FPGA analytics on committed trades
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3567,6 +3589,32 @@
 <h4 id="how-this-compares-with-kdbtick">How this compares with kdb+tick<a class="headerlink" href="#how-this-compares-with-kdbtick" title="Permanent link">&para;</a></h4>
 <p>The reference kdb+tick ticker plant implements the journal policy in q. With logging enabled, <code>tick.q</code> opens a daily file and writes each <code>upd</code> call and its arguments through a binary file handle. The RDB replays the log with the runtime's <code>-11!</code> primitive. In real-time mode the ticker plant publishes before logging. The Klong example implements framing, checksums, sequence validation, replay and rollover in <code>journal.kg</code>, using runtime primitives for binary I/O, CRC32 and SQLite. Its publisher acknowledgment follows a disk sync, the RDB commit and both subscribers' replies in this benchmark. <a href="https://github.com/KxSystems/kdb-tick/blob/85c08ff192b0a103b323246c7300a37919be6159/tick.q">KX ticker plant</a> · <a href="https://github.com/KxSystems/kdb-tick/blob/85c08ff192b0a103b323246c7300a37919be6159/tick/r.q">KX RDB replay</a></p>
 <p>KX gives a sizing figure of up to 4.5 million streaming records/s per core and up to 10 million records/s with batching. Its reference ticker plant publishes updates asynchronously. Our 3.80M trades/s measurement includes a local WAL sync and acknowledgment by two subscribers, with four DuckDB workers configured for the RDB. We have yet to measure KX q on Milan and Tinkara with the same durability, subscriber, query and rollover requirements. Our direct comparison with PeachQ below uses a separate single-threaded workload. <a href="https://code.kx.com/q/wp/disaster-recovery/">KX sizing guidance</a> · <a href="https://github.com/KxSystems/kdb-tick/blob/master/tick/u.q">KX subscriber implementation</a></p>
+<h3 id="fpga-analytics-on-committed-trades">FPGA analytics on committed trades<a class="headerlink" href="#fpga-analytics-on-committed-trades" title="Permanent link">&para;</a></h3>
+<p>The 100 GbE journal benchmark above ran on CPUs. In a separate experiment on November 27, 2026, an Alveo U250 replayed a price history and returned a summary for each trading strategy. All 20 physical-board regression tests passed. The journal benchmark measures how quickly a publisher can get a durable acknowledgment. The U250 experiment measures what an analytics consumer can compute from a batch it already has. <a href="https://github.com/briangu/klongpy/blob/0c46f01/examples/hardware/results/2026-11-27-u250.json">Board tests and timing records</a></p>
+<table>
+<thead>
+<tr>
+<th>Workload on the physical U250</th>
+<th>FPGA timing</th>
+<th>CPU timing on the card host</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Replay 10 million ticks for 1,024 crossover strategies</td>
+<td>1.46–1.49 s with history in card memory. 3.42–3.65 s from process launch through exit.</td>
+<td>11.19–11.30 s for the same emitted C across 32 processes</td>
+</tr>
+<tr>
+<td>Filter 100,000 blocks of 256 samples with a 16-tap FIR</td>
+<td>106 ms in the kernel. 2.23 s for the full call over SSH.</td>
+<td>0.95 s in NumPy</td>
+</tr>
+</tbody>
+</table>
+<p>The strategy sweep uploaded 40 MB once, ran 32 groups on 32 physical lanes and returned 24 KiB. All 3,072 results for profit, maximum drawdown and trade count matched the C reference bit for bit. The FIR filter returned 241 samples per block, or 96.4 MB in total. Moving those results back across the Gen3 ×1 PCIe link and the SSH connection made the remote call slower than NumPy. <a href="../hardware/#reusing-one-history-across-1024-strategies">Reproduce the strategy sweep</a> · <a href="../hardware/#streaming-fir-on-the-u250">FIR transfer timings</a></p>
+<p><strong>A trade bar is a candidate for subscriber offload.</strong> The head already sequences and journals each batch, and the publisher waits for the subscribers’ replies. A subscriber could queue committed trades for a separate analytics worker and return its cursor before the FPGA finishes. The worker would need its own last-processed sequence so it could rebuild unfinished bars from the journal after a restart. If its queue filled, backpressure could still delay the publisher. Measuring commit-to-bar freshness alongside publisher acknowledgment latency would show the cost of that integration.</p>
+<p>The prototype takes ordered price and quantity pairs for one symbol and interval. It returns open, high, low, close, total quantity, the sum of price times quantity, and trade count. Vitis C simulation matched an independent integer reference on all seven values across 200,003 trades. The core scheduled one update per clock, but each trade needs two 64-bit input words and the port reads one word per clock. At the 250 MHz target that gives an estimated input ceiling of 125 million trades/s before transfer overhead. Physical throughput for this kernel and its effect on live ingest remain unmeasured. A separate 64-lane strategy design also reached C synthesis. The strategy timings above come from the 32-lane board image. <a href="../hardware/#a-trade-bar-in-c-simulation-and-synthesis">Trade-bar experiment</a> · <a href="../hardware/#known-limits">64-lane synthesis results</a></p>
 <h2 id="streaming-tables-and-queries">Streaming tables and queries<a class="headerlink" href="#streaming-tables-and-queries" title="Permanent link">&para;</a></h2>
 <p>On 2026-11-20 UTC, standalone <code>kg</code> from the installed <strong>2.0.0rc1</strong> Linux x86-64 wheel ingested <strong>0.959–0.977 million rows/s</strong> over six controlled trials on an AMD EPYC 7773X. A loopback client loaded 1,048,576 rows into memory in 256-row batches. In a separate phase, a writer offered 25,600 rows/s against 32,768 preloaded rows while two clients queried last price and as-of bid. Each trial checked the query results and final row counts. Query latency runs from the scheduled time to the reply.</p>
 <p>The reference was PeachQ 0.92. Both servers used one query-engine thread. Each series contains three paired <code>kg</code>/PeachQ trials, alternating which server ran first. In the controlled series, each server ran on CPU 8 and the clients used CPUs 9–12 on the same socket. All processes shared a six-CPU container quota. The source archive SHA-256 starts with <code>547dd7b9e927</code>, the Linux wheel's with <code>9b6fcffb0e85</code>, the standalone executable's with <code>c8855a024400</code>, and the PeachQ executable's with <code>69a0befb1abc</code>.</p>

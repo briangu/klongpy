@@ -1955,6 +1955,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#streaming-fir-on-the-u250" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming FIR on the U250
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-strategy-kernel" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1970,6 +1981,28 @@
     <span class="md-ellipsis">
       
         Where the CPU wins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reusing-one-history-across-1024-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusing one history across 1,024 strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-trade-bar-in-c-simulation-and-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A trade bar in C simulation and synthesis
       
     </span>
   </a>
@@ -2385,6 +2418,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#streaming-fir-on-the-u250" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming FIR on the U250
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-strategy-kernel" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2400,6 +2444,28 @@
     <span class="md-ellipsis">
       
         Where the CPU wins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reusing-one-history-across-1024-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusing one history across 1,024 strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-trade-bar-in-c-simulation-and-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A trade bar in C simulation and synthesis
       
     </span>
   </a>
@@ -2457,7 +2523,7 @@
 <p>A function of the <a href="../static-profile/">static profile</a> becomes an FPGA kernel, and you call it from a KlongPy session with ordinary arrays. This page is for someone who has an FPGA card, or wants to know what the flow produces and how fast it is.</p>
 <div class="admonition warning">
 <p class="admonition-title">Experimental</p>
-<p>This has been run on one card, an Alveo U250. The commands, the names <code>.fpga</code> and <code>kgpy fpga build</code>, and the file formats may change. The first kernel measured (<code>fir</code>) is slower than numpy. The strategy kernel is about ten times faster than a 32-thread CPU running the same program as C. Both are measured <a href="#results">below</a>, with the cases where the CPU wins.</p>
+<p>This has been run on one card, an Alveo U250. The commands, the names <code>.fpga</code> and <code>kgpy fpga build</code>, and the file formats may change. The strategy kernel keeps a tick history on the card for repeated runs. The FIR filter returns nearly as much data as it consumes. The <a href="#results">measurements</a> show kernel time, transfer time and CPU comparisons for both workloads.</p>
 </div>
 <p>The same source runs three ways: interpreted, as C (see <a href="../embedded/">Compiling Klong to C</a>) and on the card, with the same answers. Two kinds of kernel exist. A <em>streaming kernel</em>, the default, takes one record per clock cycle when the program allows it. A <em>wrapped kernel</em> (<code>--wrapped</code>) runs the program's C unchanged once per record and is slower.</p>
 <p><code>fpga source</code> is part of the engine and also runs under <code>kg</code>; building, the card server and <code>.fpga</code> are in <code>kgpy</code>. They need no Python packages beyond KlongPy's own. The machine with the card also needs the Xilinx runtime (<code>pyxrt</code>, which is not on PyPI), and the build machine needs Vitis.</p>
@@ -2492,11 +2558,11 @@
 </tr>
 <tr>
 <td>Dates</td>
-<td><code>fir</code> image built 2026-11-16, strategy image measured 2026-11-17</td>
+<td>Images built November 16–17, 2026. Board regression and offload measurements repeated November 27.</td>
 </tr>
 <tr>
 <td>Images run</td>
-<td>two: <code>fir</code> (a wrapped kernel) and the strategy (a streaming kernel)</td>
+<td>Wrapped FIR, streaming FIR with moving average and trap kernels, and the 32-lane streaming strategy</td>
 </tr>
 </tbody>
 </table>
@@ -2763,8 +2829,49 @@ C simulation and this simulator, bit for bit.</p>
 </tr>
 </tbody>
 </table>
-<p>The kernel takes about 12.9 microseconds per block, about 3886 cycles at 300 MHz. A wrapped kernel cannot do a floating-point sum at one result per cycle. Numpy takes about 10 microseconds per block on the same gather and weighted sum. The card is slower than numpy at every size, even before the transfer is counted. A kernel rebuilt as a shift register with a pipelined reduction is where speed would have to come from; the streaming kernel does this, and <code>fir</code> has not been rebuilt that way.</p>
+<p>The kernel takes about 12.9 microseconds per block, about 3886 cycles at 300 MHz. A wrapped kernel cannot do a floating-point sum at one result per cycle. Numpy takes about 10 microseconds per block on the same gather and weighted sum. The card is slower than numpy at every size, even before the transfer is counted. The streaming image uses a shift register and a pipelined reduction.</p>
 <p>The image of <code>mavg.kg</code>, <code>fir.kg</code> and <code>tests/static/hw/trap.kg</code> (a program that traps on purpose) uses 126578 LUT (7.33 percent of the device with the shell), 199444 FF, 276.5 BRAM tiles and 18 DSP.</p>
+<h3 id="streaming-fir-on-the-u250">Streaming FIR on the U250<a class="headerlink" href="#streaming-fir-on-the-u250" title="Permanent link">&para;</a></h3>
+<p>On November 27, 2026, the current source matched a cached 300 MHz image with 0.055 ns worst setup slack and zero failing endpoints. The physical-board regression compared 1,000 blocks with the interpreter. The table shows the trial with the shortest client wall time, including upload and the return of all 241 outputs per block.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Blocks</th>
+<th style="text-align: right;">Upload on card host</th>
+<th style="text-align: right;">Kernel</th>
+<th style="text-align: right;">Download on card host</th>
+<th style="text-align: right;">Client wall over SSH</th>
+<th style="text-align: right;">NumPy on card host</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.063 ms</td>
+<td style="text-align: right;">0.066 ms</td>
+<td style="text-align: right;">0.043 ms</td>
+<td style="text-align: right;">1.803 ms</td>
+<td style="text-align: right;">0.015 ms</td>
+</tr>
+<tr>
+<td style="text-align: right;">1,000</td>
+<td style="text-align: right;">1.439 ms</td>
+<td style="text-align: right;">1.193 ms</td>
+<td style="text-align: right;">1.444 ms</td>
+<td style="text-align: right;">24.626 ms</td>
+<td style="text-align: right;">5.231 ms</td>
+</tr>
+<tr>
+<td style="text-align: right;">100,000</td>
+<td style="text-align: right;">144.539 ms</td>
+<td style="text-align: right;">105.657 ms</td>
+<td style="text-align: right;">161.983 ms</td>
+<td style="text-align: right;">2,229.462 ms</td>
+<td style="text-align: right;">953.694 ms</td>
+</tr>
+</tbody>
+</table>
+<p>At 100,000 blocks the streaming kernel took 1.06 µs per block. The earlier wrapped kernel took 12.94 µs. The streaming run transferred 102.4 MB of inputs and returned 96.4 MB of results over the SSH connection and a Gen3 ×1 PCIe link. NumPy on the card host finished the complete job about 2.3 times faster than the remote call. To repeat the comparison, run <code>python -m klongpy.hw.bench --numpy-host --sizes 1,1000,100000</code> with the card host configured.</p>
 <h3 id="the-strategy-kernel">The strategy kernel<a class="headerlink" href="#the-strategy-kernel" title="Permanent link">&para;</a></h3>
 <p>Measured 2026-11-17. The image is <code>crossover.kg</code> built with <code>--lanes 32 --clock-mhz 250</code>. It passed routed timing at 250 MHz (worst setup and hold slack 0.009 ns, no failing endpoints; the margin is thin) after a build of 1 hour 54 minutes. It uses 13.6 percent of the device's LUTs (234315, the shell's 118282 included), 7.0 percent of its registers, 258 block RAM tiles and 135 DSPs. The history is 10 million synthetic ticks, a random walk with rare jumps folded into the band 5 to 15 (<code>crossover_bench.py gen</code>), held as a file on the card machine. The 32 parameter sets are 4 values of <code>fast</code>, 4 of <code>slow</code> and 2 stops. Every lane replays all 10 million ticks, 320 million lane-ticks in all.</p>
 <table>
@@ -2888,12 +2995,59 @@ C simulation and this simulator, bit for bit.</p>
 </tbody>
 </table>
 <p>Card: best of 9 calls; CPU: best of 5; 32 lanes. The CPU's processes start together and each reads its ticks, so the small cases show the cost of starting 16 or 32 processes.</p>
+<h3 id="reusing-one-history-across-1024-strategies">Reusing one history across 1,024 strategies<a class="headerlink" href="#reusing-one-history-across-1024-strategies" title="Permanent link">&para;</a></h3>
+<p>On November 27 the 32-lane, 250 MHz kernel replayed 10 million prices in 40.23 ms median across nine runs. The median call over SSH was 42.71 ms with prices in card memory. All 32 final summaries matched the emitted C, and the one-million-tick prefix matched NumPy.</p>
+<p>A second experiment ran 1,024 distinct configurations on that same image. Each of 32 calls set new fast windows, slow windows and stop distances, reset all 32 accounts and reused the same 40 MB input. Each configuration returned three numbers. Across three command invocations, every one of the 3,072 outputs matched the emitted C bit for bit.</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th style="text-align: right;">Measured time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bind the image</td>
+<td style="text-align: right;">1.20–1.36 s</td>
+</tr>
+<tr>
+<td>Upload the history once via <code>.fpga.put</code></td>
+<td style="text-align: right;">0.50–0.55 s</td>
+</tr>
+<tr>
+<td>Run all 32 groups and write their summaries</td>
+<td style="text-align: right;">1.46–1.49 s</td>
+</tr>
+<tr>
+<td>Complete process, from launch through exit</td>
+<td style="text-align: right;">3.42–3.65 s</td>
+</tr>
+</tbody>
+</table>
+<p>That is 10.24 billion <strong>strategy updates</strong> per sweep. The input consists of 10 million distinct time steps shared by all strategies. The sweep counts parameter changes and result retrieval. The complete process also counts reading the input files and syncing the 24 KiB output. On the card host, 32 processes running the same emitted C with GCC <code>-O3</code> completed the sweep in 11.19–11.30 s across three trials. The process launches and reading the history from the page cache are included in the CPU times. <a href="https://github.com/briangu/klongpy/blob/main/examples/hardware/results/2026-11-27-u250.json">Trial timings, image hashes and correctness checks</a></p>
+<p>To reproduce from the checkout root, generate the history with <code>python examples/hardware/crossover_bench.py gen history.bin baseline-params.bin --ticks 10000000</code>. Save and run the following with desktop <code>kg</code> to generate the 1,024 triples. Use fresh output paths for both scripts.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>param::{[;1+x:%128;9+(x:%8)!16;256*1+x!8]}
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>f::.bfile("params1024.bin";:create)
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>f([;:write;4;,/param'!1024]);f(:sync)
+</code></pre></div>
+<p>In a card-enabled <code>kgpy</code> session, run the <a href="https://github.com/briangu/klongpy/blob/main/examples/hardware/crossover_sweep.kg">Klong sweep</a> with these paths.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>paths::["examples/hardware/crossover.kg" "history.bin" "params1024.bin" "summary.bin"]
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>.l("examples/hardware/crossover_sweep.kg")
+</code></pre></div>
+<p>To check the output independently, use the same history and parameter file with the emitted C.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>kg<span class="w"> </span>compile<span class="w"> </span>c<span class="w"> </span>examples/hardware/crossover.kg<span class="w"> </span>-o<span class="w"> </span>c/
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>examples/hardware/crossover_bench.py<span class="w"> </span>cpu<span class="w"> </span>c/<span class="w"> </span>history.bin<span class="w"> </span>params1024.bin<span class="w"> </span>--procs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--out<span class="w"> </span>cpu-summary.bin
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>cmp<span class="w"> </span>summary.bin<span class="w"> </span>cpu-summary.bin
+</code></pre></div>
+<h3 id="a-trade-bar-in-c-simulation-and-synthesis">A trade bar in C simulation and synthesis<a class="headerlink" href="#a-trade-bar-in-c-simulation-and-synthesis" title="Permanent link">&para;</a></h3>
+<p>The <a href="https://github.com/briangu/klongpy/blob/main/examples/hardware/trade_bar.kg">trade-bar example</a> holds one symbol and one interval per reset. For each ordered trade it takes a price in integer ticks and a quantity in lots. It returns open, high, low, close, total quantity, the sum of price × quantity, and trade count. The host chooses the symbol and interval, and can divide the weighted sum by total quantity to get VWAP. In the ticker plant, a subscriber could run this calculation on acknowledged batches while the head continues to own sequencing and disk sync. Choose units and a window that keep the sums within signed 64-bit range.</p>
+<p>On November 27, Vitis C simulation processed 200,003 synthetic trades in chunks of 4,093. All seven outputs matched an independent integer reference, including the weighted sum of 587,990,033,025. With <code>--int64 --clock-mhz 250</code>, HLS estimated 10,505 LUTs and 10 DSPs. It scheduled one core update per cycle. The input port reads one 64-bit word per cycle and each trade needs two words. At the target clock that gives a design ceiling of 125 million trades/s before transfer overhead. This example has reached C synthesis. Physical timing and throughput remain unmeasured. <a href="../performance/#fpga-analytics-on-committed-trades">How a ticker plant subscriber could use the kernel</a></p>
 <h3 id="correctness">Correctness<a class="headerlink" href="#correctness" title="Permanent link">&para;</a></h3>
 <p>The summary of every lane after the first 100000 ticks equals the static profile's evaluator's (the one <code>call_entry</code> uses). After all 10 million ticks it equals the emitted C's, bit for bit, on the card. The hand-checked 20-tick series give the worked results in every lane. <code>tests/static/test_crossover_card.py</code> runs the hand series and 200000 ticks against the card. For <code>fir</code>, floats agree within 1e-5 relative.</p>
+<p>The November 27 hardware run passed all 20 tests in <code>test_hw_card.py</code>, <code>test_hw_binding_card.py</code> and <code>test_crossover_card.py</code>. It exercised both current images, including state continuation, reset, resident buffers, runtime traps and image rejection.</p>
 <h2 id="known-limits">Known limits<a class="headerlink" href="#known-limits" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Only the strategy image has been run on the card with the current emitter. The image of <code>mavg.kg</code>, <code>fir.kg</code> and <code>trap.kg</code> must be built again (<code>kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg</code>) before <code>tests/static/test_hw_card.py</code> and <code>test_hw_binding_card.py</code> stop skipping.</li>
-<li>More than 32 lanes: a build with 64 lanes in one pipelined loop failed timing (estimated worst slack -6.4 ns at 250 MHz after placement, with five nets of more than 10000 loads) and was stopped during routing. 64 lanes as one process per lane (about 290000 LUTs) has not been built.</li>
+<li><strong>64 physical lanes.</strong> An earlier design with all lanes in one loop missed timing after placement. On November 27 the one-process-per-lane design completed C synthesis targeting 250 MHz. Vitis estimated 264,417 LUTs, 203,669 registers and 256 DSPs for the kernel. All 64 tick loops had an initiation interval of one clock. The 192 output words are written once per replay. A 10,000-tick, 64-configuration software simulation matched two passes on the physical 32-lane image. The 64-lane design still needs place-and-route and a board run.</li>
 <li>Hardware emulation: loading the emulated image did not complete in the time allowed. There is no co-simulation.</li>
 <li>There are no network ports.</li>
 <li>An entry that mixes <code>int</code> and <code>float</code> arguments is built but cannot be called by <code>.fpga</code>, and a summary kernel with lanes needs records of one width.</li>
