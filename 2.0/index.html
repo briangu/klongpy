@@ -2160,7 +2160,7 @@
 </table>
 <p>The same interpreter is in firmware for microcontroller boards, and the tools <code>lint</code>, <code>check</code>, <code>compile c</code>, <code>fpga source</code> and <code>ast</code> run from either command. <a href="what-runs-where/">What Runs Where</a> says which part does what.</p>
 <h2 id="targets-and-status">Targets and status<a class="headerlink" href="#targets-and-status" title="Permanent link">&para;</a></h2>
-<p>A post-RC1 build of the native ticker plant sustained <strong>3.80M offered trades/s with its in-process WAL</strong> on two AMD EPYC hosts connected by 100 GbE. The head kept the intraday RDB in RAM and synced each batch to local NVMe. Two native <code>kg</code> subscribers acknowledged trades while native clients queried live and historical quotes. Both one-minute confirmations verified 228,065,280 trades after rollover, averaging <strong>2.26–2.27M trades/s</strong> including the handoff to the HDB. <a href="performance/#native-wal-and-native-clients-on-100-gbe">Throughput, latency and missed queries</a></p>
+<p>The ticker plant with its journal implemented in Klong sustained <strong>2,097,152 offered trades/s</strong> on two AMD EPYC hosts connected by 100 GbE. Each batch synced to local NVMe and reached two subscribers before the publisher received its reply. Both one-minute runs verified 125,829,120 archived trades and met the 50 ms target for at least 99% of scheduled live and historical quotes. <a href="performance/#klong-journal-on-100-gbe">Measurements and comparison with the previous Rust journal</a></p>
 <table>
 <thead>
 <tr>
