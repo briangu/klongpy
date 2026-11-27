@@ -2777,9 +2777,14 @@
 <td><code>.cli .clid .clic .clit .srv .async</code> and the <code>.srv.*</code> hooks, and the <code>mgmt</code> library</td>
 </tr>
 <tr>
-<td><code>ticker-wal</code></td>
+<td><code>binary-files</code></td>
 <td><code>klong-cli</code> (default on), <code>klong-host</code></td>
-<td>registers <code>.tickerwal</code> for synchronous ticker-plant batch writes and replay on the local filesystem. Includes SQLite for the session checkpoint</td>
+<td>local binary file I/O, durable sync, little-endian integer encoding and CRC32</td>
+</tr>
+<tr>
+<td><code>sqlite</code></td>
+<td><code>klong-cli</code> (default on), <code>klong-host</code></td>
+<td>bundled SQLite for local SQL databases</td>
 </tr>
 <tr>
 <td><code>compress</code></td>
