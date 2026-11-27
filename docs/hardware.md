@@ -328,7 +328,7 @@ cmp summary.bin cpu-summary.bin
 
 The [trade-bar example](https://github.com/briangu/klongpy/blob/main/examples/hardware/trade_bar.kg) holds one symbol and one interval per reset. For each ordered trade it takes a price in integer ticks and a quantity in lots. It returns open, high, low, close, total quantity, the sum of price × quantity, and trade count. The host chooses the symbol and interval, and can divide the weighted sum by total quantity to get VWAP. In the ticker plant, a subscriber could run this calculation on acknowledged batches while the head continues to own sequencing and disk sync. Choose units and a window that keep the sums within signed 64-bit range.
 
-On November 27, Vitis C simulation processed 200,003 synthetic trades in chunks of 4,093. All seven outputs matched an independent integer reference, including the weighted sum of 587,990,033,025. With `--int64 --clock-mhz 250`, HLS estimated 10,505 LUTs and 10 DSPs. It scheduled one core update per cycle. The input port reads one 64-bit word per cycle and each trade needs two words. At the target clock that gives a design ceiling of 125 million trades/s before transfer overhead. This example has reached C synthesis. Physical timing and throughput remain unmeasured.
+On November 27, Vitis C simulation processed 200,003 synthetic trades in chunks of 4,093. All seven outputs matched an independent integer reference, including the weighted sum of 587,990,033,025. With `--int64 --clock-mhz 250`, HLS estimated 10,505 LUTs and 10 DSPs. It scheduled one core update per cycle. The input port reads one 64-bit word per cycle and each trade needs two words. At the target clock that gives a design ceiling of 125 million trades/s before transfer overhead. This example has reached C synthesis. Physical timing and throughput remain unmeasured. [How a ticker plant subscriber could use the kernel](performance.md#fpga-analytics-on-committed-trades)
 
 ### Correctness
 
@@ -338,7 +338,6 @@ The November 27 hardware run passed all 20 tests in `test_hw_card.py`, `test_hw_
 
 ## Known limits
 
-* Only the strategy image has been run on the card with the current emitter. The image of `mavg.kg`, `fir.kg` and `trap.kg` must be built again (`kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg`) before `tests/static/test_hw_card.py` and `test_hw_binding_card.py` stop skipping.
 * **64 physical lanes.** An earlier design with all lanes in one loop missed timing after placement. On November 27 the one-process-per-lane design completed C synthesis targeting 250 MHz. Vitis estimated 264,417 LUTs, 203,669 registers and 256 DSPs for the kernel. All 64 tick loops had an initiation interval of one clock. The 192 output words are written once per replay. A 10,000-tick, 64-configuration software simulation matched two passes on the physical 32-lane image. The 64-lane design still needs place-and-route and a board run.
 * Hardware emulation: loading the emulated image did not complete in the time allowed. There is no co-simulation.
 * There are no network ports.

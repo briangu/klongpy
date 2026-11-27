@@ -261,6 +261,21 @@ The reference kdb+tick ticker plant implements the journal policy in q. With log
 
 KX gives a sizing figure of up to 4.5 million streaming records/s per core and up to 10 million records/s with batching. Its reference ticker plant publishes updates asynchronously. Our 3.80M trades/s measurement includes a local WAL sync and acknowledgment by two subscribers, with four DuckDB workers configured for the RDB. We have yet to measure KX q on Milan and Tinkara with the same durability, subscriber, query and rollover requirements. Our direct comparison with PeachQ below uses a separate single-threaded workload. [KX sizing guidance](https://code.kx.com/q/wp/disaster-recovery/) · [KX subscriber implementation](https://github.com/KxSystems/kdb-tick/blob/master/tick/u.q)
 
+### FPGA analytics on committed trades
+
+The 100 GbE journal benchmark above ran on CPUs. In a separate experiment on November 27, 2026, an Alveo U250 replayed a price history and returned a summary for each trading strategy. All 20 physical-board regression tests passed. The journal benchmark measures how quickly a publisher can get a durable acknowledgment. The U250 experiment measures what an analytics consumer can compute from a batch it already has. [Board tests and timing records](https://github.com/briangu/klongpy/blob/0c46f01/examples/hardware/results/2026-11-27-u250.json)
+
+| Workload on the physical U250 | FPGA timing | CPU timing on the card host |
+|---|---|---|
+| Replay 10 million ticks for 1,024 crossover strategies | 1.46–1.49 s with history in card memory. 3.42–3.65 s from process launch through exit. | 11.19–11.30 s for the same emitted C across 32 processes |
+| Filter 100,000 blocks of 256 samples with a 16-tap FIR | 106 ms in the kernel. 2.23 s for the full call over SSH. | 0.95 s in NumPy |
+
+The strategy sweep uploaded 40 MB once, ran 32 groups on 32 physical lanes and returned 24 KiB. All 3,072 results for profit, maximum drawdown and trade count matched the C reference bit for bit. The FIR filter returned 241 samples per block, or 96.4 MB in total. Moving those results back across the Gen3 ×1 PCIe link and the SSH connection made the remote call slower than NumPy. [Reproduce the strategy sweep](hardware.md#reusing-one-history-across-1024-strategies) · [FIR transfer timings](hardware.md#streaming-fir-on-the-u250)
+
+**A trade bar is a candidate for subscriber offload.** The head already sequences and journals each batch, and the publisher waits for the subscribers’ replies. A subscriber could queue committed trades for a separate analytics worker and return its cursor before the FPGA finishes. The worker would need its own last-processed sequence so it could rebuild unfinished bars from the journal after a restart. If its queue filled, backpressure could still delay the publisher. Measuring commit-to-bar freshness alongside publisher acknowledgment latency would show the cost of that integration.
+
+The prototype takes ordered price and quantity pairs for one symbol and interval. It returns open, high, low, close, total quantity, the sum of price times quantity, and trade count. Vitis C simulation matched an independent integer reference on all seven values across 200,003 trades. The core scheduled one update per clock, but each trade needs two 64-bit input words and the port reads one word per clock. At the 250 MHz target that gives an estimated input ceiling of 125 million trades/s before transfer overhead. Physical throughput for this kernel and its effect on live ingest remain unmeasured. A separate 64-lane strategy design also reached C synthesis. The strategy timings above come from the 32-lane board image. [Trade-bar experiment](hardware.md#a-trade-bar-in-c-simulation-and-synthesis) · [64-lane synthesis results](hardware.md#known-limits)
+
 ## Streaming tables and queries
 
 On 2026-11-20 UTC, standalone `kg` from the installed **2.0.0rc1** Linux x86-64 wheel ingested **0.959–0.977 million rows/s** over six controlled trials on an AMD EPYC 7773X. A loopback client loaded 1,048,576 rows into memory in 256-row batches. In a separate phase, a writer offered 25,600 rows/s against 32,768 preloaded rows while two clients queried last price and as-of bid. Each trial checked the query results and final row counts. Query latency runs from the scheduled time to the reply.

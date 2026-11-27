@@ -13,7 +13,7 @@ The same interpreter is in firmware for microcontroller boards, and the tools `l
 
 ## Targets and status
 
-The ticker plant with its journal implemented in Klong sustained **2,097,152 offered trades/s** on two AMD EPYC hosts connected by 100 GbE. Each batch synced to local NVMe and reached two subscribers before the publisher received its reply. Both one-minute runs verified 125,829,120 archived trades and met the 50 ms target for at least 99% of scheduled live and historical quotes. [Measurements and comparison with the previous Rust journal](performance.md#klong-journal-on-100-gbe)
+The ticker plant with its journal implemented in Klong sustained **2,097,152 offered trades/s** on two AMD EPYC hosts connected by 100 GbE. Each batch synced to local NVMe and reached two subscribers before the publisher received its reply. Both one-minute runs verified 125,829,120 archived trades and met the 50 ms target for at least 99% of scheduled live and historical quotes. [Journal measurements](performance.md#klong-journal-on-100-gbe) · [FPGA analytics on committed trades](performance.md#fpga-analytics-on-committed-trades)
 
 | Target | Status | More |
 |---|---|---|
