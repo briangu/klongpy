@@ -1790,6 +1790,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Tested setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pcie-topology-and-timing-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCIe topology and timing boundaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2253,6 +2270,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Tested setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pcie-topology-and-timing-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PCIe topology and timing boundaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2553,8 +2587,8 @@
 <td>Ryzen 9 7950X3D (16 cores, 32 threads), gcc 9.4, numpy 1.24</td>
 </tr>
 <tr>
-<td>Link</td>
-<td>the card sits on a PCIe link of one lane, so transfers are slower than on a full slot</td>
+<td>Card link</td>
+<td>PCIe Gen3 ×1 (8 GT/s per lane). The U250 supports Gen3 ×16.</td>
 </tr>
 <tr>
 <td>Dates</td>
@@ -2566,6 +2600,40 @@
 </tr>
 </tbody>
 </table>
+<h3 id="pcie-topology-and-timing-boundaries">PCIe topology and timing boundaries<a class="headerlink" href="#pcie-topology-and-timing-boundaries" title="Permanent link">&para;</a></h3>
+<p>The benchmark client sent data over SSH to the Ryzen card host. On that host, XRT copied buffers between host memory and U250 memory over PCIe. Linux reported the following negotiated links on the path to the accelerator. The upstream and downstream ports belong to the same AMD PCIe bridge complex.</p>
+<table>
+<thead>
+<tr>
+<th>Physical link, from host toward card</th>
+<th>Negotiated link</th>
+<th>What the ports advertise</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AMD root port to bridge upstream port</td>
+<td>Gen4 ×4 (16 GT/s per lane)</td>
+<td>Upstream port supports Gen4 ×4</td>
+</tr>
+<tr>
+<td>Bridge downstream port to U250</td>
+<td><strong>Gen3 ×1 (8 GT/s)</strong></td>
+<td>Downstream port supports Gen3 ×1. U250 endpoint supports Gen3 ×16.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>gen3x16</code> in the platform name describes the card platform. On this host the final hop has a theoretical ceiling of <strong>985 MB/s in each direction</strong> after Gen3 line encoding and before packet overhead (8 GT/s × 128/130 ÷ 8). The 100 GbE link in the ticker plant measurements connected two other hosts. <a href="https://github.com/briangu/klongpy/blob/main/examples/hardware/results/2026-11-27-u250.json">Recorded PCIe topology</a> · <a href="../performance/#fpga-analytics-on-committed-trades">Ticker plant workload and hardware</a></p>
+<p>The <strong>upload and download</strong> timers run on the card host and include XRT buffer handling, host copies and device synchronization. The <strong>kernel</strong> timer runs from submission to completion with inputs already in card memory. <strong>Client wall time</strong> includes the SSH round trip, client and server processing, and the card operations. The CPU comparison on the card host uses host memory. These experiments used one link width, so the results do not quantify the speedup from a wider slot.</p>
+<p>To check another Linux host, take the accelerator's domain-qualified PCI address from <code>lspci -D</code>. Follow its sysfs path toward the root port to identify where the width changes. The command prints current speed and width followed by maximum speed and width for each device.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">device</span><span class="o">=</span><span class="k">$(</span>readlink<span class="w"> </span>-f<span class="w"> </span><span class="s2">"/sys/bus/pci/devices/</span><span class="si">${</span><span class="nv">BDF</span><span class="p">:?Set BDF to the accelerator PCI address</span><span class="si">}</span><span class="s2">"</span><span class="k">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">while</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-r<span class="w"> </span><span class="s2">"</span><span class="nv">$device</span><span class="s2">/current_link_width"</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s  '</span><span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">device</span><span class="p">##*/</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span>paste<span class="w"> </span><span class="s2">"</span><span class="nv">$device</span><span class="s2">/current_link_speed"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$device</span><span class="s2">/current_link_width"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">          </span><span class="s2">"</span><span class="nv">$device</span><span class="s2">/max_link_speed"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$device</span><span class="s2">/max_link_width"</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nv">device</span><span class="o">=</span><span class="k">$(</span>dirname<span class="w"> </span><span class="s2">"</span><span class="nv">$device</span><span class="s2">"</span><span class="k">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">done</span>
+</code></pre></div>
 <h2 id="what-qualifies">What qualifies<a class="headerlink" href="#what-qualifies" title="Permanent link">&para;</a></h2>
 <p>A program is a candidate when it is inside the static profile (<code>kgpy check FILE</code>) and an <code>.entry</code> of it is a function that</p>
 <ul>
@@ -2580,16 +2648,16 @@
 <h3 id="1-emit">1. Emit<a class="headerlink" href="#1-emit" title="Permanent link">&para;</a></h3>
 <p><code>kgpy fpga source FILE... -o DIR</code> writes the HLS C++ of every entry, a C test bench, a script for Vitis HLS and <code>manifest.json</code>. It takes seconds and needs none of the tools.</p>
 <!-- check-docs: link examples -->
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>fpga<span class="w"> </span><span class="nb">source</span><span class="w"> </span>examples/embedded/fir.kg<span class="w"> </span>-o<span class="w"> </span>out/
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="go">examples/embedded/fir.kg: wrote out/fir.c, out/fir.h, out/fir_run_tb.cpp, out/fir_run_top.cpp, out/hls_run.tcl, out/kg_hls_stub.h, out/klong_rt.h, out/manifest.json</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="go">  kernel fir_run_kernel: entry run (float[256] -&gt; float[241]); record in 1024 bytes, out 964 bytes</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span>kgpy<span class="w"> </span>fpga<span class="w"> </span><span class="nb">source</span><span class="w"> </span>examples/embedded/fir.kg<span class="w"> </span>-o<span class="w"> </span>out/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="go">examples/embedded/fir.kg: wrote out/fir.c, out/fir.h, out/fir_run_tb.cpp, out/fir_run_top.cpp, out/hls_run.tcl, out/kg_hls_stub.h, out/klong_rt.h, out/manifest.json</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="go">  kernel fir_run_kernel: entry run (float[256] -&gt; float[241]); record in 1024 bytes, out 964 bytes</span>
 </code></pre></div>
 <p>With <code>KLONG_FPGA_BUILD=user@host</code> set, <code>--synth</code> runs C synthesis on that machine and prints the estimates.</p>
 <h3 id="2-build-with-the-timing-gate">2. Build, with the timing gate<a class="headerlink" href="#2-build-with-the-timing-gate" title="Permanent link">&para;</a></h3>
 <p><code>kgpy fpga build FILE... [--clock-mhz N]</code> builds the bitstream on the machine named by <code>KLONG_FPGA_BUILD</code> and keeps it in a cache there. The cache key is a hash of the program, the emitter version, the clock, the platform and the tool version. Several files make one image, so build together what you will use together:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>kgpy fpga status                # shows the build
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>kgpy fpga build --wait          # waits for it
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>kgpy fpga status                # shows the build
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>kgpy fpga build --wait          # waits for it
 </code></pre></div>
 <p>A source that has been built is not built again. A source that failed timing is not retried; the message gives the slack and a clock to try. A build is a full Vitis and Vivado run. One image of three small programs (four kernels) took 1 hour 27 minutes. Run one build at a time: <code>kgpy fpga build</code> refuses to start while a Vivado, <code>v++</code> or Vitis HLS process of any user is running on the machine.</p>
 <p>A bitstream is loaded only if its routed timing was met: no failing endpoints and a worst negative slack at or above zero. The build records the result in <code>build.json</code> next to the image. An image that fails is renamed <code>*.timing-failed.xclbin</code>. The loader refuses that name, any image without a passing <code>build.json</code>, and any image whose SHA-256 differs from the recorded one.</p>
@@ -2598,65 +2666,65 @@
 <p>With <code>KLONG_FPGA=sim</code>, <code>.fpga</code> needs no card and no build. It compiles the generated HLS code with the system C and C++ compilers (the HLS pragmas are ignored) and calls it with the same records and status word as the card. Its results show that the program and the binding work. They say nothing about speed.</p>
 <p><code>fir.kg</code> is a 16-tap filter over a block of 256 samples that gives 241 outputs. The program below loads it interpreted (<code>.l</code> defines <code>run</code>), binds the kernel (<code>fir.run</code>), runs three blocks both ways, prints the shape of the result, and prints 1 if the largest squared difference is below 1e-9.</p>
 <!-- check-docs: link examples; requires-cmd cc c++ -->
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>fir_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">&gt; .l("examples/embedded/fir.kg")</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="go">&gt; fir::.fpga("examples/embedded/fir.kg")</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="go">&gt; x::{256#x}'1.0+!3</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="go">&gt; d::run'x</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="go">&gt; d::d-fir.run(x)</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="go">&gt; .p(^d)</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="go">&gt; .p((|/,/d*d)&lt;1e-9)</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="go">&gt; EOF</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>fir_hw.kg
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="go">[3 241]</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="go">1</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>fir_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">&gt; .l("examples/embedded/fir.kg")</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">&gt; fir::.fpga("examples/embedded/fir.kg")</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">&gt; x::{256#x}'1.0+!3</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="go">&gt; d::run'x</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="go">&gt; d::d-fir.run(x)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="go">&gt; .p(^d)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="go">&gt; .p((|/,/d*d)&lt;1e-9)</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>fir_hw.kg
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="go">[3 241]</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="go">1</span>
 </code></pre></div>
 <p><code>run'x</code> is the interpreted program over three blocks; <code>fir.run(x)</code> is one run of three calls on the kernel. The array <code>x</code> has one more dimension than the entry's argument (<code>float[256]</code>), which means three calls in one run, and the result has the same extra dimension. A value of exactly <code>float[256]</code> is one call and gives one result of <code>float[241]</code>.</p>
 <p>State lives in the kernel. <code>mavg.kg</code> keeps the last four samples:</p>
 <!-- check-docs: continue; requires-cmd cc c++ -->
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>mavg_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">&gt; mavg::.fpga("examples/embedded/mavg.kg")</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">&gt; .p(mavg.step([4.0 8.0 12.0 16.0 20.0]))</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">&gt; .p(mavg.step(4.0))</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="go">&gt; .fpga.reset(mavg.step)</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="go">&gt; .p(mavg.step(4.0))</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="go">&gt; .p(.fpga.info()@"mode")</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="go">&gt; EOF</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>mavg_hw.kg
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="go">[1.0 3.0 6.0 10.0 14.0]</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="go">13.0</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="go">1.0</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="go">sim</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>mavg_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">&gt; mavg::.fpga("examples/embedded/mavg.kg")</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="go">&gt; .p(mavg.step([4.0 8.0 12.0 16.0 20.0]))</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">&gt; .p(mavg.step(4.0))</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="go">&gt; .fpga.reset(mavg.step)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="go">&gt; .p(mavg.step(4.0))</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="go">&gt; .p(.fpga.info()@"mode")</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>mavg_hw.kg
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="go">[1.0 3.0 6.0 10.0 14.0]</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="go">13.0</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="go">1.0</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="go">sim</span>
 </code></pre></div>
 <p>The first call after <code>.fpga</code> starts the program from its initial state; the five ticks are one run. The next call goes on from the window the run left. <code>.fpga.reset(k)</code> makes the next call of <code>k</code> start from the initial state again.</p>
 <h3 id="4-lanes-and-parameters">4. Lanes and parameters<a class="headerlink" href="#4-lanes-and-parameters" title="Permanent link">&para;</a></h3>
 <p><code>--lanes N</code> builds N copies of the program, called lanes, that read one input stream. Each parameter (declared with <code>.param</code>) is then an array of N values, set with <code>.fpga.set</code> between runs. <code>.fpga.lanes("crossover.kg";n)</code> binds the image built with <code>--lanes n</code>.</p>
 <p>On the simulator, with two lanes (<code>fast</code> 2 and 1, <code>slow</code> 4 and 3) and the 20 ticks of a test series whose answer was worked out on paper:</p>
 <!-- check-docs: link examples; requires-cmd cc c++ -->
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>strategy.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">&gt; s::.fpga.lanes("examples/hardware/crossover.kg";2)</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="go">&gt; .fpga.set(s;"fast";[2 1])</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">&gt; .fpga.set(s;"slow";[4 3])</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="go">&gt; .fpga.set(s;"stop";[1.5 1.5])</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="go">&gt; t::[10 10 10 10 11 9.25 9.5 9.75 11.5 12 12.5 13 13.5 14 14.5 15 15.5 16 16.5 17]</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="go">&gt; .p(crossover.step(t))</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="go">&gt; .p(crossover.summary())</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="go">&gt; EOF</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>strategy.kg
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="go">[[1.75 3.75 3.0] [5.0 2.25 3.0]]</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="go">[[1.75 3.75 3.0] [5.0 2.25 3.0]]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>strategy.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">&gt; s::.fpga.lanes("examples/hardware/crossover.kg";2)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="go">&gt; .fpga.set(s;"fast";[2 1])</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="go">&gt; .fpga.set(s;"slow";[4 3])</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="go">&gt; .fpga.set(s;"stop";[1.5 1.5])</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="go">&gt; t::[10 10 10 10 11 9.25 9.5 9.75 11.5 12 12.5 13 13.5 14 14.5 15 15.5 16 16.5 17]</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="go">&gt; .p(crossover.step(t))</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="go">&gt; .p(crossover.summary())</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="gp">$ </span><span class="nv">KLONG_FPGA</span><span class="o">=</span>sim<span class="w"> </span>kgpy<span class="w"> </span>strategy.kg
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="go">[[1.75 3.75 3.0] [5.0 2.25 3.0]]</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="go">[[1.75 3.75 3.0] [5.0 2.25 3.0]]</span>
 </code></pre></div>
 <p>Each row is one lane: profit, largest drawdown, number of trades. The first lane is that series
 (<code>tests/static/test_crossover.py</code>); the same account comes out of the evaluator of the static profile (the one <code>call_entry</code> uses), the emitted C, the kernel in
 C simulation and this simulator, bit for bit.</p>
 <h3 id="5-the-summary-pattern">5. The summary pattern<a class="headerlink" href="#5-the-summary-pattern" title="Permanent link">&para;</a></h3>
 <p>A result per tick would cost more than the computation. With 32 lanes, a result of three 64-bit words per tick is 96 words, and a kernel writes one word per clock cycle. So a strategy is written as a <em>summary pair</em>: <code>step</code> returns <code>void</code> and updates the state, and <code>summary</code> reads the state at the end. The kernel runs n calls of <code>step</code>, writes nothing for them, then writes the one record of <code>summary</code>, per lane. <code>examples/hardware/crossover.kg</code> is a moving-average crossover strategy written this way; the rules for the pair are in <a href="../static-profile/#a-summary-entry">the static profile</a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>.param("fast";"int";5)                            :" the fast window, 1 to 32 ticks "
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>.param("slow";"int";20)
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>.param("stop";"fixed&lt;32,16&gt;";1)                   :" close a position this far under water "
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>step::{...update the account...;0}                .entry("step";"fixed&lt;32,16&gt; -&gt; void")
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>summary::{profit,maxdd,wide(trades)}              .entry("summary";"-&gt; fixed&lt;64,32&gt;[3]")
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>.param("fast";"int";5)                            :" the fast window, 1 to 32 ticks "
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>.param("slow";"int";20)
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>.param("stop";"fixed&lt;32,16&gt;";1)                   :" close a position this far under water "
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>step::{...update the account...;0}                .entry("step";"fixed&lt;32,16&gt; -&gt; void")
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>summary::{profit,maxdd,wide(trades)}              .entry("summary";"-&gt; fixed&lt;64,32&gt;[3]")
 </code></pre></div>
 <p>This is a fragment: <code>step</code>, <code>profit</code>, <code>maxdd</code>, <code>trades</code> and <code>wide</code> are defined in the file. Three design choices let it fit 32 lanes at 250 MHz:</p>
 <ul>
@@ -2665,9 +2733,9 @@ C simulation and this simulator, bit for bit.</p>
 <li><strong>Parameters as a table.</strong> The host runtime can write a scalar to a kernel's register but not an array. The server writes the parameters of all lanes into a table in card memory that the kernel reads when it starts.</li>
 </ul>
 <p>Building and replaying it on the card:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>kgpy fpga build examples/hardware/crossover.kg --lanes 32 --clock-mhz 250
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python examples/hardware/crossover_bench.py gen history.bin params.bin --ticks 10000000 --lanes 32
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>KLONG_FPGA_HOST=user@host python examples/hardware/crossover_card.py history.bin params.bin
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>kgpy fpga build examples/hardware/crossover.kg --lanes 32 --clock-mhz 250
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>python examples/hardware/crossover_bench.py gen history.bin params.bin --ticks 10000000 --lanes 32
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>KLONG_FPGA_HOST=user@host python examples/hardware/crossover_card.py history.bin params.bin
 </code></pre></div>
 <h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
 <table>
@@ -2776,13 +2844,13 @@ C simulation and this simulator, bit for bit.</p>
 </table>
 <p>The trap is the compiled program's trap: the kernel does not stop, it sets a flag, and the host raises after the run. The interpreter raises at the first call that does it.</p>
 <!-- check-docs: link examples -->
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>no_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="go">&gt; .fpga("examples/embedded/fir.kg")</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="go">&gt; EOF</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="gp">$ </span>env<span class="w"> </span>-u<span class="w"> </span>KLONG_FPGA<span class="w"> </span>-u<span class="w"> </span>KLONG_FPGA_HOST<span class="w"> </span>kgpy<span class="w"> </span>no_hw.kg
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="go">no_hw.kg:1:1: system error: no hardware to run on: set KLONG_FPGA_HOST=user@host to use the Alveo card on that machine over ssh, run KlongPy on the machine with the card (pyxrt importable), or set KLONG_FPGA=sim for the simulator (no hardware)</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="go">  .fpga("examples/embedded/fir.kg")</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="go">  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span>cat<span class="w"> </span>&gt;<span class="w"> </span>no_hw.kg<span class="w"> </span>&lt;&lt;<span class="s1">'EOF'</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="go">&gt; .fpga("examples/embedded/fir.kg")</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="go">&gt; EOF</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="gp">$ </span>env<span class="w"> </span>-u<span class="w"> </span>KLONG_FPGA<span class="w"> </span>-u<span class="w"> </span>KLONG_FPGA_HOST<span class="w"> </span>kgpy<span class="w"> </span>no_hw.kg
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="go">no_hw.kg:1:1: system error: no hardware to run on: set KLONG_FPGA_HOST=user@host to use the Alveo card on that machine over ssh, run KlongPy on the machine with the card (pyxrt importable), or set KLONG_FPGA=sim for the simulator (no hardware)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="go">  .fpga("examples/embedded/fir.kg")</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="go">  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
 </code></pre></div>
 <h2 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h2>
 <h3 id="the-fir-image">The <code>fir</code> image<a class="headerlink" href="#the-fir-image" title="Permanent link">&para;</a></h3>
@@ -3026,18 +3094,18 @@ C simulation and this simulator, bit for bit.</p>
 </table>
 <p>That is 10.24 billion <strong>strategy updates</strong> per sweep. The input consists of 10 million distinct time steps shared by all strategies. The sweep counts parameter changes and result retrieval. The complete process also counts reading the input files and syncing the 24 KiB output. On the card host, 32 processes running the same emitted C with GCC <code>-O3</code> completed the sweep in 11.19–11.30 s across three trials. The process launches and reading the history from the page cache are included in the CPU times. <a href="https://github.com/briangu/klongpy/blob/main/examples/hardware/results/2026-11-27-u250.json">Trial timings, image hashes and correctness checks</a></p>
 <p>To reproduce from the checkout root, generate the history with <code>python examples/hardware/crossover_bench.py gen history.bin baseline-params.bin --ticks 10000000</code>. Save and run the following with desktop <code>kg</code> to generate the 1,024 triples. Use fresh output paths for both scripts.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>param::{[;1+x:%128;9+(x:%8)!16;256*1+x!8]}
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>f::.bfile("params1024.bin";:create)
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>f([;:write;4;,/param'!1024]);f(:sync)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>param::{[;1+x:%128;9+(x:%8)!16;256*1+x!8]}
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>f::.bfile("params1024.bin";:create)
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>f([;:write;4;,/param'!1024]);f(:sync)
 </code></pre></div>
 <p>In a card-enabled <code>kgpy</code> session, run the <a href="https://github.com/briangu/klongpy/blob/main/examples/hardware/crossover_sweep.kg">Klong sweep</a> with these paths.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>paths::["examples/hardware/crossover.kg" "history.bin" "params1024.bin" "summary.bin"]
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>.l("examples/hardware/crossover_sweep.kg")
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>paths::["examples/hardware/crossover.kg" "history.bin" "params1024.bin" "summary.bin"]
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>.l("examples/hardware/crossover_sweep.kg")
 </code></pre></div>
 <p>To check the output independently, use the same history and parameter file with the emitted C.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>kg<span class="w"> </span>compile<span class="w"> </span>c<span class="w"> </span>examples/hardware/crossover.kg<span class="w"> </span>-o<span class="w"> </span>c/
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>examples/hardware/crossover_bench.py<span class="w"> </span>cpu<span class="w"> </span>c/<span class="w"> </span>history.bin<span class="w"> </span>params1024.bin<span class="w"> </span>--procs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--out<span class="w"> </span>cpu-summary.bin
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>cmp<span class="w"> </span>summary.bin<span class="w"> </span>cpu-summary.bin
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>kg<span class="w"> </span>compile<span class="w"> </span>c<span class="w"> </span>examples/hardware/crossover.kg<span class="w"> </span>-o<span class="w"> </span>c/
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>python<span class="w"> </span>examples/hardware/crossover_bench.py<span class="w"> </span>cpu<span class="w"> </span>c/<span class="w"> </span>history.bin<span class="w"> </span>params1024.bin<span class="w"> </span>--procs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--out<span class="w"> </span>cpu-summary.bin
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>cmp<span class="w"> </span>summary.bin<span class="w"> </span>cpu-summary.bin
 </code></pre></div>
 <h3 id="a-trade-bar-in-c-simulation-and-synthesis">A trade bar in C simulation and synthesis<a class="headerlink" href="#a-trade-bar-in-c-simulation-and-synthesis" title="Permanent link">&para;</a></h3>
 <p>The <a href="https://github.com/briangu/klongpy/blob/main/examples/hardware/trade_bar.kg">trade-bar example</a> holds one symbol and one interval per reset. For each ordered trade it takes a price in integer ticks and a quantity in lots. It returns open, high, low, close, total quantity, the sum of price × quantity, and trade count. The host chooses the symbol and interval, and can divide the weighted sum by total quantity to get VWAP. In the ticker plant, a subscriber could run this calculation on acknowledged batches while the head continues to own sequencing and disk sync. Choose units and a window that keep the sums within signed 64-bit range.</p>
