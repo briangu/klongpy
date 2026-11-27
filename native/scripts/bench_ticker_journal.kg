@@ -1,0 +1,23 @@
+:" Time the journal handle directly on a fresh directory. Arguments are the absolute journal.kg
+   path (or builtin for the old Rust writer), directory, rows per batch and number of batches.
+   Prepare the four integer columns once, so write timings include framing, checksum and sync."
+rows::0:$.a@2
+batches::0:$.a@3
+check(ok;msg)::{:[ok;1;.err("range";msg)]}
+check((rows>0)&batches>0;"positive batch dimensions required")
+builtin::(.a@0)~"builtin"
+:[builtin;0;.l(.a@0)]
+w:::[builtin;.tickerwal(.a@1);journal.writer(.a@1;0)]
+check([0 0 0]~w([;:open;0]);"use an empty directory")
+check(0=#w([;:read;0]);"benchmark directory already contains trades")
+seq::!rows
+cols::[;1700000000000000000+1000*seq;seq!1024;10000+(17*seq)!100003;1+seq!97]
+timeBatch(i)::{[msg t end elapsed];msg::[;:append;0;rows*i],cols;t::.pc();end::w(msg);elapsed::.pc()-t;
+    check(end~rows*1+i;"wrong durable watermark");elapsed}
+seconds::timeBatch'!batches
+check([0 0 0]~w([;:open;0]);"unexpected replay coordinates")
+replay(i)::{[b];b::w([;:read;rows*i]);check(((b@0)~rows*i)&cols~1_b;"replay mismatch")}
+start::.pc()
+replay'!batches
+check(0=#w([;:read;rows*batches]);"unexpected trailing record")
+.p(.json( :{;"rows_per_batch";rows;"batches";batches;"append_seconds";seconds;"verified_replay_seconds";.pc()-start}))

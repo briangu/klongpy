@@ -114,6 +114,19 @@ fn mkdir(path: &Path) -> io::Result<()> {
     sync_parent(path)
 }
 
+fn read_available(file: &mut File, buf: &mut [u8]) -> io::Result<usize> {
+    let mut got = 0;
+    while got < buf.len() {
+        match file.read(&mut buf[got..]) {
+            Ok(0) => break,
+            Ok(n) => got += n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(got)
+}
+
 fn request(file: &mut File, ip: &Interp, req: &Value) -> Result<Value> {
     let (op, args): (_, &[Value]) = match req {
         Value::Sym(op) => (*op, &[]),
@@ -156,17 +169,28 @@ fn request(file: &mut File, ip: &Interp, req: &Value) -> Result<Value> {
                 .len()
                 .saturating_sub(file.stream_position().map_err(io_error)?);
             let length = length.min(usize::try_from(available).unwrap_or(usize::MAX));
+            if cfg!(target_endian = "little")
+                && width == std::mem::size_of::<Int>()
+                && length % width == 0
+            {
+                let n = length / width;
+                let mut values = try_vec::<Int>(n)?;
+                values.resize(n, 0);
+                // The integer buffer is initialized and exclusively borrowed. All
+                // bit patterns are valid, and host byte order matches the file.
+                let bytes = unsafe {
+                    std::slice::from_raw_parts_mut(values.as_mut_ptr().cast::<u8>(), length)
+                };
+                let got = read_available(file, bytes).map_err(io_error)?;
+                if got % width != 0 {
+                    return Err(Error::range("incomplete binary integer"));
+                }
+                values.truncate(got / width);
+                return Ok(Value::ints(values));
+            }
             let mut buf = try_vec(length)?;
             buf.resize(length, 0u8);
-            let mut got = 0;
-            while got < length {
-                match file.read(&mut buf[got..]) {
-                    Ok(0) => break,
-                    Ok(n) => got += n,
-                    Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(e) => return Err(io_error(e)),
-                }
-            }
+            let got = read_available(file, &mut buf).map_err(io_error)?;
             decode(&buf[..got], width)
         }
         _ => Err(Error::typ("invalid binary file operation or arguments")),

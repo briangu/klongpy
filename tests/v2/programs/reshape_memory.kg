@@ -1,0 +1,13 @@
+:" An exact reshape of a temporary vector can retain its backing storage.
+   Run with a 12 MiB heap, enough for one million int64 or float64 values."
+check(ok)::{:[ok;1;.err("range";"reshape changed the values or the source shape")]}
+shapeOfTemp()::{^[1000 1000]:^!1000000}
+check([1000 1000]~shapeOfTemp())
+check([[0.5 1.5] [2.5 3.5]]~[2 2]:^0.5+!4)
+src::!4
+grid::[2 2]:^src
+check(([0 1 2 3]~src)&[[0 1] [2 3]]~grid)
+file::.bfile("reshape-input.bin";:create)
+file([;:write;8;!1000000]);file([;:seek;0])
+check([1000 1000]~^[1000 1000]:^file([;:read;8;1000000]))
+1

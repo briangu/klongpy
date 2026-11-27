@@ -9,7 +9,8 @@ magic1::[75 71 84 49];magic2::[75 71 84 50]
 bad(message)::{[;"corrupt";"ticker WAL: ",message]}
 torn::[;"torn";"incomplete final record"]
 eof::[;"clean";""]
-readColumns(file;n)::{ {x;file([;:read;8;n])}'!4}
+readPayload(file;n)::{[values];values::file([;:read;8;n]);
+    require((#values)~n;"journal shortened during read");values}
 payload(file;header;legacy;day;first)::{[d seq n checksum end left cols];
     d::* .bunpack(8;header@(4+!8));
     seq::* .bunpack(8;header@(12+!8));
@@ -19,7 +20,7 @@ payload(file;header;legacy;day;first)::{[d seq n checksum end left cols];
       ~(first<first+n)&*.try({.bpack(8;,first+n)};[]);bad("journal sequence overflow");
       {end::first+n;left::file(:size)-file(:pos);
        :[left<32*n;:[legacy;bad("incomplete legacy journal record with unchecked length");torn];
-         {cols::readColumns(file;n);
+         {cols::[;4;n]:^readPayload(file;4*n);
           :[checksum~.crc32(8;cols);[;"batch";end;(,first),cols];bad("damaged journal record")]}()]}()]}
 headerBody(file;header;day;first)::{[crc];
     :[magic1~4#header;payload(file;header;1;day;first);
@@ -75,7 +76,7 @@ writeRecord(s;first;cols;n;end)::{[f header crc encoded checksummed written sync
 putBatch(s;args)::{[first n cols end];
     first::args@2;
     cols::3_args;
-    n::#(cols@0);
+    n::#(args@3);
     require((s.phase~"ready")&(s.closing<0)&(s.day~args@1)&s.next~first;
             "journal is closing, awaiting replay or at a different sequence");
     :[(n<1)|(n>maxRows)|~[;4;n]~^cols;-1;{

@@ -20,6 +20,7 @@ include native/boards/esp32p4/build.sh native/boards/esp32p4/README.md
 include native/boards/esp32p4/main/*.c native/boards/esp32p4/main/CMakeLists.txt
 include native/tools/*.py examples/embedded/*.kg examples/embedded/*.expect
 include native/scripts/bench_numpy.py native/scripts/bench_numpy.kg
+include native/scripts/bench_ticker_journal.kg
 # The Rust sources the wheel is built from: the extension (klong-py, its own cargo workspace) and the kg binary (klong-cli, in the native
 # workspace, whose root and every member must be present). The library files above are embedded by klong-rt and klong-lint.
 include native/Cargo.toml native/Cargo.lock

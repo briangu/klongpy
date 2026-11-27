@@ -1932,7 +1932,7 @@ fn build_shape(flat: &[Value], dims: &[usize], at: &mut usize, is_str: bool) -> 
 /// `shape:^b` for a flat numeric `b` and a shape of 2 to MAX_RANK positive integers: the elements fill the shape row by row, cyclically.
 /// `None` for anything else, which the general code does (a -1, a zero, a bigger rank, a source of rank above 1).
 #[cfg(feature = "speed")]
-fn reshape_flat_numbers(b: &Value, shape: &[Int]) -> Option<Value> {
+fn reshape_flat_numbers(b: &mut Value, shape: &[Int]) -> Option<Value> {
     if shape.len() < 2 || shape.len() > crate::value::MAX_RANK || shape.iter().any(|&d| d < 1 || d as u64 > u32::MAX as u64) {
         return None;
     }
@@ -1943,7 +1943,14 @@ fn reshape_flat_numbers(b: &Value, shape: &[Int]) -> Option<Value> {
         total = total.checked_mul(d as usize)?;
     }
     let dims = &dims[..shape.len()];
-    fn fill<T: Copy>(src: &[T], total: usize, dims: &[u32]) -> Option<Arr<T>> {
+    fn fill<T: Copy>(array: &mut Rc<Arr<T>>, total: usize, dims: &[u32]) -> Option<Rc<Arr<T>>> {
+        if array.data.len() == total {
+            if let Some(owned) = Rc::get_mut(array) {
+                *owned = Arr::shaped(core::mem::take(&mut owned.data), dims);
+                return Some(Rc::clone(array));
+            }
+        }
+        let src = &array.data;
         if src.is_empty() {
             return None;
         }
@@ -1954,21 +1961,22 @@ fn reshape_flat_numbers(b: &Value, shape: &[Int]) -> Option<Value> {
         } else {
             v.extend(src.iter().cycle().take(total).copied());
         }
-        Some(Arr::shaped(v, dims))
+        Some(Rc::new(Arr::shaped(v, dims)))
     }
     match b {
-        Value::Ints(x) if x.rank() == 1 => fill(&x.data, total, dims).map(|a| Value::Ints(Rc::new(a))),
-        Value::Flts(x) if x.rank() == 1 => fill(&x.data, total, dims).map(|a| Value::Flts(Rc::new(a))),
+        Value::Ints(x) if x.rank() == 1 => fill(x, total, dims).map(Value::Ints),
+        Value::Flts(x) if x.rank() == 1 => fill(x, total, dims).map(Value::Flts),
         _ => None,
     }
 }
 
 fn d_reshape(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
     let is_str = b.is_str();
-    // a flat numeric vector into an array of rank 2 to MAX_RANK: the numbers are copied, not boxed one by one
     #[cfg(feature = "speed")]
-    if let (Value::Ints(_) | Value::Flts(_), Value::Ints(sh)) = (&b, &a) {
-        if let Some(v) = reshape_flat_numbers(&b, &sh.data) {
+    let mut b = b;
+    #[cfg(feature = "speed")]
+    if let Value::Ints(sh) = &a {
+        if let Some(v) = reshape_flat_numbers(&mut b, &sh.data) {
             return Ok(v);
         }
     }

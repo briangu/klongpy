@@ -61,6 +61,11 @@ def test_dense_integer_grade_heap_budget(kg, tmp_path):
                     options=("--heap-limit", str(5 * 1024 * 1024))) == "1"
 
 
+def test_binary_read_and_reshape_heap_budget(kg, tmp_path):
+    assert evaluate(kg, load("reshape_memory.kg") + ";1", tmp_path,
+                    options=("--heap-limit", str(12 * 1024 * 1024))) == "1"
+
+
 def test_group_ten_thousand_station_labels(kg, tmp_path, record_property):
     samples = []
     for _ in range(3):

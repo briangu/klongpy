@@ -170,3 +170,5 @@ When loaded directly, the small-message feed lacked the clock and IPC helpers th
 ### Moving the ticker journal into Klong
 
 Ordinary channels could append text, but the desktop flush operation did not issue a disk sync. The [primitive regression](programs/tickerplant_files.kg) checks binary writes, sync, signed integer encoding and the standard CRC32 test vector. The [journal](../../examples/stocks/tickerplant/journal.kg) implements framing, replay, prefix scanning, writer locking and rollover in Klong and opens existing daily files and session checkpoints.
+
+The [journal timing script](../../native/scripts/bench_ticker_journal.kg) initially loaded the module inside an anonymous function. The returned writer then failed to resolve `rewindLog` on its first request. Loading the module at script scope made the same request succeed. A helper named `append` also collided with the `:append` operation. The script uses `timeBatch` and checks the durable watermark and every replayed column for both implementations.
