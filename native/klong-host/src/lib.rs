@@ -53,8 +53,12 @@ pub fn absolute_module_path(path: &str) -> String {
 
 #[cfg(feature = "duckdb")]
 mod database;
-#[cfg(feature = "ticker-wal")]
-mod ticker_wal;
+#[cfg(feature = "binary-files")]
+mod binary_files;
+#[cfg(feature = "sqlite")]
+mod sqlite;
+#[cfg(any(feature = "binary-files", feature = "sqlite"))]
+mod local_file;
 pub mod net;
 
 /// Where what a program prints with `.p .d .w` goes.
@@ -92,7 +96,8 @@ impl HostPlatform {
     pub fn new(console: Console) -> HostPlatform {
         let features = vec![
             #[cfg(feature = "duckdb")] "duckdb",
-            #[cfg(feature = "ticker-wal")] "ticker-wal",
+            #[cfg(feature = "binary-files")] "binary-files",
+            #[cfg(feature = "sqlite")] "sqlite",
         ];
         HostPlatform { features, start: Instant::now(), #[cfg(feature = "duckdb")] sql_idle: None, console, fs: Files::Host(HostFs::default()), transports: vec![Box::new(net::TcpTransport::new())], sink: None, source: None }
     }
@@ -201,13 +206,16 @@ impl FileSystem for HostFs {
 impl Platform for HostPlatform {
     fn features(&self) -> &[&str] { &self.features }
 
-    #[cfg(any(feature = "duckdb", feature = "ticker-wal"))]
+    #[cfg(any(feature = "duckdb", feature = "binary-files", feature = "sqlite"))]
     fn register(&self, ip: &mut klong_core::Interp) {
         #[cfg(feature = "duckdb")]
         database::register(ip, self.sql_idle.clone());
-        #[cfg(feature = "ticker-wal")]
+        #[cfg(any(feature = "binary-files", feature = "sqlite"))]
         if matches!(self.fs, Files::Host(_)) {
-            ticker_wal::register(ip);
+            #[cfg(feature = "binary-files")]
+            binary_files::register(ip);
+            #[cfg(feature = "sqlite")]
+            sqlite::register(ip);
         }
     }
 

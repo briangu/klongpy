@@ -1,7 +1,8 @@
 :" Scan a daily WAL offline. Collect the small test batches to verify every recovered trade."
+.l(.a@3)
 seen::[]
 visit(batch)::{seen::seen,,batch;1}
-scanArgs::[;:scan;.a@0;0:$.a@1;0:$.a@2]
-report::.tickerwal(scanArgs,,visit)
-:[report~.tickerwal(scanArgs);1;.err("range";"scan with and without a visitor must agree")]
+scanArgs::[;.a@0;0:$.a@1;0:$.a@2]
+report::journal.scan(scanArgs,,visit)
+:[report~journal.scan(scanArgs);1;.err("range";"scan with and without a visitor must agree")]
 .p(.json([;report;seen]))

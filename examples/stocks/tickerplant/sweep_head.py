@@ -28,6 +28,7 @@ def render(source, batch_limit, memory, journal=None, password=""):
 
 
 def profiled_head(source):
+    source = substitute(source, "journalProfile::0", "journalProfile::1")
     def around(text, stage):
         return f'tpMark("{stage}";0);{text};tpMark("{stage}";1)'
 

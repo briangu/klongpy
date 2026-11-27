@@ -210,6 +210,8 @@ A separate recovery trial killed the native head with `SIGKILL` after 491 acknow
 
 #### Durable ingest with an interactive quote budget
 
+These measurements used the Rust journal at the [benchmark revision](https://github.com/briangu/klongpy/tree/a17775c/examples/stocks/tickerplant). The current ticker plant implements the same on-disk format in Klong. Its 100 GbE throughput still needs a new run.
+
 A post-RC1 source-build sweep on Milan and Tinkara required at least 99% of each reader’s 20 scheduled quotes/s to return within 50 ms. It counted skipped slots and measured latency from the scheduled time. A qualifying rate had to pass that condition on both live and historical reads, keep trade backlog within the four-batch budget, and pass twice for 60 seconds. Both native subscribers acknowledged the durable stream. The head used four DuckDB workers and the HDB used eight.
 
 **2,097,152 offered trades/s** was the highest rate confirmed on the tested grid. A final independent pair used 98,304-row batches with two requests in flight and verified 125,829,120 trades in each minute. In each run, 1,192 of 1,200 live quotes and all 1,200 historical quotes finished within 50 ms. Live scheduled p99 was 44.92–46.41 ms and historical p99 was 2.33–2.63 ms. One batch drained 17.3 ms after the first deadline. All trades were acknowledged within the second deadline. Through completed rollover, the rates were 1.91 and 1.93 million trades/s. Milan averaged 0.56 Gbit/s received and 1.12 Gbit/s sent. [Qualification records and hardware](https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/results/2026-11-26-qualified-100gbe.jsonl)

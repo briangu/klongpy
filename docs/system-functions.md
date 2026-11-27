@@ -1753,36 +1753,97 @@ then the columns are returned.  If "x" is a database, then a dict of
 table name to table is returned.
 ```
 
-## Ticker plant journal
+## Binary files
 
-Available on a local filesystem with the native `ticker-wal` feature.
+Desktop binary file and checksum operations.
 
 | Name | Title | Description |
 |------|-------|-------------|
-| `.tickerwal(x)` | Ticker-Plant-Journal | Open the ticker plant's local write-ahead log for durable trade batches and replay. |
+| `.bfile(path;mode)` | Binary-Files | Open a local binary file and return a callable handle. |
+| `.bpack(width;values)` | Binary-Files | Encode an integer vector as little-endian bytes. |
+| `.bunpack(width;bytes)` | Binary-Files | Decode a byte vector into little-endian integers. |
+| `.crc32(width;values)` | Binary-Files | Compute IEEE CRC32 over little-endian integers. |
+| `.mkdir(path)` | Binary-Files | Create a local directory and any missing parents. |
+| `.files(path)` | Binary-Files | List the regular files in a local directory. |
 
-### `.tickerwal`
+### `.bfile`
 
-`.tickerwal(x)` [Ticker-Plant-Journal]
+`.bfile(path;mode)` [Binary-Files]
 
 ```text
-Open the journal directory x and return a function that accepts
-journal requests. To initialize a journal at a known trading day
-and first sequence, pass [directory day first] as x.
+Open a local binary file and return a callable handle.
+Modes are :read, :update (existing file), and :create (create if absent).
+The handle accepts :size, :pos, :sync, [;:seek;offset], [;:truncate;size],
+[;:read;width;count] and [;:write;width;values]. Offsets and sizes are bytes.
+Reads return an integer vector, which may be short at EOF. A partial integer
+raises an error. Writes accept an integer array or a list of integer vectors.
+:sync makes preceding file writes durable. Creating a file also syncs its
+parent directory on Unix.
+```
 
-Call w([;:open;0]) to obtain [day first closing]. Read batches
-with w([;:read;cursor]), advancing the cursor by the number of
-trades in each batch, until the result is empty. After replay,
-w([;:append;day;first;ts;sym;px;qty]) syncs the batch and returns
-its exclusive ending sequence. At rollover, beginClose and
-finishClose each take the trading day and ending sequence.
+### `.bpack`
 
-Scan a daily WAL file with .tickerwal([;:scan;path;day;first]).
-The read-only scan returns status, reason, batches, validBytes
-and nextSeq for the consecutive verified prefix. Status is clean,
-torn or corrupt. Pass an optional one-argument function after
-first to receive each verified [first ts sym px qty] batch.
-Use a stopped writer's file or a stable copy.
+`.bpack(width;values)` [Binary-Files]
+
+```text
+Encode an integer vector as little-endian bytes.
+Width 1 accepts bytes 0 through 255. Widths 4 and 8 encode signed integers.
+```
+
+### `.bunpack`
+
+`.bunpack(width;bytes)` [Binary-Files]
+
+```text
+Decode a byte vector into little-endian integers.
+Widths 1, 4 and 8 match .bpack. The input must contain whole integers.
+```
+
+### `.crc32`
+
+`.crc32(width;values)` [Binary-Files]
+
+```text
+Compute IEEE CRC32 over little-endian integers.
+Accepts an integer array or a list of integer vectors. Returns the signed
+32-bit representation of the CRC, suitable for .bpack(4;,crc).
+```
+
+### `.mkdir`
+
+`.mkdir(path)` [Binary-Files]
+
+```text
+Create a local directory and any missing parents.
+Directory creation syncs the parent directory on Unix.
+```
+
+### `.files`
+
+`.files(path)` [Binary-Files]
+
+```text
+List the regular files in a local directory.
+Each row contains a filename and its size in bytes.
+```
+
+## SQLite
+
+Available with the desktop `sqlite` feature.
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.sqlite(path)` | SQLite | Open a SQLite database and return a callable connection. |
+
+### `.sqlite`
+
+`.sqlite(path)` [SQLite]
+
+```text
+Open a SQLite database and return a callable connection.
+Call the connection with one SQL statement per call. Results are lists of
+rows, including for a single row or column. BLOBs are byte vectors and NULL
+is :undefined. The special path ":memory:" opens an in-memory database.
 ```
 
 ## Key-value and table storage

@@ -13,8 +13,9 @@ path = "src/main.rs"
 [features]
 tables = ["klong-rt/tables"]
 duckdb = ["tables", "klong-host/duckdb"]
-ticker-wal = ["klong-host/ticker-wal"]
-default = ["bigint", "diag", "speed", "duckdb", "metal", "ticker-wal"]
+binary-files = ["klong-host/binary-files"]
+sqlite = ["klong-host/sqlite"]
+default = ["bigint", "diag", "speed", "duckdb", "metal", "binary-files", "sqlite"]
 # Native Metal compute on macOS. Other desktop platforms keep the same CPU defaults.
 metal = []
 bigint = ["klong-rt/bigint", "klong-host/bigint", "klong-core/bigint"]

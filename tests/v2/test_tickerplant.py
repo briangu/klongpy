@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, contextmanager
 import json
+import shutil
 import socket
 import subprocess
 import struct
@@ -49,12 +50,22 @@ def journal_server(port, directory, *args):
             proc.wait(timeout=5)
 
 
+@pytest.fixture(autouse=True)
+def stage_journal_for_generated_heads(tmp_path):
+    shutil.copyfile(EXAMPLE / "journal.kg", tmp_path / "journal.kg")
+
+
+def test_binary_file_primitives(kg, tmp_path):
+    subprocess.run([*kg, str(PROGRAMS / "tickerplant_files.kg")], cwd=tmp_path, check=True, timeout=10)
+
+
 def test_native_ticker_wal(kg, tmp_path):
-    subprocess.run([*kg, str(PROGRAMS / "tickerplant_native_wal.kg")], cwd=tmp_path, check=True, timeout=15)
+    subprocess.run([*kg, str(PROGRAMS / "tickerplant_native_wal.kg"), str(EXAMPLE / "journal.kg")], cwd=tmp_path, check=True, timeout=15)
 
 
 def scan_wal(kg, path, day, first):
-    result = subprocess.run([*kg, str(PROGRAMS / "tickerplant_scan.kg"), str(path), str(day), str(first)],
+    result = subprocess.run([*kg, str(PROGRAMS / "tickerplant_scan.kg"), str(path), str(day), str(first),
+                             str(EXAMPLE / "journal.kg")],
                             cwd=path.parent, capture_output=True, text=True, timeout=10, check=True)
     return json.loads(result.stdout)
 
@@ -501,7 +512,7 @@ def test_one_native_writer_per_directory(kg, tmp_path, unused_tcp_port_factory):
     head, other = (unused_tcp_port_factory() for _ in range(2))
     with running(kg, "head.kg", head, tmp_path, "127.0.0.1:1"), connect(head) as client:
         # A second open in this interpreter must preserve the existing OS lock.
-        assert client.request('*.try({.tickerwal("log")};[])') == 0
+        assert client.request('*.try({journal.writer("log";0)};[])') == 0
         contender = subprocess.run([*kg, str(EXAMPLE / "head.kg"), f"127.0.0.1:{other}", "127.0.0.1:1"],
                                    cwd=tmp_path, capture_output=True, text=True, timeout=10)
         assert contender.returncode != 0 and "locked" in contender.stderr
@@ -586,13 +597,12 @@ def test_latest_quote_tail_restart_and_roll(kg, tmp_path):
         assert writer.call("roll", 0) == 4098
         assert len(writer.call("latest", 9)) == 0
 
-def test_native_ticker_stage_and_delivery_trace(kg, tmp_path, unused_tcp_port_factory, monkeypatch):
+def test_native_ticker_stage_and_delivery_trace(kg, tmp_path, unused_tcp_port_factory):
     (tmp_path / "transfer").mkdir()
     head, hdb, sub = (unused_tcp_port_factory() for _ in range(3))
     addr = lambda port: f"127.0.0.1:{port}"
     args = SimpleNamespace(head=addr(head), hdb=addr(hdb), subscriber=[addr(sub)], query_hz=20,
                            trace_dir=tmp_path / "traces", feed_message_rows=8, burst_messages=4, max_age_ms=4)
-    monkeypatch.setenv("KG_TICKER_WAL_PROFILE", "1")
     head_script = tmp_path / "profile-head.kg"
     head_script.write_text(profiled_head((EXAMPLE / "head.kg").read_text()))
     sub_script = tmp_path / "profile-sub.kg"

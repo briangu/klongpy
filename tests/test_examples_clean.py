@@ -98,6 +98,7 @@ RUNNABLE = {
     "examples/stocks/options/black-scholes.kg": PLAIN,
     "examples/stocks/tickerplant/native_clients.kg": PLAIN,
     "examples/stocks/tickerplant/native_feed.kg": PLAIN,
+    "examples/stocks/tickerplant/journal.kg": PLAIN,
 }
 
 # Not run: path -> why. (All of these are still linted and parsed.)

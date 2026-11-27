@@ -281,7 +281,8 @@ The workspace has these cargo features. They are chosen when you build, for exam
 | `lib` | the same (default on) | the twelve library files as text in the program (about 42 KiB) |
 | `timers` | `klong-rt`, `klong-ffi` (default on in `klong-ffi`) | `.timer` and `.timerc` |
 | `ipc` | `klong-rt` | `.cli .clid .clic .clit .srv .async` and the `.srv.*` hooks, and the `mgmt` library |
-| `ticker-wal` | `klong-cli` (default on), `klong-host` | registers `.tickerwal` for synchronous ticker-plant batch writes and replay on the local filesystem. Includes SQLite for the session checkpoint |
+| `binary-files` | `klong-cli` (default on), `klong-host` | local binary file I/O, durable sync, little-endian integer encoding and CRC32 |
+| `sqlite` | `klong-cli` (default on), `klong-host` | bundled SQLite for local SQL databases |
 | `compress` | `klong-rt`, `klong-ipc` | compress large messages when sending (decompression is always there) |
 
 `klong` and `klong-sim` are built with `timers`, `ipc` and `compress` always on, and with `files` and `lib` on. The two width features are the ones you switch: `klong-cli` and `klong-sim` pass them down, so a narrow host build is

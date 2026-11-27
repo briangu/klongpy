@@ -149,7 +149,7 @@ Fixed during RC1 qualification. Two Python threads issued blocking calls through
 
 While testing ticker plant rollover, the request `wal([;:closing;dayNo;nextSeq])` reached the journal with the integer `0` as its operation. The head already bound `closing` to its local session flag. Using the unbound operation symbol `:beginClose` preserved the name on the wire. The pending-rollover test restarts the head with the HDB offline and checks that the journal retained the close intent. [Ticker plant regression](test_tickerplant.py)
 
-A direct native probe initially failed with `undefined function: .tickerwal`. The desktop build now registers this optional writer. The probe opens a local directory, appends a batch, rewinds, and checks every replayed field in Klong. [Native WAL probe](programs/tickerplant_native_wal.kg)
+A direct native probe initially failed with `undefined function: .tickerwal`. The original desktop build registered this optional writer. The current example loads its writer from `journal.kg`. The probe opens a local directory, appends a batch, rewinds, and checks every replayed field in Klong. [Native WAL probe](programs/tickerplant_native_wal.kg)
 
 On the first launch of one freshly linked arm64 macOS build, three checks exceeded their startup deadlines. A simultaneous standalone WAL probe sampled entirely at `_dyld_start`, with only the executable and loader mapped. Once that probe finished, the same binary passed all 28 ticker-plant and rate-search checks in 6.45 seconds. The startup timeouts stayed in place.
 
@@ -166,3 +166,7 @@ The load generator and both subscriber processes ran on Tinkara. Each process ha
 A 1 ms native timer can observe a 2 ms flush threshold late. One outstanding durable write can also delay sending an already sealed batch. The feed records sealing and sending separately, alongside scheduled arrival. This makes backpressure visible when a timer-based batching policy is used.
 
 When loaded directly, the small-message feed lacked the clock and IPC helpers that the Python harness supplied. Running `kg lint examples/stocks/tickerplant/native_feed.kg` exposed 13 undefined-name warnings. The feed now loads its sibling client library, and the harness sets the password file after that load. Verified with standalone lint, a strict-level-2 load and the native feed credential regression.
+
+### Moving the ticker journal into Klong
+
+Ordinary channels could append text, but the desktop flush operation did not issue a disk sync. The [primitive regression](programs/tickerplant_files.kg) checks binary writes, sync, signed integer encoding and the standard CRC32 test vector. The [journal](../../examples/stocks/tickerplant/journal.kg) implements framing, replay, prefix scanning, writer locking and rollover in Klong and opens existing daily files and session checkpoints.

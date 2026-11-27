@@ -7,7 +7,8 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-ticker-wal = ["dep:crc32fast", "dep:rusqlite"]
+binary-files = ["dep:crc32fast"]
+sqlite = ["dep:rusqlite"]
 duckdb = ["klong-rt/tables", "dep:libduckdb-sys"]
 int32 = ["klong-rt/int32"]
 float32 = ["klong-rt/float32"]

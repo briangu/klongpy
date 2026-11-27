@@ -4,7 +4,7 @@ The head accepts ordered trade batches over kdb+ IPC, syncs each batch to a writ
 
 ## Run locally
 
-Use the checkout's desktop `kg` with the `duckdb`, `ipc` and `ticker-wal` capabilities (`kg --capabilities`). The native head owns its WAL writer. Set `DATA` to an absolute data directory and `EXAMPLE` to the absolute path of this example.
+Use the checkout's desktop `kg` with the `duckdb`, `ipc`, `binary-files` and `sqlite` capabilities (`kg --capabilities`). The head loads [journal.kg](journal.kg), which implements the WAL in Klong. It uses binary file operations for the log and SQLite for the session checkpoint. Set `DATA` to an absolute data directory and `EXAMPLE` to the absolute path of this example.
 
 ```sh
 mkdir -p "$DATA/transfer"
@@ -26,14 +26,27 @@ Restart the head with the same WAL directory. When taking over a directory previ
 
 If a write was interrupted, replay can discard an incomplete final record of the open day. A checksum mismatch or sequence gap stops startup. The journal records the closing watermark before the head exports the day and advances the checkpoint only after the HDB confirms the import. If the head restarts with `closing=1`, bring up the HDB and retry `roll(dayNo)`. The HDB recognizes a day it already committed. Sealed WAL files remain in the journal directory.
 
+The head uses the Klong module directly. In a fresh directory with `journal.kg` alongside the script, this writes two trades.
+
+```kg
+.l("./journal.kg")
+w::journal.writer("log";0)
+state::w([;:open;0])
+batch::w([;:read;state@1])
+next::w([;:append;0;0;[100 101];[7 8];[202 203];[3 4]])
+```
+
+The writer's second argument enables stage timing when set to 1. On an existing journal, read each batch starting at the sequence in `state@1`, advance by its row count, and continue until the result is empty. An append takes the day, first sequence, timestamps, symbol IDs, prices and quantities. It returns the next sequence after the disk sync. The head calls `:beginClose` with the day and ending sequence before export and `:finishClose` with the same values after the HDB confirms the import. The [head's replay and publish functions](head.kg) show the full sequence.
+
 #### Reading a damaged WAL
 
 The native writer appends one KGT2 record per trade batch to `log/day-<day>.wal`. Each record has a 32-byte header and four columns of signed 64-bit values (time, symbol, price and quantity). One CRC32 covers the header fields, including the day, starting sequence, row count and payload CRC32. The other covers all four columns. The separate `log/session.sqlite3` checkpoint stores the current day, its first sequence and the expected ending sequence once rollover begins.
 
-Use a stopped writer's file or a stable copy. Pass its trading day and its expected first sequence. This example reads day zero starting at sequence zero.
+Load the example module from its directory (or give `.l` its absolute path). Use a stopped writer's file or a stable copy. Pass its trading day and its expected first sequence. This example reads day zero starting at sequence zero.
 
 ```kg
-report::.tickerwal([;:scan;"log/day-0.wal";0;0])
+.l("./journal.kg")
+report::journal.scan([;"log/day-0.wal";0;0])
 .p(.json(report))
 ```
 
@@ -41,7 +54,7 @@ A scan reports `status` (`"clean"`, `"torn"` or `"corrupt"`), `reason`, the numb
 
 ```kg
 emit(batch)::{.p(.json(batch))}
-report::.tickerwal([;:scan;"log/day-0.wal";0;0;emit])
+report::journal.scan([;"log/day-0.wal";0;0;emit])
 ```
 
 For an open day with a bad CRC or sequence gap, preserve the original file. If the upstream feed retained the trades, an operator can copy the first `validBytes` bytes into a replacement daily WAL, restart the isolated head, and resend the missing trades from `nextSeq` before reconnecting clients. A verified backup can also restore the damaged data. A file that lost entire records from the end can still scan as `"clean"`. Compare `nextSeq` with the publisher's last acknowledged sequence (exclusive) or the recorded closing watermark. A pending close requires the complete WAL through that watermark before the HDB handoff can finish.
@@ -106,6 +119,7 @@ Every trial rolls a trading day, verifies the archived sequence and payload of e
 From the repo root, generate an experimental head in a fresh data directory. Give the HDB its own empty data directory and make the same `transfer/` directory available to both servers. Use the HDB and subscriber launch commands above and start two subscribers on different ports. Start the generated head in place of `head.kg`.
 
 ```sh
+cp examples/stocks/tickerplant/journal.kg "$DATA/"
 python -m examples.stocks.tickerplant.sweep_head --max-batch 524288 > "$DATA/head-sweep.kg"
 (cd "$DATA" && kg head-sweep.kg 127.0.0.1:5510 127.0.0.1:5511)
 ```

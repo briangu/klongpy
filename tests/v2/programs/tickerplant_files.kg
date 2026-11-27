@@ -1,0 +1,16 @@
+:" General-purpose binary I/O used by the Klong journal."
+check(ok;msg)::{:[ok;1;.err("range";msg)]}
+check(0=*.try({.tickerwal("never-created")};[]);"unexpected ticker plant builtin")
+v::[-10000 2 3]
+f::.bfile("integers.bin";:create)
+f([;:write;8;v]);f(:sync);f([;:seek;0])
+check(v~f([;:read;8;3]);"signed little-endian integer vector")
+check([52 18 0 0]~.bpack(4;,4660);"pack u32")
+check(v~.bunpack(8;.bpack(8;v));"decode signed integers")
+check((-873187034)=.crc32(1;[49 50 51 52 53 54 55 56 57]);"standard CRC32 check vector as signed int32")
+sql::.sqlite(":memory:")
+sql("CREATE TABLE numbers(n INTEGER)")
+sql("INSERT INTO numbers VALUES(-3)")
+check((-3)~**sql("SELECT n FROM numbers");"SQLite integer row")
+check(0=*.try({sql("DELETE FROM numbers; SELECT 1")};[]);"reject multiple statements")
+check(1~**sql("SELECT count(*) FROM numbers");"rejected SQL left data intact")

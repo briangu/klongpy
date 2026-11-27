@@ -1,0 +1,150 @@
+:" Ticker plant journal. KGT2 batches contain four little-endian integer columns.
+   The SQLite session row serializes writers and records the end-of-day handoff."
+
+require(ok;message)::{:[ok;1;.err("system";message)]}
+pathFor(dir;day)::{dir,"/day-",($day),".wal"}
+:" One IPC message holds at most 256 MiB, including its envelope."
+maxRows::8388604
+magic1::[75 71 84 49];magic2::[75 71 84 50]
+bad(message)::{[;"corrupt";"ticker WAL: ",message]}
+torn::[;"torn";"incomplete final record"]
+eof::[;"clean";""]
+readColumns(file;n)::{ {x;file([;:read;8;n])}'!4}
+payload(file;header;legacy;day;first)::{[d seq n checksum end left cols];
+    d::* .bunpack(8;header@(4+!8));
+    seq::* .bunpack(8;header@(12+!8));
+    n::* .bunpack(4;header@(20+!4));
+    checksum::* .bunpack(4;header@(24+!4));
+    :[(~((d~day)&seq~first))|(n<1)|n>maxRows;bad("invalid or discontinuous journal record"):|
+      ~(first<first+n)&*.try({.bpack(8;,first+n)};[]);bad("journal sequence overflow");
+      {end::first+n;left::file(:size)-file(:pos);
+       :[left<32*n;:[legacy;bad("incomplete legacy journal record with unchecked length");torn];
+         {cols::readColumns(file;n);
+          :[checksum~.crc32(8;cols);[;"batch";end;(,first),cols];bad("damaged journal record")]}()]}()]}
+headerBody(file;header;day;first)::{[crc];
+    :[magic1~4#header;payload(file;header;1;day;first);
+      {crc::file([;:read;1;4]);
+       :[4>#crc;torn:|(.crc32(1;header))~* .bunpack(4;crc);payload(file;header;0;day;first);
+         bad("damaged journal header")]}()]}
+frame(file;day;first)::{[h pre n];h::file([;:read;1;28]);n::4&#h;pre::n#h;
+    :[0=#h;eof:|~(pre~n#magic1)|pre~n#magic2;bad("invalid journal header"):|
+      28>#h;torn;headerBody(file;h;day;first)]}
+
+:" The writer becomes ready only after replay reaches the day's valid end."
+rewindLog(s)::{[f];
+    f::s.file;
+    s.phase::"closed";
+    f([;:seek;0]);
+    s.next::s.first;
+    s.phase::"replay";
+    [;s.day;s.first;s.closing>-1]}
+readBatch(s;cursor)::{[f offset r];
+    require((s.phase~"replay")&cursor~s.next;"unexpected replay cursor");s.phase::"closed";
+    f::s.file;offset::f(:pos);r::frame(f;s.day;cursor);
+    :["batch"~r@0;{s.next::r@1;s.phase::"replay";r@2}():|
+      "corrupt"~r@0;.err("system";r@1);
+      { :["torn"~r@0;{require(s.closing<0;"incomplete closing journal");f([;:truncate;offset]);f([;:seek;offset])}();0];
+        require((s.closing<0)|s.closing~s.next;"journal does not reach the closing watermark");
+        f(:sync);s.phase::"ready";[]}()]}
+
+:" A type or shape rejection occurs before writing. An I/O failure after the first
+   write leaves the writer closed until the next replay."
+writeRecord(s;first;cols;n;end)::{[f header crc encoded checksummed written synced started];
+    started:::[s.profile;.pc();0];
+    header::magic2,(.bpack(8;[;s.day;first])),.bpack(4;,n);
+    encoded:::[s.profile;.pc();0];
+    crc::.try({.crc32(8;cols)};[]);
+    :[~crc@0;-1;{
+        header::header,.bpack(4;,crc@1);
+        header::header,.bpack(4;,.crc32(1;header));
+        checksummed:::[s.profile;.pc();0];
+        s.phase::"closed";
+        f::s.file;
+        f([;:write;1;header]);
+        f([;:write;8;cols]);
+        written:::[s.profile;.pc();0];
+        f(:sync);
+        s.next::end;
+        s.phase::"ready";
+        :[s.profile;{
+            synced::.pc();
+            .try({.p(.json([;"wal_us";s.day;first;32+32*n;1000000*encoded-started;
+                            1000000*checksummed-encoded;1000000*written-checksummed;
+                            1000000*synced-written]))};[])}();0];
+        end}()]}
+putBatch(s;args)::{[first n cols end];
+    first::args@2;
+    cols::3_args;
+    n::#(cols@0);
+    require((s.phase~"ready")&(s.closing<0)&(s.day~args@1)&s.next~first;
+            "journal is closing, awaiting replay or at a different sequence");
+    :[(n<1)|(n>maxRows)|~[;4;n]~^cols;-1;{
+        end::first+n;
+        require(end>first;"journal sequence overflow");.bpack(8;,end);
+        writeRecord(s;first;cols;n;end)}()]}
+
+:" Record the close intent before exporting. Advance the day only after the HDB receipt."
+rollLog(s;op;day;end)::{[db f newDay];
+    require((s.phase~"ready")&(day~s.day)&(end~s.next)&end>s.first;"unexpected rollover watermark");
+    s.phase::"closed";db::s.db;
+    :[op~:beginClose;{db("UPDATE session SET closing_end=",$end);s.closing::end}();
+      {require(end~s.closing;"no matching close intent");newDay::day+1;.bpack(8;,newDay);
+       require(newDay>day;"trading day overflow");
+       f::.bfile(pathFor(s.dir;newDay);:create);
+       require(0=f(:size);"next day already contains trades");
+       db("UPDATE session SET closing_end=NULL,day=",($newDay),",first_seq=",$end);
+       s.file::f;s.day::newDay;s.first::end;s.closing::-1}()];
+    s.phase::"ready";end}
+request(s;args)::{[op];op::*args;
+    :[(op~:open)&args~[;:open;0];rewindLog(s):|
+      (op~:read)&2=#args;readBatch(s;args@1):|
+      (op~:append)&7=#args;putBatch(s;args):|
+      ((op~:beginClose)|op~:finishClose)&3=#args;rollLog(s;op;args@1;args@2);
+      .err("range";"invalid journal request")]}
+
+checkOld(row;day;initial)::{[name num stem];name::row@0;
+    :[(("day-"~4#name)&".wal"~(-4)#name);
+      {stem::4_(-4)_name;num::0:$stem;
+       require((stem~$num)&num>-1;"invalid daily WAL filename");
+       require((~num>day)&(initial|0=row@1);"existing WAL needs the initial day and first sequence from the HDB")}();1]}
+newLog(config;profile)::{[s db row f day first closing dir initial];
+    initial::~config~$config;
+    require((~initial)|3=#config;"expected a directory or [directory day first]");
+    dir:::[initial;config@0;config];
+    day:::[initial;config@1;0];
+    first:::[initial;config@2;0];
+    closing::-1;
+    require((0<#dir)&dir~$dir;"expected a journal directory");
+    require((day>-1)&first>-1;"expected nonnegative initial coordinates");.bpack(8;[;day;first]);
+    .mkdir(dir);
+    db::.sqlite(dir,"/session.sqlite3");
+    db("PRAGMA locking_mode=EXCLUSIVE");
+    db("PRAGMA synchronous=FULL");
+    db("BEGIN EXCLUSIVE");
+    db("CREATE TABLE IF NOT EXISTS session(id INTEGER PRIMARY KEY CHECK(id=1),day INTEGER NOT NULL,first_seq INTEGER NOT NULL,closing_end INTEGER)");
+    row::db("SELECT day,first_seq,coalesce(closing_end,-1),closing_end IS NULL FROM session WHERE id=1");
+    :[#row;{row::*row;day::row@0;first::row@1;closing::row@2;
+             require((day>-1)&(first>-1)&((1=row@3)|closing>first);"invalid session checkpoint");
+             f::.bfile(pathFor(dir;day);:update)}();
+      {{checkOld(x;day;initial)}'.files(dir);f::.bfile(pathFor(dir;day);:create);
+        db("INSERT INTO session VALUES(1,",($day),",",($first),",NULL)")}()];
+    db("COMMIT");
+    s:::{;"db";db;"file";f;"dir";dir;"day";day;"first";first;"next";first;
+         "closing";closing;"phase";"closed";"profile";profile};
+    request(s;)}
+
+:" The offline scanner shares the frame decoder and opens the file read-only."
+scanNext(s;unused)::{[f r visitor];f::s.file;r::frame(f;s.day;s.report.nextSeq);
+    :["batch"~r@0;{:[s.visit;{visitor::s.callback;visitor(r@2)}();0];
+        s.report.nextSeq::r@1;s.report.validBytes::f(:pos);s.report.batches::1+s.report.batches;1}();
+      {s.report.status::r@0;s.report.reason::r@1;0}()]}
+scanLog(config)::{[s report f visit];
+    require((3=#config)|4=#config;"scan needs a file, day, first sequence and optional visitor");
+    .bpack(8;[;config@1;config@2]);require(((config@1)>-1)&(config@2)>-1;"negative scan coordinates");
+    visit::4=#config;
+    :[visit;require((":monad"~$config@3)&~(config@3)~":monad";"scan visitor must take one argument");0];
+    f::.bfile(config@0;:read);
+    report:::{;"status";"clean";"reason";"";"validBytes";0;"batches";0;"nextSeq";config@2};
+    s:::{;"file";f;"day";config@1;"report";report;"visit";visit;"callback";:[visit;config@3;0]};
+    {x} scanNext(s;):~1;report}
+export:::{;"writer";newLog;"scan";scanLog}

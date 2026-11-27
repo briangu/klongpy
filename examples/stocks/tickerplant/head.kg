@@ -1,5 +1,7 @@
 :" IPC head and current trading session. Run from the data directory, with a transfer/ directory.
    kg head.kg LISTEN-ADDRESS HDB-ADDRESS [WAL-DIRECTORY [INITIAL-DAY FIRST-SEQUENCE]]. Loading without arguments installs the functions."
+.l("./journal.kg")
+journalProfile::0
 live::0;buffers:::{};widths::2^!17;nextSeq::0;dayFirst::0;dayNo::0;closing::0
 journalDir::"log";journalAddr::"";wal::0;ready::0;histAddr::0;subs:::{};lostSubs::0;recentFirst::0
 need(ok;message)::{:[ok;1;.err("range";message)]}
@@ -26,7 +28,7 @@ rememberQuotes(sym;px)::{[count];count::2048&#sym;quoteSymbols::(-count)#sym;quo
 replayBatch(batch)::{[first];first::batch@0;need(first~nextSeq;"WAL sequence gap");
     insertBatch(first;batch@1;batch@2;batch@3;batch@4);
     rememberQuotes(batch@2;batch@3);recentFirst::first;nextSeq::first+#(batch@1);wal([;:read;nextSeq])}
-openJournal()::{[state batch peer];wal:::[#journalAddr;{peer::.cli(journalAddr);.clit(peer;180);peer}();.tickerwal(journalDir)];
+openJournal()::{[state batch peer];wal:::[#journalAddr;{peer::.cli(journalAddr);.clit(peer;180);peer}();journal.writer(journalDir;journalProfile)];
     state::wal([;:open;0]);dayNo::state@0;dayFirst::state@1;closing::state@2;
     nextSeq::dayFirst;recentFirst::dayFirst;batch::wal([;:read;nextSeq]);
     {#x} replayBatch:~batch;1}
