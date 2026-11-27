@@ -13,7 +13,7 @@ The same interpreter is in firmware for microcontroller boards, and the tools `l
 
 ## Targets and status
 
-A post-RC1 build of the native ticker plant sustained **3.80M offered trades/s with its in-process WAL** on two AMD EPYC hosts connected by 100 GbE. The head kept the intraday RDB in RAM and synced each batch to local NVMe. Two native `kg` subscribers acknowledged trades while native clients queried live and historical quotes. Both one-minute confirmations verified 228,065,280 trades after rollover, averaging **2.26–2.27M trades/s** including the handoff to the HDB. [Throughput, latency and missed queries](performance.md#native-wal-and-native-clients-on-100-gbe)
+The ticker plant with its journal implemented in Klong sustained **2,097,152 offered trades/s** on two AMD EPYC hosts connected by 100 GbE. Each batch synced to local NVMe and reached two subscribers before the publisher received its reply. Both one-minute runs verified 125,829,120 archived trades and met the 50 ms target for at least 99% of scheduled live and historical quotes. [Measurements and comparison with the previous Rust journal](performance.md#klong-journal-on-100-gbe)
 
 | Target | Status | More |
 |---|---|---|

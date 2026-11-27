@@ -160,3 +160,20 @@ python -m examples.stocks.tickerplant.profile_report \
 ```
 
 For the original scripts, use `git show dfefd68:examples/stocks/tickerplant/head.kg` and the corresponding `hdb.kg`. The head-path A/B retained the original historical server and Parquet format in both arms. The archive A/B retained the committed-quote tail in both arms and changed the historical server and the Parquet writer together.
+
+### Reproduce the Klong journal comparison
+
+The November 27 comparison used the same head, HDB and load placement, CPU limits, NVMe volumes and 100 GbE route as the qualification above. Each service configuration started in a fresh data directory. The head renderer used `--max-batch 524288` with tracing disabled. The three builds used the same Rust 1.92 release toolchain. [Rust journal source](https://github.com/briangu/klongpy/tree/4184b5d) · [Original Klong journal](https://github.com/briangu/klongpy/tree/9644fa6) · [Optimized Klong journal](https://github.com/briangu/klongpy/tree/c80ae65)
+
+For the fixed-rate comparison, use the native harness's `--mode repeat` with `--rate 2097152 --batch 98304 --depth 2 --workers 4 --query-hz 20 --quote-slo-ms 50 --confirmation-phase-ms 17 --backlog-batches 4`. Run once with `--confirm-seconds 12 --confirm-runs 1` and again against the same processes with `--confirm-seconds 60 --confirm-runs 2`. The harness adds a seed day when the archive is empty. Both measured minutes independently check both subscriber cursors and quantities, distinct sequences and all archived payload fields. The tail latency is measured from the scheduled client query. Every skipped slot counts against the target.
+
+For the burst feed, start another fresh configuration. Use `--rate 32768 --batch 1024 --depth 1 --feed-message-rows 8 --burst-messages 4 --max-age-ms 2 --confirm-seconds 15 --confirm-runs 2` with the same quote settings. Provide a fresh `--trace-dir` on the load host. This workload timestamps the oldest scheduled and admitted message in each durable batch.
+
+The direct test takes the module, a fresh directory, rows per batch and number of batches. For example, from the repository root on a host with a local NVMe volume:
+
+```sh
+kg native/scripts/bench_ticker_journal.kg \
+  "$PWD/examples/stocks/tickerplant/journal.kg" "$FRESH_WAL_DIR" 98304 64
+```
+
+Pass `builtin` as the first argument when running the old Rust binary. Each trial reuses four precomputed columns, times each synchronous append, rewinds, checks every replayed column against the original, and reaches EOF. The runs used 128 batches at 8 and 1,024 rows and 64 batches at 98,304 rows. At each size the first series ran Rust, original Klong, original Klong, Rust. A second series ran optimized Klong, original Klong, original Klong, optimized Klong. The daily files from all three writers matched byte for byte at every size.

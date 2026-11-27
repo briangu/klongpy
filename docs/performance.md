@@ -210,7 +210,7 @@ A separate recovery trial killed the native head with `SIGKILL` after 491 acknow
 
 #### Durable ingest with an interactive quote budget
 
-These measurements used the Rust journal at the [benchmark revision](https://github.com/briangu/klongpy/tree/a17775c/examples/stocks/tickerplant). The current ticker plant implements the same on-disk format in Klong. Its 100 GbE throughput still needs a new run.
+These measurements used the Rust journal at the [benchmark revision](https://github.com/briangu/klongpy/tree/a17775c/examples/stocks/tickerplant). The [Klong journal comparison](#klong-journal-on-100-gbe) repeats the qualified offer with the same on-disk format.
 
 A post-RC1 source-build sweep on Milan and Tinkara required at least 99% of each reader’s 20 scheduled quotes/s to return within 50 ms. It counted skipped slots and measured latency from the scheduled time. A qualifying rate had to pass that condition on both live and historical reads, keep trade backlog within the four-batch budget, and pass twice for 60 seconds. Both native subscribers acknowledged the durable stream. The head used four DuckDB workers and the HDB used eight.
 
@@ -218,7 +218,46 @@ A post-RC1 source-build sweep on Milan and Tinkara required at least 99% of each
 
 In a separate comparison at a fixed 1,572,864 trades/s, the committed-quote tail reduced live handler p99 from 4.08–4.33 ms to 0.06–0.07 ms. With tracing off, scheduled client p99 fell from 35.5–36.7 ms to 32.8–35.0 ms. The head still spent a median 8.3 ms in the NVMe data sync per 65,536-trade batch. At a fixed 32,768 synthetic trades/s in eight-trade messages, adding a 2 ms batch-age threshold cut oldest admitted message to durable acknowledgment p99 from 43.91–47.43 ms to 28.56–31.79 ms. At an archive size of 94.6 million synthetic trades, historical latest-price p99 on the most recent day fell from 5.54 ms to 0.76 ms. Each full 18.9-million-row day closed in 1.45–1.55 s with Parquet v2 and a transactional closing-quote table, compared with 2.57–2.87 s before. [Methods and reproduction](https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/optimization.md#five-experiment-qualification)
 
+#### Klong journal on 100 GbE
+
+On November 27, 2026, each of three journal builds sustained **2,097,152 offered synthetic trades/s** on the same two AMD EPYC 7773X hosts. Milan synced every batch to local NVMe and updated the in-memory DuckDB. Two native subscribers on Tinkara acknowledged delivery. The publisher kept at most two 98,304-trade batches outstanding. Live and historical readers each scheduled 20 queries/s, and each had to finish at least 99% of its slots within 50 ms. All six one-minute runs met the quote and four-batch backlog budgets. Each verified 125,829,120 archived rows and every trade field after rollover. The comparison used a single offered rate.
+
+| Journal | Live slots within 50 ms, of 1,200 per run | Live scheduled p99 | Historical scheduled p99 | Offer through completed rollover |
+|---|---:|---:|---:|---:|
+| Rust control | 1,200 / 1,198 | 44.1–45.5 ms | 2.2–2.7 ms | 1.935–1.936 M trades/s |
+| Original Klong | 1,200 / 1,198 | 42.6–44.0 ms | 2.2–2.6 ms | 1.937–1.939 M trades/s |
+| Optimized Klong | 1,198 / 1,198 | 44.5–45.1 ms | 2.2–2.4 ms | 1.932–1.938 M trades/s |
+
+The two runs started their quote schedules at offsets of 0 and 17 ms. Scheduled p99 covers answered slots. Skipped slots count against the 99% budget. The optimized build answered all 2,400 historical slots on time. Its publisher acknowledgment p99 was 60.2–64.8 ms, measured from batch submission. Both 60-second runs drained within 11.5 ms of the deadline, and rollover took 4.88–5.08 s. The head’s 100 GbE interface averaged 0.56 Gbit/s received and 1.12 Gbit/s transmitted, with zero recorded drops or errors.
+
+**Append and replay.** A separate test on Milan excluded IPC, DuckDB and subscribers. It timed a synchronous append of four precomputed integer columns, then read every batch back from the warm file cache and compared every field. At 98,304 rows per batch, the daily file held 6,291,456 rows in 64 records. All three writers produced identical bytes.
+
+| Journal | Median durable append across trials | Verified replay |
+|---|---:|---:|
+| Rust control | 14.65–14.81 ms | 47.0–57.2 M rows/s |
+| Original Klong | 17.83–18.16 ms | 19.5–20.3 M rows/s |
+| Optimized Klong | 14.08–14.30 ms | 77.9–128.5 M rows/s |
+
+The Klong journal now reads all four columns in one operation. On little-endian hosts, native-width binary reads can fill the integer vector directly, and an exact reshape of an unshared temporary can reuse its storage. On append it gets the row count from the original timestamp column, saving one row copy. A regression test reads and reshapes one million 64-bit integers under a constrained heap budget. At eight rows per batch, optimized Klong replayed 96–97 thousand rows/s versus 134–139 thousand for the Rust control.
+
+**Burst feed.** On fresh fixtures, four eight-trade messages arrived per scheduled burst at 32,768 trades/s. The publisher used a 1,024-row cap, a 2 ms age threshold and one outstanding batch. Each 15-second trial verified 491,520 trades. All 300 scheduled live reads and all 300 historical reads met the 50 ms deadline in each optimized trial. Latencies below describe the oldest message in each batch, including its wait to form a batch and for earlier writes to clear.
+
+| Journal | Scheduled arrival to durable publisher reply, p99 | Admitted arrival to durable publisher reply, p99 |
+|---|---:|---:|
+| Rust control | 33.2–33.4 ms | 24.0–24.1 ms |
+| Optimized Klong | 33.8–33.9 ms | 24.7 ms |
+
+**Process restart.** A separate head opened a copy of the same 25,165,824-row probe WAL, appended one sentinel trade and acknowledged it. Two successive trials killed the head with SIGKILL and restarted it against its exclusive checkpoint. Timing ran from the kill to a client receiving the correct next sequence and sentinel quote. Each restart restored all 25,165,825 rows. The OS page cache remained warm throughout this process-crash test.
+
+- Rust control returned the verified quote in 2.19 and 2.18 seconds.
+- Original Klong returned the verified quote in 2.25 and 2.32 seconds.
+- Optimized Klong returned the verified quote in 2.14 and 2.18 seconds.
+
+The measurement file includes every seed, probe and measured session, the direct append samples, replay timings, binary hashes, CPU limits and host NIC counters. [Measurement records](https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/results/2026-11-27-klong-journal-100gbe.jsonl) · [Commands and methodology](https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/optimization.md#reproduce-the-klong-journal-comparison)
+
 #### How this compares with kdb+tick
+
+The reference kdb+tick ticker plant implements the journal policy in q. With logging enabled, `tick.q` opens a daily file and writes each `upd` call and its arguments through a binary file handle. The RDB replays the log with the runtime's `-11!` primitive. In real-time mode the ticker plant publishes before logging. The Klong example implements framing, checksums, sequence validation, replay and rollover in `journal.kg`, using runtime primitives for binary I/O, CRC32 and SQLite. Its publisher acknowledgment follows a disk sync, the RDB commit and both subscribers' replies in this benchmark. [KX ticker plant](https://github.com/KxSystems/kdb-tick/blob/85c08ff192b0a103b323246c7300a37919be6159/tick.q) · [KX RDB replay](https://github.com/KxSystems/kdb-tick/blob/85c08ff192b0a103b323246c7300a37919be6159/tick/r.q)
 
 KX gives a sizing figure of up to 4.5 million streaming records/s per core and up to 10 million records/s with batching. Its reference ticker plant publishes updates asynchronously. Our 3.80M trades/s measurement includes a local WAL sync and acknowledgment by two subscribers, with four DuckDB workers configured for the RDB. We have yet to measure KX q on Milan and Tinkara with the same durability, subscriber, query and rollover requirements. Our direct comparison with PeachQ below uses a separate single-threaded workload. [KX sizing guidance](https://code.kx.com/q/wp/disaster-recovery/) · [KX subscriber implementation](https://github.com/KxSystems/kdb-tick/blob/master/tick/u.q)
 
