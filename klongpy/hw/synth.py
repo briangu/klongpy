@@ -67,14 +67,15 @@ def synth_main(res, where, out, err):
             status = 1
             continue
         streamed = res.manifest.get("stage") == "B"
-        for line in format_table(ent["name"], r["top"], r["modules"], clock,
-                                 (ent["in_words"], ent["out_words"]) if streamed else None):
+        stream = (ent["in_words"], ent["out_words"]) if streamed else None
+        summary = ent.get("output") == "summary"
+        for line in format_table(ent["name"], r["top"], r["modules"], clock, stream, summary=summary):
             print(line, file=out)
         if r["top"]["fmax_mhz"] is not None and r["top"]["fmax_mhz"] < clock:
             print(f"  warning: the estimated Fmax {r['top']['fmax_mhz']} MHz is below the target clock {clock} MHz: the tool "
                   "chained operations to reach its interval; ask for a slower clock (--clock-mhz) or break the long path", file=out)
         if streamed:
-            sm = stream_summary(r["modules"], ent["in_words"], ent["out_words"])
+            sm = stream_summary(r["modules"], *stream, summary=summary)
             if sm["core_ii"] is not None and sm["core_ii"] > 1:
                 why = "; ".join(f"[{c}] {m[:200]}" for c, m in ii_warnings(r["log"])[:2]) or "see the tool log"
                 print(f"  warning: the core loop reached an interval of {sm['core_ii']} cycles, not 1: {why}", file=out)

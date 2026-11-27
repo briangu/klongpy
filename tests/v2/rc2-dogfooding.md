@@ -7,6 +7,14 @@ Record friction encountered while doing real development work in `kg`. Include t
 
 The first ticker-plant prototype opened a new in-memory database and attached the same RDB file whenever the batch length changed. A three-row batch followed by a single-row batch was visible in SQL before the head was killed. Reopening the file recovered zero rows on one run. Explicitly detaching the file before replacing the connection passed the crash test, but alternating batch sizes repeatedly reopened the database. The example now keeps one connection and stages incoming columns in reusable tables of different widths. The restart test kills the head during a failed handoff and kills the HDB after its commit. Another test injects a null into the second chunk of a large batch and verifies that the first chunk rolls back. [Regression tests](test_tickerplant.py)
 
+## Alveo U250 strategy replay
+
+On November 27, 2026, desktop `kg` generated 1,024 parameter triples and compiled the strategy to reference C. The [Klong sweep](../../examples/hardware/crossover_sweep.kg) ran the same ten million ticks for each set on 32 physical lanes. Each of three runs matched the C output byte for byte. Desktop `kg` accepts script arguments in `.a`. The card binding runs in `kgpy`, whose file-mode CLI accepts only the script name. The example sets its input paths in the session before loading the script. [Commands and timings](../../docs/hardware.md#reusing-one-history-across-1024-strategies)
+
+Running the CLI build-status test with a real build host configured exposed an environment-dependent assertion. Its unconfigured-host case now removes the inherited setting for the subprocess. The CLI case passed with the real host set, and the 20 physical-board tests passed.
+
+The 64-lane synthesis report originally attributed 192 output words to every tick. Inspecting the generated kernel and Vitis loop reports showed a single summary write per replay and one input tick per cycle per lane. The synthesis reporter now distinguishes the per-tick loops from initialization and the final write. The two-word trade-bar input reports two cycles per trade.
+
 ## Open
 
 ### Passing a benchmark operation through a helper

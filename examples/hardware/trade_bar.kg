@@ -1,0 +1,9 @@
+:" Summarize one ordered stream of trades with integer price ticks and lot counts.
+   summary returns open, high, low, close, quantity, price-times-quantity and count."
+opened::0;high::0;low::0;last::0;volume::0;turnover::0;count::0
+step(price;lots)::{opened:::[count=0;price;opened];high:::[count=0;price;high|price];
+    low:::[count=0;price;low&price];last::price;volume::volume+lots;
+    turnover::turnover+price*lots;count::count+1;0}
+summary::{opened,high,low,last,volume,turnover,count}
+.entry("step";"int int -> void")
+.entry("summary";"-> int[7]")

@@ -1,0 +1,32 @@
+:" Sweep parameter sets on the 32-lane crossover image with one upload.
+   Set paths to [program, Q16.16 history, parameter triples, fresh summary file] before loading.
+   The binary layout is the same as crossover_bench.py. Each group of 32 starts
+   from the initial account and writes profit, drawdown and trade count per lane."
+check(ok;msg)::{:[ok;1;.err("range";msg)]}
+check(4=#paths;"expected program, history, parameters and output paths")
+ints(path)::{[f bytes];f::.bfile(path;:read);bytes::f(:size);
+    check((bytes>0)&0=bytes!4;"expected complete int32 words");
+    f([;:read;4;bytes:%4])}
+params::ints(paths@2)
+check(0=(#params)!96;"expected a multiple of 32 parameter triples")
+prices::ints(paths@1)%65536
+out::.bfile(paths@3;:create)
+check(0=out(:size);"expected a fresh summary file")
+t::.pc()
+h::.fpga.lanes(paths@0;32)
+bindTime::.pc()-t
+t::.pc()
+buf::.fpga.put(crossover.step;prices)
+putTime::.pc()-t
+wave(i)::{[ix result];ix::(96*i)+3*!32;
+    .fpga.set(h;"fast";params@ix);.fpga.set(h;"slow";params@1+ix);
+    .fpga.set(h;"stop";(params@2+ix)%65536);
+    .fpga.reset(crossover.step);result::crossover.step(buf);
+    out([;:write;8;_4294967296*,/result])}
+t::.pc()
+wave'!(#params):%96
+elapsed::.pc()-t
+.fpga.free(buf)
+out(:sync)
+.p(.json( :{;"mode";.fpga.info()@"mode";"ticks";#prices;"configurations";(#params):%3;"lanes";32;
+    "bind_seconds";bindTime;"put_seconds";putTime;"sweep_seconds";elapsed}))

@@ -13,6 +13,7 @@ import unittest
 import numpy as np
 
 from klongpy.errors import KlongStaticError
+from klongpy.hw.reports import stream_summary
 from klongpy.static import fixed as fx
 
 from .harness import find_cc
@@ -181,6 +182,18 @@ summary::{tot,cnt}
 @needs
 class TestSummaryPair(unittest.TestCase):
     """A void entry with arguments and an entry without arguments share the state; the kernel returns the summary once."""
+
+    def test_summary_rate_uses_the_slowest_lane_record_loop(self):
+        def report(ii, trip=None):
+            return {"loops": [{"ii": ii, "trip": trip, "depth": 9, "name": "loop"}]}
+
+        modules = {"load": report(1), "store": report(1, 192),
+                   "lane_0_Pipeline_step": report(1), "lane_1_Pipeline_step": report(3),
+                   "lane_1_Pipeline_init": report(8, 32)}
+        rate = stream_summary(modules, 2, 192, summary=True)
+        self.assertEqual((rate["interval"], rate["limit"], rate["store_ii"]), (3, "core", 1))
+        self.assertEqual(stream_summary(modules, 2, 192)["interval"], 192)
+        self.assertIsNone(stream_summary({"load": report(1)}, 2, 192, summary=True)["interval"])
 
     def reference(self, xs, gain):
         from klongpy.static import call_entry, load_program, set_param

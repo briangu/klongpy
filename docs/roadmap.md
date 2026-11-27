@@ -16,7 +16,7 @@ This page lists what version 2 delivers, what is experimental, the limits you me
 
 ## Experimental
 
-* [FPGA kernels](hardware.md): Klong functions compiled to hardware. They have run on one Alveo U250 in two images.
+* [FPGA kernels](hardware.md): Klong functions compiled to hardware. The U250 runs the moving average, FIR filter and a 32-lane strategy replay.
 * [The interpreter on boards](native/index.md): it passes the conformance suite on a desktop and has run the console suite on one ESP32-P4 board ([ESP32-P4](native/esp32-p4.md)). Two Raspberry Pi Picos have run it with IPC between them ([two Picos calling each other](native/pico-bench.md)). The [status table](native/index.md#status-what-has-and-has-not-been-proven) has the detail.
 
 ## Known limits

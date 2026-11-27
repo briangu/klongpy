@@ -388,7 +388,10 @@ class CliTest(unittest.TestCase):
         r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "build", "--lanes", "2", "x.kg"], capture_output=True, text=True,
                            env=dict(os.environ, KLONG_FPGA_BUILD=""))
         self.assertNotEqual(r.returncode, 0)
-        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "status"], capture_output=True, text=True)
+        unconfigured = os.environ.copy()
+        unconfigured.pop("KLONG_FPGA_BUILD", None)
+        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "status"], capture_output=True, text=True,
+                           env=unconfigured)
         self.assertEqual(r.returncode, 2)
         self.assertIn("kgpy fpga", r.stderr)
         r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "status"], capture_output=True, text=True,

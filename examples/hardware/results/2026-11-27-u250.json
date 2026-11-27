@@ -1,0 +1,267 @@
+{
+  "date": "2026-11-27",
+  "runtime_commit": "722289bf8ff2d3527b9787dca645b25442dfbeed",
+  "hardware": "Alveo U250, PCIe Gen3 x1, Vitis 2022.2. Card reached via SSH. CPU comparator on the card host.",
+  "images": {
+    "strategy": {
+      "build_sha256": "2dff75ea577d50ad324dd917261bd021d96d6fa9cf5759fe20450ddef71b8bbf",
+      "xclbin_sha256": "c178d130cff749f26780dad7d25855e7678057db3b6f939345605230ecd4fa81",
+      "clock_mhz_image": 250.0,
+      "utilization": {
+        "lut": {
+          "used": 234315.0,
+          "available": 1726208.0,
+          "percent": 13.57
+        },
+        "ff": {
+          "used": 242905.0,
+          "available": 3456000.0,
+          "percent": 7.03
+        },
+        "bram_tiles": {
+          "used": 258.0,
+          "available": 2688.0,
+          "percent": 9.6
+        },
+        "uram": {
+          "used": 0.0,
+          "available": 1280.0,
+          "percent": 0.0
+        },
+        "dsp": {
+          "used": 135.0,
+          "available": 12288.0,
+          "percent": 1.1
+        }
+      },
+      "timing": {
+        "wns_ns": 0.009,
+        "whs_ns": 0.009,
+        "failing_endpoints": 0,
+        "met": true
+      }
+    },
+    "streaming_fir": {
+      "build_sha256": "282f6dc4b9cdea3379f27e4470f672cff9e3c0e1db4d99cf807fbfd2642b1102",
+      "xclbin_sha256": "cd6cac414694eb0f7c091499f012e542aab2e6aa665feb6412273d98d493bafb",
+      "clock_mhz_image": 300.0,
+      "utilization": {
+        "lut": {
+          "used": 135405.0,
+          "available": 1726208.0,
+          "percent": 7.84
+        },
+        "ff": {
+          "used": 211004.0,
+          "available": 3456000.0,
+          "percent": 6.11
+        },
+        "bram_tiles": {
+          "used": 273.5,
+          "available": 2688.0,
+          "percent": 10.17
+        },
+        "uram": {
+          "used": 0.0,
+          "available": 1280.0,
+          "percent": 0.0
+        },
+        "dsp": {
+          "used": 94.0,
+          "available": 12288.0,
+          "percent": 0.76
+        }
+      },
+      "timing": {
+        "wns_ns": 0.055,
+        "whs_ns": 0.009,
+        "failing_endpoints": 0,
+        "met": true
+      }
+    }
+  },
+  "strategy_replay": {
+    "ticks": 10000000,
+    "lanes": 32,
+    "upload": {
+      "bytes": 40000000,
+      "server_s": 0.08305083075538278,
+      "wall_s": 0.44415141699573724
+    },
+    "prefix": {
+      "ticks": 1000000,
+      "kernel_s": 0.0041733188554644585,
+      "wall_s": 0.043974250002065673,
+      "equal": true
+    },
+    "runs": [
+      {
+        "kernel_s": 0.04015409713611007,
+        "wall_s": 0.04192833300476195,
+        "get_s": 4.8679299652576447e-05
+      },
+      {
+        "kernel_s": 0.04025857802480459,
+        "wall_s": 0.04259062499477295,
+        "get_s": 0.00011041807010769844
+      },
+      {
+        "kernel_s": 0.04022177308797836,
+        "wall_s": 0.04261433300416684,
+        "get_s": 0.00010685576125979424
+      },
+      {
+        "kernel_s": 0.040257391054183245,
+        "wall_s": 0.04273100000136765,
+        "get_s": 7.95489177107811e-05
+      },
+      {
+        "kernel_s": 0.040230083744972944,
+        "wall_s": 0.042603667003277224,
+        "get_s": 0.00011041807010769844
+      },
+      {
+        "kernel_s": 0.040234831627458334,
+        "wall_s": 0.04274920799798565,
+        "get_s": 0.0001092301681637764
+      },
+      {
+        "kernel_s": 0.040263327304273844,
+        "wall_s": 0.042721583995444234,
+        "get_s": 0.00010329484939575195
+      },
+      {
+        "kernel_s": 0.04024908086284995,
+        "wall_s": 0.04287754200049676,
+        "get_s": 0.00011160597205162048
+      },
+      {
+        "kernel_s": 0.04021583590656519,
+        "wall_s": 0.042705499996372964,
+        "get_s": 0.00011279294267296791
+      }
+    ],
+    "full_equal": true,
+    "status_word": 0
+  },
+  "fir_streaming": [
+    {
+      "blocks": 1,
+      "put_s": 6.3e-05,
+      "kernel_s": 6.6e-05,
+      "get_s": 4.3e-05,
+      "wall_s": 0.001803,
+      "numpy_client_s": 8e-06,
+      "numpy_card_host_s": 1.5e-05
+    },
+    {
+      "blocks": 1000,
+      "put_s": 0.001439,
+      "kernel_s": 0.001193,
+      "get_s": 0.001444,
+      "wall_s": 0.024626,
+      "numpy_client_s": 0.003546,
+      "numpy_card_host_s": 0.005231
+    },
+    {
+      "blocks": 100000,
+      "put_s": 0.144539,
+      "kernel_s": 0.105657,
+      "get_s": 0.161983,
+      "wall_s": 2.229462,
+      "numpy_client_s": 1.007979,
+      "numpy_card_host_s": 0.953694
+    }
+  ],
+  "strategy_sweep": {
+    "physical_lanes": 32,
+    "unique_configurations": 1024,
+    "ticks_per_configuration": 10000000,
+    "history_sha256": "a59357bbd7adf6a7e0b0480c4b0d6148c6ff137952f5e588deb286c0262ded6a",
+    "parameter_triples_sha256": "88f1890cc8d3398eb68064b2c3b24614896fcc716af19a441fef9e8925b8d12d",
+    "summary_sha256": "d089a9421393f4f74720c8714a243b2770706c353ee17c483228f4a3942437ed",
+    "total_summary_bytes": 24576,
+    "trials": [
+      {
+        "ticks": 10000000,
+        "configurations": 1024,
+        "physical_lanes": 32,
+        "bind_seconds": 1.362802,
+        "put_seconds": 0.5500240000000001,
+        "sweep_seconds": 1.4869420000000002,
+        "wall_seconds": 3.644407833002333,
+        "full_equal": true
+      },
+      {
+        "ticks": 10000000,
+        "configurations": 1024,
+        "physical_lanes": 32,
+        "bind_seconds": 1.200045,
+        "put_seconds": 0.498834,
+        "sweep_seconds": 1.45962,
+        "wall_seconds": 3.464300790998095,
+        "full_equal": true
+      },
+      {
+        "ticks": 10000000,
+        "configurations": 1024,
+        "physical_lanes": 32,
+        "bind_seconds": 1.230087,
+        "put_seconds": 0.49661500000000003,
+        "sweep_seconds": 1.456614,
+        "wall_seconds": 3.4246019159982097,
+        "full_equal": true
+      }
+    ],
+    "cpu_processes": 32,
+    "cpu_cflags": "-O3",
+    "cpu_seconds": [
+      11.26018398301676,
+      11.187838932033628,
+      11.303381126374006
+    ]
+  },
+  "c_synthesis_only": {
+    "crossover": {
+      "lanes": 64,
+      "target_mhz": 250,
+      "estimated_period_ns": 2.92,
+      "lut": 264417,
+      "ff": 203669,
+      "dsp": 256,
+      "bram_18k": 17,
+      "input_words_per_tick": 1,
+      "summary_words_per_replay": 192,
+      "slowest_lane_tick_ii": 1,
+      "simulated_parameters": 64,
+      "simulated_ticks": 10000,
+      "simulation_matched_physical_32_lane_waves": true
+    },
+    "trade_bar": {
+      "clock_target_mhz": 250,
+      "rows": 200003,
+      "chunk": 4093,
+      "reference_summary": [
+        10000,
+        110002,
+        10000,
+        109935,
+        9799674,
+        587990033025,
+        200003
+      ],
+      "input_words_per_record": 2,
+      "output_words_per_window": 7,
+      "lut": 10505,
+      "dsp": 10,
+      "estimated_period_ns": 2.92
+    }
+  },
+  "regression": {
+    "physical_board_tests_passed": 20,
+    "vitis_and_remote_tool_tests_passed": 29,
+    "local_fpga_tests_passed": 145,
+    "rust_hls_emitter_tests_passed": 5,
+    "skipped": 0
+  }
+}

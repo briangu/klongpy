@@ -44,7 +44,8 @@ def main(argv):
     result["bind_s"] = time.perf_counter() - t0
     result["image"] = os.path.basename(b.path)
     result["mode"] = b.mode
-    result["build"] = {k: b.build.get(k) for k in ("key", "clock_mhz_requested", "clock_mhz_image", "wall_seconds", "timing", "utilisation")}
+    result["build"] = {k: b.build.get(k) for k in ("key", "clock_mhz_requested", "clock_mhz_image", "wall_seconds", "timing")}
+    result["build"]["utilisation"] = b.build.get("utilization", b.build.get("utilisation"))
     b.set_register("fast", par[:, 0].astype(np.int64))
     b.set_register("slow", par[:, 1].astype(np.int64))
     b.set_register("stop", par[:, 2].astype(np.float64) / 65536.0)

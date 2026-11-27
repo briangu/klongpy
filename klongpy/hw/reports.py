@@ -105,29 +105,39 @@ def record_interval(top, modules):
     return None, ""
 
 
-def stream_summary(modules, in_words, out_words):
+def stream_summary(modules, in_words, out_words, summary=False):
     """
     The steady-state rate of a streamable kernel (kgpy fpga source, stage B), from the initiation intervals of the
     pipelined loops of its three processes: the core takes one record per ``core_ii`` cycles, the load process one
     word per ``load_ii`` (a record is in_words of them), the store one word per ``store_ii``. The kernel moves one
     record every ``interval`` cycles, the largest of the three; ``limit`` names which. None where the tool reported no
-    pipelined loop (a block program).
+    pipelined loop (a block program). A summary is written once after all records. Its store is excluded from
+    the per-record interval, and replicated lanes advance at the rate of their slowest record loop.
     """
-    def ii_of(prefix):
-        found = [(m["module"], lp) for name, m in modules.items() if name.split("_Pipeline")[0] == prefix
-                 for lp in m.get("loops", []) if lp["ii"] is not None]
-        return max(found, key=lambda x: x[1]["ii"]) if found else None
+    def ii_of(process):
+        loops = []
+        for name, module in modules.items():
+            owner = name.partition("_Pipeline")[0]
+            lane_core = summary and process == "core" and re.fullmatch(r"lane_[0-9]+", owner)
+            if owner != process and not lane_core:
+                continue
+            for loop in module.get("loops", []):
+                # Summary kernels also pipeline fixed-size initialization and drain loops.
+                if loop["ii"] is not None and not (summary and process == "core" and loop["trip"] is not None):
+                    loops.append(loop)
+        return max(loops, key=lambda loop: loop["ii"], default=None)
+
     core, load, store = ii_of("core"), ii_of("load"), ii_of("store")
-    parts = {"core": core[1]["ii"] if core else None, "load": load[1]["ii"] * in_words if load else None,
-             "store": store[1]["ii"] * out_words if store else None}
+    parts = {"core": core["ii"] if core else None, "load": load["ii"] * in_words if load else None,
+             "store": store["ii"] * out_words if store and not summary else None}
     known = {k: v for k, v in parts.items() if v is not None}
-    if not known:
+    if not known or (summary and (not core or not load)):
         return {"interval": None, "limit": None, "core_ii": None, "load_ii": None, "store_ii": None, "parts": parts,
                 "core_depth": None, "core_loop": None}
     limit = max(known, key=lambda k: known[k])
     return {"interval": known[limit], "limit": limit, "core_ii": parts["core"],
-            "load_ii": load[1]["ii"] if load else None, "store_ii": store[1]["ii"] if store else None, "parts": parts,
-            "core_depth": core[1]["depth"] if core else None, "core_loop": core[1]["name"] if core else None}
+            "load_ii": load["ii"] if load else None, "store_ii": store["ii"] if store else None, "parts": parts,
+            "core_depth": core["depth"] if core else None, "core_loop": core["name"] if core else None}
 
 
 def ii_warnings(log_text):
@@ -144,7 +154,7 @@ def _cell(v, unit=""):
     return "?" if v is None else f"{v}{unit}"
 
 
-def format_table(entry_name, top, modules, clock_mhz, stream=None):
+def format_table(entry_name, top, modules, clock_mhz, stream=None, summary=False):
     """The synthesis table of one kernel as lines of text. Everything in it is an estimate of C synthesis."""
     lines = [f"kernel {entry_name}: C synthesis estimates (not timing closure; not measured on hardware)"]
     if top is None:
@@ -160,13 +170,14 @@ def format_table(entry_name, top, modules, clock_mhz, stream=None):
         f"   URAM {_cell(top['uram'])}",
     ]
     if stream is not None:
-        sm = stream_summary(modules, *stream)
+        sm = stream_summary(modules, *stream, summary=summary)
         if sm["interval"] is None:
             lines.append("  streaming rate     no pipelined core loop: the interval of the whole call is the one above")
         else:
+            output = " per final summary" if summary else " per record"
             lines.append(f"  streaming rate     one record every {sm['interval']} cycle(s), limited by the {sm['limit']} process "
                          f"(core II {_cell(sm['core_ii'])}, load II {_cell(sm['load_ii'])} per word of {stream[0]}, "
-                         f"store II {_cell(sm['store_ii'])} per word of {stream[1]}; core pipeline depth {_cell(sm['core_depth'])})")
+                         f"store II {_cell(sm['store_ii'])} per word, {stream[1]} words{output}; core pipeline depth {_cell(sm['core_depth'])})")
     if modules:
         lines.append("  modules:")
         for name in sorted(modules):
