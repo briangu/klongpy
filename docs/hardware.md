@@ -17,9 +17,34 @@ The same source runs three ways: interpreted, as C (see [Compiling Klong to C](e
 | Platform | `xilinx_u250_gen3x16_xdma_4_1_202210_1` |
 | Toolchain | Vitis and Vitis HLS 2022.2 |
 | Host | Ryzen 9 7950X3D (16 cores, 32 threads), gcc 9.4, numpy 1.24 |
-| Link | the card sits on a PCIe link of one lane, so transfers are slower than on a full slot |
+| Card link | PCIe Gen3 ×1 (8 GT/s per lane). The U250 supports Gen3 ×16. |
 | Dates | Images built November 16–17, 2026. Board regression and offload measurements repeated November 27. |
 | Images run | Wrapped FIR, streaming FIR with moving average and trap kernels, and the 32-lane streaming strategy |
+
+### PCIe topology and timing boundaries
+
+The benchmark client sent data over SSH to the Ryzen card host. On that host, XRT copied buffers between host memory and U250 memory over PCIe. Linux reported the following negotiated links on the path to the accelerator. The upstream and downstream ports belong to the same AMD PCIe bridge complex.
+
+| Physical link, from host toward card | Negotiated link | What the ports advertise |
+|---|---|---|
+| AMD root port to bridge upstream port | Gen4 ×4 (16 GT/s per lane) | Upstream port supports Gen4 ×4 |
+| Bridge downstream port to U250 | **Gen3 ×1 (8 GT/s)** | Downstream port supports Gen3 ×1. U250 endpoint supports Gen3 ×16. |
+
+The `gen3x16` in the platform name describes the card platform. On this host the final hop has a theoretical ceiling of **985 MB/s in each direction** after Gen3 line encoding and before packet overhead (8 GT/s × 128/130 ÷ 8). The 100 GbE link in the ticker plant measurements connected two other hosts. [Recorded PCIe topology](https://github.com/briangu/klongpy/blob/main/examples/hardware/results/2026-11-27-u250.json) · [Ticker plant workload and hardware](performance.md#fpga-analytics-on-committed-trades)
+
+The **upload and download** timers run on the card host and include XRT buffer handling, host copies and device synchronization. The **kernel** timer runs from submission to completion with inputs already in card memory. **Client wall time** includes the SSH round trip, client and server processing, and the card operations. The CPU comparison on the card host uses host memory. These experiments used one link width, so the results do not quantify the speedup from a wider slot.
+
+To check another Linux host, take the accelerator's domain-qualified PCI address from `lspci -D`. Follow its sysfs path toward the root port to identify where the width changes. The command prints current speed and width followed by maximum speed and width for each device.
+
+```sh
+device=$(readlink -f "/sys/bus/pci/devices/${BDF:?Set BDF to the accelerator PCI address}")
+while [ -r "$device/current_link_width" ]; do
+    printf '%s  ' "${device##*/}"
+    paste "$device/current_link_speed" "$device/current_link_width" \
+          "$device/max_link_speed" "$device/max_link_width"
+    device=$(dirname "$device")
+done
+```
 
 ## What qualifies
 

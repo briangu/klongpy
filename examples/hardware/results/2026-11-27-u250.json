@@ -2,6 +2,20 @@
   "date": "2026-11-27",
   "runtime_commit": "722289bf8ff2d3527b9787dca645b25442dfbeed",
   "hardware": "Alveo U250, PCIe Gen3 x1, Vitis 2022.2. Card reached via SSH. CPU comparator on the card host.",
+  "pcie_topology": {
+    "source": "Linux PCI sysfs current_link_speed, current_link_width, max_link_speed and max_link_width on the U250 host",
+    "host_to_bridge": {
+      "negotiated_gt_s_per_lane": 16,
+      "negotiated_lanes": 4
+    },
+    "bridge_to_u250": {
+      "negotiated_gt_s_per_lane": 8,
+      "negotiated_lanes": 1,
+      "downstream_port_max_lanes": 1,
+      "endpoint_max_lanes": 16,
+      "endpoint_max_gt_s_per_lane": 8
+    }
+  },
   "images": {
     "strategy": {
       "build_sha256": "2dff75ea577d50ad324dd917261bd021d96d6fa9cf5759fe20450ddef71b8bbf",
