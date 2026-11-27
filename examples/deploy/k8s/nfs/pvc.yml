@@ -11,8 +11,9 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: nfs
   nfs:
-    server: 192.168.0.10
-    path: "/volume1/data"
+    # Set these to your NFS server and export before applying the manifest.
+    server: nfs.example.com
+    path: /exports/klongpy
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
