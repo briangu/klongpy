@@ -200,6 +200,14 @@ CASES = [
     ("W022", '.l("csv";["split"])', []),                                   # entries bound as plain names: no module name to use
     # W023 a local file that shadows a bundled library file (the positive case needs a file: TestCrossFile)
     ("W023", '.l("csv");csv.split("a")', []),
+    # W024 a comparison followed by Group of a numeric literal
+    ("W024", "full(n)::{n>=2048}", [(1, 12)]),
+    ("W024", "low(n)::{n<=-2}", [(1, 11)]),
+    ("W024", "f(n)::{~n<2048}", []),
+    ("W024", "f(n)::{=n}", []),
+    ("W024", "f(n)::{n>=[1 2]}", []),
+    ("W024", "f(n;m)::{n>=1+m}", []),
+    ("W024", '"n>=2048"', []),
     # E003 assignment to an entry of a module
     ("E003", '.l("csv");csv.split::1', [(1, 11)]),
     ("E003", '.l("csv";:c);c.split::1', [(1, 14)]),
@@ -292,7 +300,7 @@ class TestDiagnostic(unittest.TestCase):
                          {"E001": "error", "E002": "error", "E003": "error", "E004": "error", "E005": "error"})
         self.assertTrue(all(r.severity == "warning" for c, r in RULES.items() if c[0] == "W"))
         self.assertEqual(set(RULES), {"W001", "W002", "W003", "W010", "W011", "W012", "W013", "W014", "W015",
-                                      "W016", "W017", "W018", "W019", "W020", "W021", "W022", "W023",
+                                      "W016", "W017", "W018", "W019", "W020", "W021", "W022", "W023", "W024",
                                       "E001", "E002", "E003", "E004", "E005"})
 
     def test_sorted_by_position(self):
@@ -709,7 +717,10 @@ class TestShippedSources(unittest.TestCase):
             rel = os.path.relpath(f, ROOT)
             if rel.startswith(self.EXPECTED_TO_FAIL):
                 continue
-            for d in lint_file(f, define="t"):
+            # The card sweep receives its input paths from the caller. Binding the
+            # bitstream installs the crossover module in the running interpreter.
+            defined = "t paths crossover" if rel == "examples/hardware/crossover_sweep.kg" else "t"
+            for d in lint_file(f, define=defined):
                 if d.code not in self.REVIEWED | self.REVIEWED_IN.get(rel, set()):
                     bad.append(f"{os.path.relpath(f, ROOT)}:{d.line}:{d.col}: {d.code} {d.message}")
         self.assertEqual(bad, [])

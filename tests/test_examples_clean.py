@@ -69,6 +69,7 @@ RUNNABLE = {
     **{path: PLAIN for path in FILES if Path(path).match("examples/aoc/20??/day??.kg")},
     "examples/db/taxi-queries.kg": PLAIN,
     "examples/hardware/crossover.kg": PLAIN,         # a static-profile program: loading it defines its functions and state
+    "examples/hardware/trade_bar.kg": PLAIN,         # defines the step and summary entries
     "examples/autograd/basic_gradient.kg": PLAIN,
     "examples/autograd/differentiable_physics.kg": PLAIN,
     "examples/autograd/gradient_descent.kg": PLAIN,
@@ -110,6 +111,7 @@ CLIENT = "client that waits for a server on port 8888 (timed out at strict 2 aft
 MODULE_PART = "a part of the backtest of examples/modules/main.kg (a module it loads, or a classic file it loads): not a program of its own"
 MODULE_ERROR = "stops with the error named for it in examples/modules/EXPECTED-ERRORS.txt, by design"
 EXCLUDED = {
+    "examples/hardware/crossover_sweep.kg": "the 32-lane FPGA sweep takes a bound card and four paths supplied by the caller (docs/hardware.md)",
     "examples/aoc/bench.kg": "takes a puzzle module, input path, part, run count and puzzle parameter in tests/v2/test_aoc.py",
     "examples/aoc/generate.kg": "writes scale fixtures to a supplied temporary directory in tests/v2/test_aoc.py",
     **{f"examples/modules/{n}": MODULE_PART for n in (

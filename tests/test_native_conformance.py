@@ -158,7 +158,7 @@ class TestNativeConformance(unittest.TestCase):
         lib = os.path.join(ROOT, "klongpy", "lib")
         for path in sorted(glob.glob(os.path.join(lib, "*.kg"))):
             name = os.path.basename(path)
-            p = subprocess.run([BINARY, "-e", f'.helpdb::[];.l("{name}");"loaded"'], capture_output=True, text=True, cwd=lib, timeout=120)
+            p = subprocess.run([BINARY, "-e", f'.l("{name}");"loaded"'], capture_output=True, text=True, cwd=lib, timeout=120)
             self.assertEqual((p.returncode, p.stdout.strip().splitlines()[-1:]), (0, ['"loaded"']), f"{name}: {p.stderr[-300:]}")
         ran = 0
         for path in sorted(glob.glob(os.path.join(ROOT, "tests", "kgtests", "language", "test_*.kg"))):

@@ -70,7 +70,7 @@ impl<'a> Linter<'a> {
     /// Every rule, in the order of `lint.py`. A rule must never take the linter down: one that panics is reported on
     /// standard error and the others still run.
     pub fn run(&mut self) {
-        let rules: [(&str, fn(&mut Linter<'a>)); 16] = [
+        let rules: [(&str, fn(&mut Linter<'a>)); 17] = [
             ("e001", Linter::e001),
             ("w001", Linter::w001),
             ("w010", Linter::w010),
@@ -83,6 +83,7 @@ impl<'a> Linter<'a> {
             ("w018", Linter::w018),
             ("w019", Linter::w019),
             ("w020", Linter::w020),
+            ("w024", Linter::w024),
             ("w003", Linter::w003),
             ("w002", Linter::w002),
             ("e002", Linter::e002),
@@ -93,6 +94,43 @@ impl<'a> Linter<'a> {
             if r.is_err() {
                 eprintln!("klong-lint: {} failed on {}", name, self.an.src.name);
             }
+        }
+    }
+
+    // -- W024: a comparison immediately followed by Group of a scalar threshold -------------
+    fn w024(&mut self) {
+        let an = self.an;
+        let toks = &an.toks;
+        for i in 1..toks.len().saturating_sub(3) {
+            if !an.is_op(i, ">") && !an.is_op(i, "<") {
+                continue;
+            }
+            if !an.is_op(i + 1, "=") || toks[i + 1].s != toks[i].e || self.kind_of(i).is_data() || !operand_end(toks[i - 1].k) {
+                continue;
+            }
+            let start = i + 2;
+            let number = if an.is_op(start, "-") { start + 1 } else { start };
+            if toks[number].k != K::Num {
+                continue;
+            }
+            // Group has the whole expression to its right. A list-valued expression such as
+            // 1+items is a valid operand even when it starts with a scalar literal.
+            let mut end = number + 1;
+            while toks[end].k == K::Newline && self.kind_of(i) != FK::Top {
+                end += 1;
+            }
+            if !matches!(toks[end].k, K::Eof | K::Semi | K::Newline | K::RParen | K::RBrack | K::RBrace | K::Elif) {
+                continue;
+            }
+            let comparison = an.val(i);
+            let opposite = if comparison == ">" { "<" } else { ">" };
+            let threshold = &an.text()[toks[start].s..toks[number].e];
+            let left = match toks[i - 1].k {
+                K::Name | K::Num | K::Char => &an.text()[toks[i - 1].s..toks[i - 1].e],
+                _ => "(left)",
+            };
+            self.add("W024", self.span_of(i, Some(i + 1)), format!("{}= applies Group (=) to a scalar threshold", comparison),
+                     Some(&format!("use ~{}{}{} for an inclusive comparison", left, opposite, threshold)));
         }
     }
 

@@ -56,7 +56,6 @@ def in_dir(path):
 
 def load(level, fname):
     k = KlongInterpreter(strict=level)
-    k[".helpdb"] = []
     with contextlib.redirect_stdout(io.StringIO()):
         k(f'.l("{fname}")')
     return k

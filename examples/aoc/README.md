@@ -64,7 +64,7 @@ If the original `briangu/aoc` checkout is available, use `--classic ../aoc` to c
 
 ## Runtime improvements on the Apple M2 Ultra
 
-All 170 puzzle parts and ten generated workloads returned the same expected answers before and after the runtime changes. Both native runs used seven timed batches per case on the same machine. The reports identify the binaries and Klong sources by SHA-256. [Original run](results/m2-ultra.json) · [Run with the new primitives](results/m2-ultra-primitives.json)
+All 170 puzzle parts and ten generated workloads returned the same expected answers before and after the runtime changes. Both native runs used seven timed batches per case on the same machine. The reports identify the binaries and Klong sources by SHA-256. The optimized runtime and ports are in commit `442055e`. [Original run](results/m2-ultra.json) · [Run with the new primitives](results/m2-ultra-primitives.json)
 
 | Workload | Before | After | Before / after |
 |---|---:|---:|---:|

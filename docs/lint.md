@@ -66,7 +66,7 @@ demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cann
 0 errors, 1 warning in 1 file
 2
 $ echo 'a' | kgpy lint - --select W999 ; echo $?
-kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, E001, E002, E003, E004, E005
+kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, W024, E001, E002, E003, E004, E005
 2
 ```
 
@@ -96,7 +96,7 @@ Lint reports from the text what the interpreter reports when it runs. This table
 
 | Lint code | Interpreter, same input |
 |---|---|
-| `E001` | At strict level 1 and 2, a `syntax` error with the same message. At level 0, a syntax warning: `trailing-input`, `stray-closer`, `missing-operand`, `unterminated-string`, `unterminated-list`, `unterminated-dict` or `unterminated-comment`. |
+| `E001` | At strict levels 1 and 2, a `syntax` error with the same message. Reserved or repeated names in a named-parameter definition also raise a `syntax` error at level 0. Recoverable input at level 0 can emit a syntax warning such as `trailing-input`, `stray-closer`, `missing-operand`, `unterminated-string`, `unterminated-list`, `unterminated-dict` or `unterminated-comment`. |
 | `E002` | At strict level 2, an `arity` error. Below level 2 the extra arguments are dropped. |
 | `W002` | At strict level 2, a `name` error (`undefined: a`). Below level 2 the name evaluates to its own symbol. |
 | `W003`, `W010`, `W011`, `W012`, `W016`, `W017`, `W018`, `W019`, `W020` | None. The program runs and gives a value that is probably not the one intended. |
@@ -105,6 +105,7 @@ Lint reports from the text what the interpreter reports when it runs. This table
 | `E005` | A `type` error: `.extern` returns a function, and a statement that discards it declares nothing. |
 | `W021` | A `name` error, or at level 0 a new entry, when the base is not a dictionary: `a.b::v` is `a@"b"` written. |
 | `W022` | None. |
+| `W024` | A `type` error when Group receives the numeric threshold. |
 | `W023` | None. The program gets the local file; the engine adds a warning to its warning list. |
 | `W001` | None. `my_var` runs as `my _ var`. |
 | `W013` | None. The nested conditional is correct; the chain form is shorter. |
@@ -296,6 +297,16 @@ $ printf '.l("./geom";:g)\n' | kgpy lint -
 ### W023: a local file shadows a bundled library file
 
 A bare name given to `.l` is looked for in the directory of the file that contains the `.l`, then in `KLONGPATH`, then in the bundled library. When a file found in the first two places has the name of a library file (`csv`, `nstat`, `math`, ...) and is not that file, the program gets the local file and the linter says so. Write `./name` to say that the local file is meant, or rename it. The interpreter adds the same finding to its warning list.
+
+### W024: a comparison followed by Group of a scalar threshold
+
+Klong reads `n>=2048` as `n > (=2048)`, which calls Group on an integer. For an inclusive comparison, write `~n<2048`. For `n<=2048`, write `~n>2048`. The warning applies to adjacent operator glyphs followed by a numeric literal. Grouping a list, as in `=items`, remains valid.
+
+```console
+$ echo 'full(n)::{n>=2048}' | kgpy lint -
+<stdin>:1:12: W024 >= applies Group (=) to a scalar threshold
+0 errors, 1 warning in 1 file
+```
 
 ### E001: a syntax error at strict level 1
 

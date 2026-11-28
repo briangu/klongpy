@@ -1168,14 +1168,10 @@ impl<'a> Parser<'a> {
         }
         if let Some(w) = why {
             let n = self.syms.name(name).split('`').next().unwrap_or("").to_string();
-            self.issue(
-                "not-a-definition",
-                crate::msg!("cannot define {} with named parameters: {}", n, w),
-                (st, lend),
-                Some("name each parameter once, with names other than x, y and z: f(a;b)::{a+b}".to_string()),
-                Some("nothing is defined"),
-            )?;
-            return Ok(None);
+            let e = Error::syntax(crate::msg!("cannot define {} with named parameters: {}", n, w)).with_span((st, lend));
+            #[cfg(feature = "diag")]
+            let e = e.with_hint("name each parameter once, with names other than x, y and z: f(a;b)::{a+b}");
+            return Err(e);
         }
         Ok(Some(NamedDef { name, params: ids }))
     }

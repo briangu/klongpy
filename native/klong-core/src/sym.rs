@@ -20,7 +20,7 @@ pub const FIRST_OP: u32 = 4;
 /// always meant. At level 1 and above the same condition is a syntax error with the same message and hint.
 pub struct Warning {
     /// The condition: `trailing-input`, `stray-closer`, `missing-operand`, `unterminated-string`, `unterminated-list`,
-    /// `unterminated-dict`, `unterminated-comment`, `not-a-destructuring` or `not-a-definition`.
+    /// `unterminated-dict`, `unterminated-comment` or `not-a-destructuring`.
     pub code: &'static str,
     pub message: String,
     /// What happens to the input (it is part of the warning text, after a `; `).

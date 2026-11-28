@@ -348,3 +348,42 @@ fn collection_assignment_respects_host_numeric_hooks() {
     assert_eq!(run_with(&mut ip, "v::!3;v::v,5").as_deref(), Ok("41"));
     assert_eq!(run_with(&mut ip, "v::!3;v::v:=[2 0]").as_deref(), Ok("42"));
 }
+
+#[test]
+fn a_module_projection_can_escape_through_a_shared_private_container() {
+    let mut ip = interp();
+    let id = ip.module_new("counter", "", false).unwrap();
+    ip.module_run_static(id, "n::0;step(a;b)::{n::n+1;n+a+b};make(a)::{step(a;)};box:::{;\"p\";make(10)};get()::{box};export:::{;\"get\";get}", "counter.kg").unwrap();
+    let export = ip.module_get(id, "export").unwrap();
+    ip.module_remove(id, "export");
+    ip.module_set_export(id, export.clone());
+    ip.module_done(id);
+    ip.define_global("m", export).unwrap();
+    // The host holds the returned dictionary. Its one slot owns the projection
+    // for both the host and the module until the final alias is released.
+    let held = ip.run("box::m.get();m::0;box", "<escape>").unwrap().unwrap();
+    assert_eq!(run_with(&mut ip, "box::0;0").as_deref(), Ok("0"));
+    assert!(ip.module_find("counter").is_some());
+    ip.define_global("again", held).unwrap();
+    assert_eq!(run_with(&mut ip, "again.p(2)").as_deref(), Ok("13"));
+    ip.run("again::0", "<release>").unwrap();
+    assert!(ip.module_find("counter").is_none(), "an internal projection must not keep its own module alive");
+}
+
+#[test]
+fn a_host_held_projection_of_anonymous_module_code_keeps_its_scope() {
+    let mut ip = interp();
+    let id = ip.module_new("offset", "", false).unwrap();
+    ip.module_run_static(id, "offset::7;make(a)::{[g];g::{x+y+offset};g(a;)};export:::{;\"make\";make}", "offset.kg").unwrap();
+    let export = ip.module_get(id, "export").unwrap();
+    ip.module_remove(id, "export");
+    ip.module_set_export(id, export.clone());
+    ip.module_done(id);
+    ip.define_global("m", export).unwrap();
+    let f = ip.run("m.make(3)", "<project>").unwrap().unwrap();
+    ip.run("m::0", "<release-namespace>").unwrap();
+    assert_eq!(ip.apply(&f, vec![Value::Int(2)], None).unwrap().as_int(), Some(12));
+    drop(f);
+    ip.run("0", "<sweep>").unwrap();
+    assert!(ip.module_find("offset").is_none());
+}

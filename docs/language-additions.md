@@ -103,6 +103,8 @@ The classic form declares the locals and assigns each:
 
 This is the way to give an anonymous function more than three inputs: pass one list. Elsewhere in a body a destructuring follows the ordinary rule for assignment, so at [strict level 1 and 2](strict.md) the names must be declared as locals.
 
+If one destination fails, earlier changes to Klong variables and dictionary fields in the same assignment are rolled back. For host-backed dictionary fields, the interpreter validates the Klong destinations before invoking the host. The host controls the effects of its callbacks.
+
 ### What is not a destructuring
 
 A list on the left of `::` is a destructuring only when it holds at least one name, and every member is a plain name, none is `x`, `y` or `z`, and no name is repeated. Any other list binds nothing. At strict level 0 it is accepted with a warning that says why. At level 1 and 2 it is a syntax error:
@@ -196,20 +198,18 @@ error: x is not available in a function with named parameters
 [2 3]
 ```
 
-The right side must be a function in braces, at every strict level. The left side must be a call of a plain name whose arguments are plain names, none repeated and none of `x y z`. At strict level 0 a left side that fails that is accepted as it always was, with a warning, and defines nothing; at level 1 and 2 it is a syntax error:
+A named-parameter definition takes a function body in braces. Each parameter must be a distinct plain name. The parser reports a repeated name or a reserved `x`, `y` or `z` at the definition at every strict level, including level 0.
 
 ```kgpy
 ?> f(a;b)::5
 error: named-parameter definition needs a function body in braces
 ?> f(a;a)::{a}
-:nilad
-?> f
-:f
-?> .strict(1)
-1
-?> f(a;a)::{a}
 error: cannot define f with named parameters: a is named twice
+?> f(x)::{x+1}
+error: cannot define f with named parameters: x, y and z cannot be parameter names
 ```
+
+A call with an expression or an empty slot on the left of `::`, such as `f(a;1)::{a}`, still follows the ordinary assignment rules. At level 0 it leaves `f` unbound if `f` had no earlier definition. Levels 1 and 2 report an invalid assignment target.
 
 ### Calling
 
@@ -485,6 +485,7 @@ The rules:
 
 * A file is a module exactly when it assigns `export` at its top level. A file without that assignment is a classic file: `.l` writes its names into the globals and returns what it returned before. A second argument on a classic file is an error that says to write `.l("name")`.
 * The interface is read and frozen when the file finishes loading. The names in the file, `sq` above, are private to it: the importer cannot reach one that `export` does not list, and nothing is written into the importer's globals.
+* A partially applied function keeps its defining module and private state alive, including when the caller releases the module name. A selective import that fails leaves the caller’s previous bindings intact.
 * The key may differ from the name in the file: `export:::{;"seed";reset}` offers the function `reset` as `seed`.
 * The second argument is a symbol or a list of strings. Any other value is a type error that says what to write. A missing entry in the names form is a name error that names it. Without an alias the stem must be a valid name, letters and digits starting with a letter; `.l("my-mod")` is an error that says to write `.l("my-mod";:name)`.
 * At strict levels 0 and 1 a quoted symbol `:s` is the value of `s` when `s` is already defined, and at level 2 it is always the symbol. Choose an alias that is not in use.

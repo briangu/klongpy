@@ -11,6 +11,8 @@
 //! Depth, interrupts and memory: every nested evaluation counts against `Config::max_depth`
 //! (a `range` error, never a native stack overflow); every call and every adverb iteration
 //! ticks, and every 4096 ticks the embedder's [`Hooks::tick`] runs.
+mod module_refs;
+
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::String;
@@ -111,6 +113,9 @@ pub(crate) fn stack_here() -> usize {
 struct ModScope {
     /// Sorted by symbol.
     vars: Vec<(SymId, Value)>,
+    /// Weak handles to projections made in this module. A returned
+    /// projection can contain an anonymous callee no variable holds.
+    projections: Vec<alloc::rc::Weak<Func>>,
     /// The dictionary `.export` fixed.
     export: Option<Value>,
     /// A classic `.module` block set a qualified name here: a plain name that is not found is looked for among them.
@@ -284,6 +289,21 @@ struct Journal {
     scopes: usize,
     exports: usize,
     module: Option<String>,
+}
+
+// One multi-name assignment records just the destinations it changes. Keeping the
+// old values also preserves shared dictionary identity when a later target fails.
+enum PriorBinding {
+    Slot(usize, Option<Value>),
+    AddedSlot(usize, SymId),
+    Global(SymId, Option<Value>, u16),
+    Module(usize, SymId, Option<Value>, bool),
+    Field(Rc<core::cell::RefCell<Dict>>, Value, Option<Value>),
+}
+
+struct BindingBatch {
+    prior: Vec<PriorBinding>,
+    host: Vec<(Value, Value, Value)>,
 }
 
 pub(crate) struct Chain<'a> {
@@ -539,8 +559,8 @@ impl Interp {
     }
 
     /// Let go of the modules nothing refers to any more (design point 3 follow-up, principle 4: nothing is held that no value refers to).
-    /// A module is referenced while a value outside it holds its export dictionary or one of the functions it exports. Called between
-    /// the statements of the program at the top level; a library that was dropped with `m::0` is freed then.
+    /// A retained module namespace, function or projection keeps its defining scope. Check between top-level statements so
+    /// that dropping the final external reference frees the module before its next load.
     #[inline(never)]
     fn sweep_modules(&mut self) {
         if self.modules.is_empty() || self.running != 1 || !self.frames.is_empty() {
@@ -550,28 +570,12 @@ impl Interp {
         if let Ok(mut c) = self.body_cache.try_borrow_mut() {
             *c = [None, None, None, None, None, None, None, None];
         }
-        let n = self.modules.len();
-        // the modules that something outside every module scope refers to, then what those refer to
-        let mut live: Vec<bool> = (0..n).map(|i| self.referenced_from_outside(i)).collect();
-        loop {
-            let mut grew = false;
-            for i in 0..n {
-                if !live[i] || self.modules[i].export.is_none() {
-                    continue;
-                }
-                for j in 0..n {
-                    if !live[j] && self.holds_module(i, j) {
-                        live[j] = true;
-                        grew = true;
-                    }
-                }
-            }
-            if !grew {
-                break;
-            }
+        for m in &mut self.modules {
+            m.projections.retain(|p| p.strong_count() != 0);
         }
-        for i in 0..n {
-            if !live[i] && self.modules[i].export.is_some() {
+        let Some(live) = module_refs::live_modules(&self.modules, self.mod_base) else { return };
+        for (i, keep) in live.iter().enumerate() {
+            if !keep && self.modules[i].export.is_some() {
                 self.modules[i] = ModScope::default();
             }
         }
@@ -582,47 +586,6 @@ impl Interp {
             self.modules = Vec::new();
             self.fmods = Vec::new();
         }
-    }
-
-    /// The values a module scope holds at its top level: its variables and the entries of its export dictionary.
-    fn scope_values(&self, i: usize) -> Vec<Value> {
-        let m = &self.modules[i];
-        let mut out: Vec<Value> = m.vars.iter().map(|(_, v)| v.clone()).collect();
-        if let Some(Value::Dict(e)) = &m.export {
-            out.extend(e.borrow().vals().iter().cloned());
-        }
-        out
-    }
-
-    /// Does the scope of module `i` hold the dictionary or an exported function of module `j`?
-    fn holds_module(&self, i: usize, j: usize) -> bool {
-        let Some(Value::Dict(ej)) = &self.modules[j].export else { return false };
-        let ej = ej.borrow();
-        self.scope_values(i).iter().any(|v| match v {
-            Value::Dict(d) => core::ptr::eq(d.as_ptr() as *const Dict, &*ej as *const Dict),
-            Value::Fn(f) => ej.vals().iter().any(|x| matches!(x, Value::Fn(g) if Rc::ptr_eq(f, g))),
-            _ => false,
-        })
-    }
-
-    /// Is a value that no module scope holds referring to module `i`: its export dictionary, or a function it exports?
-    fn referenced_from_outside(&self, i: usize) -> bool {
-        let Some(Value::Dict(e)) = &self.modules[i].export else { return false };
-        let mut inside: Vec<Value> = Vec::new();
-        for k in 0..self.modules.len() {
-            inside.extend(self.scope_values(k));
-        }
-        // (the scope's own reference to the dictionary is the one that is counted off: `inside` holds the others, by name or by entry)
-        let held = inside.iter().filter(|v| matches!(v, Value::Dict(d) if Rc::ptr_eq(d, e))).count();
-        // (`inside` holds a clone of each value it lists, so every holder inside counts twice)
-        if Rc::strong_count(e) > 1 + 2 * held {
-            return true;
-        }
-        let d = e.borrow();
-        d.vals().iter().any(|v| match v {
-            Value::Fn(f) => Rc::strong_count(f) > 2 * inside.iter().filter(|x| matches!(x, Value::Fn(g) if Rc::ptr_eq(f, g))).count(),
-            _ => false,
-        })
     }
 
     /// The module scope that is running (0: the program's own).
@@ -1613,7 +1576,7 @@ impl Interp {
     /// `n` of its keys (0: the base itself); an error that names the place when a name is not defined, an entry is missing, or the value
     /// is not a dictionary. A host value is read as `x@key` is: through the host (the host table of an embedder). The keys are read from
     /// the text of the name, as it is (nothing is made for them on the way: a read of `d.a` allocates nothing).
-    fn qual_container(&mut self, s: SymId, base: SymId, n: usize) -> Result<Value> {
+    fn qual_container(&mut self, s: SymId, base: SymId, n: usize, pending: &[(Value, Value, Value)]) -> Result<Value> {
         let mut cur = match self.lookup(base)? {
             // (a declared local that was never assigned holds its own name)
             Some(Value::Sym(t)) if t == base => None,
@@ -1634,10 +1597,19 @@ impl Interp {
                     let next = d.borrow().get_str(self.qseg(s, i + 1)).cloned();
                     cur = next.ok_or_else(|| self.no_entry(s, i))?;
                 }
-                Value::Ext(_) => {
-                    let at = self.syms.intern("@");
+                Value::Ext(host) => {
                     let key = Value::text(self.qseg(s, i + 1))?;
-                    cur = self.dyad(at, cur, key)?;
+                    // Later targets can traverse a field assigned earlier in the same batch.
+                    let staged = pending.iter().rev().find(|(dst, k, _)| {
+                        matches!(dst, Value::Ext(e) if Rc::ptr_eq(e, host)) && crate::value::matches(k, &key)
+                    });
+                    cur = match staged {
+                        Some((_, _, value)) => value.clone(),
+                        None => {
+                            let at = self.syms.intern("@");
+                            self.dyad(at, cur, key)?
+                        }
+                    };
                 }
                 other => return Err(self.not_a_dict(s, i, other)),
             }
@@ -1654,7 +1626,7 @@ impl Interp {
     #[inline(never)]
     fn qual_get(&mut self, s: SymId, base: SymId) -> Result<Value> {
         let n = self.syms.qual_keys(s) - 1;
-        match self.qual_container(s, base, n)? {
+        match self.qual_container(s, base, n, &[])? {
             Value::Dict(d) => {
                 let v = d.borrow().get_str(self.qseg(s, n + 1)).cloned();
                 v.ok_or_else(|| self.no_entry(s, n))
@@ -1670,33 +1642,127 @@ impl Interp {
     /// `a.b::v`: the entry `b` of the dictionary `a` is set (a new key is added); `a.b.c::v` needs `a.b` to be there. A host value takes
     /// the pair as `a,[key value]` does.
     #[inline(never)]
-    fn qual_set(&mut self, s: SymId, base: SymId, v: Value) -> Result<()> {
+    fn qual_set(&mut self, s: SymId, base: SymId, v: Value, batch: Option<&mut BindingBatch>) -> Result<()> {
         let n = self.syms.qual_keys(s) - 1;
         let key = Value::text(self.qseg(s, n + 1))?;
-        let d = match self.qual_container(s, base, n)? {
+        let pending = batch.as_ref().map_or(&[][..], |b| b.host.as_slice());
+        let d = match self.qual_container(s, base, n, pending)? {
             Value::Dict(d) => d,
             host => {
-                let comma = self.syms.intern(",");
-                let pair = Value::from_items(alloc::vec![key, v])?;
-                self.dyad(comma, host, pair)?;
-                return Ok(());
+                // An external dictionary controls its own writes. Delay them until all
+                // interpreter-owned destinations have been validated.
+                return match batch {
+                    Some(b) => try_push(&mut b.host, (host, key, v)),
+                    None => self.set_host_field(host, key, v),
+                };
             }
         };
-        let mut d = d.borrow_mut();
-        if d.is_readonly() {
+        let mut fields = d.borrow_mut();
+        if fields.is_readonly() {
             let e = Error::typ(crate::dmsg!("read-only dictionary", "cannot assign {}: {} is read-only (it is a module)", self.plain(s), self.qual_path(s, n)));
             #[cfg(feature = "diag")]
             let e = e.with_hint("copy it with  e:::{};e::e,m  or change the module's file");
             return Err(e);
         }
-        d.set(key, v)
+        if let Some(b) = batch {
+            let old = fields.get(&key).cloned();
+            fields.set(key.clone(), v)?;
+            b.prior.push(PriorBinding::Field(d.clone(), key, old));
+            Ok(())
+        } else {
+            fields.set(key, v)
+        }
+    }
+
+    fn set_host_field(&mut self, host: Value, key: Value, v: Value) -> Result<()> {
+        let comma = self.syms.intern(",");
+        let pair = Value::from_items(alloc::vec![key, v])?;
+        self.dyad(comma, host, pair).map(|_| ())
+    }
+
+    /// Assign interpreter-owned destinations as one unit. Host callbacks run only
+    /// after local validation; an external service owns any effects of its callbacks.
+    pub fn assign_many(&mut self, pairs: impl ExactSizeIterator<Item = (SymId, Value)>) -> Result<()> {
+        let mut batch = BindingBatch { prior: try_vec(pairs.len())?, host: Vec::new() };
+        let exports = self.exports.len();
+        let journal = self.journal.as_ref().map_or(0, |j| j.old.len());
+        let result = (|| {
+            for (name, value) in pairs {
+                if let Some(e) = crate::value::take_deferred() {
+                    return Err(e);
+                }
+                self.assign_recorded(name, value, Some(&mut batch))?;
+            }
+            for (host, key, value) in batch.host.drain(..) {
+                self.set_host_field(host, key, value)?;
+            }
+            Ok(())
+        })();
+        if result.is_err() {
+            for prior in batch.prior.into_iter().rev() {
+                match prior {
+                    PriorBinding::Slot(i, old) => self.slots[i].1 = old,
+                    PriorBinding::AddedSlot(i, s) => {
+                        self.slots.remove(i);
+                        if let Some(frame) = self.frames.last_mut() { frame.len -= 1; }
+                        self.shadow[s.0 as usize] -= 1;
+                    }
+                    PriorBinding::Global(s, old, scope) => {
+                        if let Some(v) = self.globals.get_mut(s.0 as usize) { *v = old; }
+                        if let Some(sc) = self.gscope.get_mut(s.0 as usize) { *sc = scope; }
+                    }
+                    PriorBinding::Module(i, s, old, classic) => {
+                        let m = &mut self.modules[i];
+                        if let Ok(j) = m.vars.binary_search_by_key(&s, |v| v.0) {
+                            if let Some(v) = old { m.vars[j].1 = v; } else { m.vars.remove(j); }
+                        }
+                        m.classic = classic;
+                    }
+                    PriorBinding::Field(dict, key, old) => {
+                        // A recorded update replaces an existing value or removes a newly
+                        // inserted key. Neither operation allocates.
+                        let mut d = dict.borrow_mut();
+                        if let Some(v) = old { d.set(key, v)?; } else { d.remove(&key)?; }
+                    }
+                }
+            }
+            self.exports.truncate(exports);
+            if let Some(j) = &mut self.journal { j.old.truncate(journal); }
+            self.generation = self.generation.wrapping_add(1);
+        }
+        result
+    }
+
+    fn assign_global_slot(&mut self, s: SymId, v: Value, private: bool, batch: Option<&mut BindingBatch>) -> Result<()> {
+        if private {
+            if let (Some(b), Some(i)) = (batch, self.mslot(self.cur_mod)) {
+                let m = self.modules.get(i).ok_or_else(|| Error::system("the module this function belongs to was let go"))?;
+                let old = m.vars.binary_search_by_key(&s, |e| e.0).ok().map(|j| m.vars[j].1.clone());
+                b.prior.push(PriorBinding::Module(i, s, old, m.classic));
+            }
+            return self.module_set(self.cur_mod, s, v);
+        }
+        let i = s.0 as usize;
+        if let Some(b) = batch {
+            let old = self.globals.get(i).cloned().flatten();
+            b.prior.push(PriorBinding::Global(s, old, self.gscope.get(i).copied().unwrap_or(0)));
+        }
+        if self.has_global(s) && self.journal.is_none() {
+            self.globals[i] = Some(v);
+            return Ok(());
+        }
+        self.try_set_global(s, v)
     }
 
     /// `name::value` (KlongPy `KlongContext.__setitem__`): assign where the name lives; a new
     /// name is created in the innermost frame.
     pub fn assign(&mut self, s: SymId, v: Value) -> Result<()> {
+        self.assign_recorded(s, v, None)
+    }
+
+    fn assign_recorded(&mut self, s: SymId, v: Value, batch: Option<&mut BindingBatch>) -> Result<()> {
         if let Some(base) = self.syms.qual_base(s) {
-            return self.qual_set(s, base, v);
+            return self.qual_set(s, base, v, batch);
         }
         if !sym::is_arg(s) {
             if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
@@ -1708,8 +1774,10 @@ impl Interp {
                         continue;
                     }
                     let r = self.frame_range(i);
-                    for (k, slot) in self.slots[r].iter_mut() {
+                    let start = r.start;
+                    for (j, (k, slot)) in self.slots[r].iter_mut().enumerate() {
                         if *k == s {
+                            if let Some(b) = batch { b.prior.push(PriorBinding::Slot(start + j, slot.take())); }
                             *slot = Some(v);
                             return Ok(());
                         }
@@ -1718,16 +1786,12 @@ impl Interp {
             }
             if self.cur_mod == 0 {
                 if self.has_global(s) {
-                    if self.journal.is_some() {
-                        return self.try_set_global(s, v);
-                    }
-                    self.globals[s.0 as usize] = Some(v);
-                    return Ok(());
+                    return self.assign_global_slot(s, v, false, batch);
                 }
             } else if self.scope_has(s) {
-                return self.module_set(self.cur_mod, s, v);
+                return self.assign_global_slot(s, v, true, batch);
             } else if self.syms.name(s).starts_with('.') && self.has_global(s) {
-                return self.try_set_global(s, v);
+                return self.assign_global_slot(s, v, false, batch);
             }
         }
         // x, y and z are the arguments of the running function and are assignable like its
@@ -1738,15 +1802,17 @@ impl Interp {
                 .with_hint(crate::msg!("declare it as a local in the parameter list, {{[{}]; ...}}, or define the global before the function is called", n)));
         }
         if !self.in_fn() {
-            return self.new_global(s, v);
+            return self.assign_global_slot(s, v, self.module_private_global(s), batch);
         }
         let i = s.0 as usize;
         self.grow_shadow(i)?;
         if let Some(n) = self.frames.len().checked_sub(1) {
             let r = self.frame_range(n);
             let end = r.end;
-            for (k, slot) in self.slots[r].iter_mut() {
+            let start = r.start;
+            for (j, (k, slot)) in self.slots[r].iter_mut().enumerate() {
                 if *k == s {
+                    if let Some(b) = batch { b.prior.push(PriorBinding::Slot(start + j, slot.take())); }
                     *slot = Some(v);
                     return Ok(());
                 }
@@ -1754,6 +1820,7 @@ impl Interp {
             self.slots.try_reserve(1).map_err(|_| Error::memory())?;
             // (past the frame there can be arguments on their way to a call, `a::1` written among them: they move up by one, and are
             // counted from the top by whoever made them)
+            if let Some(b) = batch { b.prior.push(PriorBinding::AddedSlot(end, s)); }
             self.slots.insert(end, (s, Some(v)));
             self.frames[n].len += 1;
             self.shadow[i] += 1;
@@ -2149,7 +2216,7 @@ impl Interp {
         }
         if self.depth > self.cfg.max_depth {
             self.depth -= 1;
-            return Err(Error::range("expression nested too deeply"));
+            return Err(Error::range("expression nested too deeply").with_hint("the evaluation depth limit was reached"));
         }
         if let Err(e) = self.check_stack() {
             self.depth -= 1;
@@ -2846,9 +2913,7 @@ impl Interp {
                     ))
                     .with_hint("the list needs exactly one element for each name"));
                 }
-                for (i, &name) in names.iter().enumerate() {
-                    self.assign(SymId(name), v.item(i))?;
-                }
+                self.assign_many(names.iter().enumerate().map(|(i, &name)| (SymId(name), v.item(i))))?;
                 Ok(v)
             }
             // "1::5": accepted at strict level 0, binds nothing (legacy)
@@ -3259,7 +3324,6 @@ impl Interp {
         }
         if n != fa as usize {
             return None;
-            return None;
         }
         for (k, &q) in ids.iter().take(3).enumerate() {
             let v = self.eval_op(tree, NodeId(q), true);
@@ -3512,7 +3576,7 @@ impl Interp {
             try_push(&mut slots, Slot::Hole)?;
         }
         let callee = self.projected_callee(self.node_value(tree, a));
-        Ok(Value::Fn(Rc::new(Func::proj(callee, slots)?)))
+        self.make_projection(callee, slots)
     }
 
     /// The projection `apply` returns when the values do not complete `f`: the values, held as
@@ -3523,7 +3587,20 @@ impl Interp {
         for _ in 0..holes {
             try_push(&mut slots, Slot::Hole)?;
         }
-        Ok(Value::Fn(Rc::new(Func::proj(self.projected_callee(f.clone()), slots)?)))
+        let callee = self.projected_callee(f.clone());
+        self.make_projection(callee, slots)
+    }
+
+    fn make_projection(&mut self, callee: Value, slots: Vec<Slot>) -> Result<Value> {
+        let f = Rc::new(Func::proj(callee, slots)?);
+        if let Some(scope) = self.mslot(self.cur_mod).and_then(|i| self.modules.get_mut(i)) {
+            let handles = &mut scope.projections;
+            if handles.len() == handles.capacity() {
+                handles.retain(|p| p.strong_count() != 0);
+            }
+            try_push(handles, Rc::downgrade(&f))?;
+        }
+        Ok(Value::Fn(f))
     }
 
     /// Apply a function to argument values that are already evaluated (KlongPy `apply`): no
@@ -3956,7 +4033,7 @@ impl Interp {
         // a chain of adverbs recurses once per adverb without a nested evaluation
         self.check_stack()?;
         if (level as u64) + (self.depth as u64) > self.cfg.max_depth as u64 {
-            return Err(Error::range("expression nested too deeply"));
+            return Err(Error::range("expression nested too deeply").with_hint("the evaluation depth limit was reached"));
         }
         if level == 0 {
             return match ch.tree.node(ch.verb) {

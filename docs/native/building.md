@@ -245,7 +245,7 @@ Options go before `FILE` or `-e`. Sizes accept the suffixes `K` and `M` (1024 an
 
 ## The embedded library
 
-The twelve library files of `klongpy/lib` (`csv`, `edt`, `eigenv`, `help`, `huffman`, `math`, `nstat`, `print`, `set`, `spline`, `time`, `util`) are part of the program as text, and `.l` loads them by name. A file of the same name on the load path is used in preference. In a build with IPC the management library `mgmt` is carried too, see [Management Node](management-node.md).
+The thirteen library files of `klongpy/lib` (`checks`, `csv`, `edt`, `eigenv`, `help`, `huffman`, `math`, `nstat`, `print`, `set`, `spline`, `time`, `util`) are part of the program as text, and `.l` loads them by name. A file of the same name on the load path is used in preference. In a build with IPC the management library `mgmt` is carried too, see [Management Node](management-node.md).
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
@@ -278,7 +278,7 @@ The workspace has these cargo features. They are chosen when you build, for exam
 | `int32` | `klong-cli`, `klong-sim`, `klong-board`, `klong-ffi` | integers are 32 bits wide and wrap at that width |
 | `float32` | the same | floats are 32 bits wide and print with the digits of a 32-bit float |
 | `files` | `klong-rt`, `klong-board`, `klong-ffi` (default on) | channels, `.l` of files and the file functions; needs a file system from the platform |
-| `lib` | the same (default on) | the twelve library files as text in the program (about 42 KiB) |
+| `lib` | the same (default on) | the thirteen library files as text in the program (about 42 KiB) |
 | `timers` | `klong-rt`, `klong-ffi` (default on in `klong-ffi`) | `.timer` and `.timerc` |
 | `ipc` | `klong-rt` | `.cli .clid .clic .clit .srv .async` and the `.srv.*` hooks, and the `mgmt` library |
 | `binary-files` | `klong-cli` (default on), `klong-host` | local binary file I/O, durable sync, little-endian integer encoding and CRC32 |
@@ -330,6 +330,7 @@ $ kg -e 'f::{:[x<1;0;1+f(x-1)]};f(200)'
 1:17: range error: expression nested too deeply
   f::{:[x<1;0;1+f(x-1)]};f(200)
                   ^^^
+  hint: the evaluation depth limit was reached
 $ kg --max-depth 100000 -e 'f::{:[x<1;0;1+f(x-1)]};f(5000)'
 5000
 $ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(20)'
@@ -373,7 +374,7 @@ Run it without the `tail` to see the files. The desktop run passed all 2227 case
 KLONG_NATIVE=native/target/narrow/release/kg python native/scripts/conformance.py --narrow
 ```
 
-That gave 1408 of 1408 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/kg` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
+That gave 1408 of 1408 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/kg` reported `170 of 170 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The desktop binary declares `bigint`; a build without the feature leaves it out (it wraps), and so do all builds leave out `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 

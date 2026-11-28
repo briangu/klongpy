@@ -1056,6 +1056,7 @@ Example:
 | `.edit` | Editor | Line editor switch. |
 | `.fastpow` | Fast-Power | Switch for compiling `x^y` to a faster power function. |
 | `.h` | Host | Symbol naming the host system (`:unix` or `:plan9`). |
+| `.helpdb` | Help-Database | The list of entries used by the Klong help library. |
 | `.os.argv` | Program-Arguments | The words after `--` on the `kgpy` command line, as a list of strings. |
 | `.os.env` | Environment | The environment variables of the process, as a dictionary of strings. |
 
@@ -1180,6 +1181,15 @@ previous behavior of Klong, just in case.
 This variable holds a unique symbol identifying the host system
 running the Klong process. Currently, this is either :unix or
 :plan9.
+```
+
+### `.helpdb`
+
+`.helpdb` [Help-Database]
+
+```text
+The help library fills this initially empty list with operator
+and function descriptions when it loads.
 ```
 
 ### `.os.argv`

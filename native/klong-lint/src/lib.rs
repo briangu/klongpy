@@ -51,6 +51,7 @@ pub static RULES: &[Rule] = &[
     Rule { code: "W021", severity: "warning", title: "a.b::v where a is never a dictionary (a variable named with a dot in Klong 1)" },
     Rule { code: "W022", severity: "warning", title: "module bound by .l and never used" },
     Rule { code: "W023", severity: "warning", title: "a local file shadows a bundled library file of the same name" },
+    Rule { code: "W024", severity: "warning", title: "comparison followed by Group of a scalar threshold" },
     Rule { code: "E001", severity: "error", title: "the parser rejects this at strict level 1" },
     Rule { code: "E002", severity: "error", title: "call with more arguments than the callee takes" },
     Rule { code: "E003", severity: "error", title: "assignment to an entry of a module (read-only)" },

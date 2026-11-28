@@ -10,7 +10,7 @@ The source is in the `native/` directory of the KlongPy repository. It passes th
 
 The firmware uses the same engine as the desktop commands. A board can select the features that fit its RAM and flash budget.
 
-* **The language.** The same parser, the same operators, adverbs, strings, dictionaries, modules and error kinds, the same strict levels, and the twelve library files of `klongpy/lib` (the thirteenth, `mgmt`, is carried by builds with IPC). A program that avoids the differences below gives the same answer.
+* **The language.** The same parser, the same operators, adverbs, strings, dictionaries, modules and error kinds, the same strict levels, and the thirteen standard library files in `klongpy/lib` (builds with IPC also carry `mgmt`). A program that avoids the differences below gives the same answer.
 * **A small program.** The interpreter is `no_std` Rust. See the [size measurements](building.md#sizes-and-speed) for different feature sets. The [RC1 binary tested on the RP2040 Picos](pico-bench.md#rc1-on-two-rp2040-boards) was 809,252 bytes with the lane, heap diagnostics and compiled examples.
 * **A console on a serial line.** A REPL with line editing over a UART, Ctrl-C for a program that does not stop, and a command mode for uploading files and running programs from a desktop, so that you can develop on a board without a debugger. See [Serial Console and Upload](console.md).
 * **Nodes that talk.** The kdb+ IPC protocol, as KlongPy speaks it, timers, and a management library for reaching several nodes from one. See [IPC and Timers](ipc.md) and [Management Node](management-node.md).
@@ -30,7 +30,7 @@ $ kg -e '.l("nstat");.p(nstat.sd([1 2 3 4]))'
 
 ## How it relates to KlongPy
 
-The conformance suite has 2227 cases for desktop `kg`. Each case pins the printed value or the error kind, and can also check console output. Both desktop commands use the same cases. The runner selects cases based on the features each host or target declares. Golden tests also compare 169 parse trees byte for byte. [Conformance suite](../conformance.md)
+The conformance suite has 2227 cases for desktop `kg`. Each case pins the printed value or the error kind, and can also check console output. Both desktop commands use the same cases. The runner selects cases based on the features each host or target declares. Golden tests also compare 170 parse trees byte for byte. [Conformance suite](../conformance.md)
 
 These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.
 
@@ -85,9 +85,9 @@ This table is the status of every hardware target. Each row says what ran and it
 
 | Area | Result | Where it ran |
 |---|---|---|
-| The language, default build (64-bit) | 2227 of 2227 conformance cases (2026-11-27); 169 of 169 parse trees | desktop |
+| The language, default build (64-bit) | 2227 of 2227 conformance cases (2026-11-27); 170 of 170 parse trees | desktop |
 | The language, 32-bit build (`int32`, `float32`) | 1408 of 1408 cases that the build declares (2026-11-18) | desktop |
-| The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
+| The embedded library | all thirteen files load, at strict levels 0, 1 and 2 | desktop |
 | The serial console | 1720 of 1720 cases through `^A run` (2026-11-27) | simulated boards |
 | The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases when it was run; see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |

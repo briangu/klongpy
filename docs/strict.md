@@ -167,6 +167,8 @@ error: cannot destructure: nested lists are not supported
 error: cannot destructure: a is named twice
 ```
 
+In a named-parameter definition, the parser checks the parameter names at every strict level. Reserved `x`, `y`, or `z` and repeated names raise a syntax error at the definition. [Named parameters](language-additions.md#named-parameters)
+
 ### Assigning inside a function
 
 At level 0 `::` on an unknown name inside a function creates a variable that belongs to that call and disappears when it returns. It does not create a global, and `.unsafe()` does not change that. At level 1 the assignment is an error unless the name is a parameter, a declared local, or already defined.

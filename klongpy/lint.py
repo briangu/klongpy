@@ -37,6 +37,7 @@ Rules, by code
     W021  a.b::v where a is never a dictionary (a variable named with a dot in Klong 1)
     W022  a module bound by .l and never used
     W023  a local file that shadows a bundled library file of the same name
+    W024  adjacent >= or <= applies Group to a scalar numeric threshold
     E001  anything the parser rejects at strict level 1
     E002  call with more arguments than the callee takes
     E003  assignment to an entry of a module (it is read-only)

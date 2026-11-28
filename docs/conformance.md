@@ -4,7 +4,7 @@ The conformance suite is a set of test cases for the Klong language that does no
 
 Each case is a program and the text the REPL prints for its value, or the kind of error it must raise. KlongPy runs the cases in process. The [native runtime](native/index.md) runs the same files through a small command-line protocol, with no Python. KlongPy is the reference: when it fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.
 
-The suite has 2227 cases in 25 files under `conformance/cases/`, 5 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
+The suite has 2227 cases in 25 files under `conformance/cases/`, 5 pending cases under `conformance/pending/` (that KlongPy fails), and 170 golden parse trees under `tests/golden/`.
 
 ## A case
 
@@ -79,7 +79,7 @@ The desktop run passed all 2227 cases in 4.0 seconds with eight jobs on an Apple
 
 ```text
 $ python conformance/run.py --trees --cmd "native/target/release/kg"
-169 of 169 trees match
+170 of 170 trees match
 ```
 
 A build for a 32-bit target (features `int32,float32`) declares fewer tags: `core,strings,dicts,unicode,sysio,static,strict1,strict2,numpy-only,device` (and `clock` where the board has one).

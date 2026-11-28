@@ -27,7 +27,9 @@ While porting the weather example, `kg args.kg sample.txt` put the arguments in 
 
 ### Checking a numeric threshold in a generated program
 
-While measuring batched SQL publication after the RC1 source freeze, an agent wrote `full(n)::{n>=2048}`. `kg lint` returned zero errors and zero warnings. Calling `full(2048)` failed with `=: group needs a list`. The AST showed the actual interpretation as a greater-than comparison whose right operand groups the integer literal. In Klong, `full(n)::{~n<2048}` expresses this threshold. Checking 2047, 2048 and 2049 returns 0, 1 and 1. A targeted lint diagnostic for grouping an integer literal would catch this before the generated program reaches a benchmark runner.
+While measuring batched SQL publication after the RC1 source freeze, an agent wrote `full(n)::{n>=2048}`. `kg lint` returned zero errors and zero warnings. Calling `full(2048)` failed with `=: group needs a list`. The AST showed the actual interpretation as a greater-than comparison whose right operand groups the integer literal. In Klong, `full(n)::{~n<2048}` expresses this threshold. Checking 2047, 2048 and 2049 returns 0, 1 and 1. Fixed in RC2. Lint warning W024 now points at the adjacent operators and suggests the inclusive comparison.
+
+The [CLI regression tests](test_cli_automation.py) check the diagnostic on both hosts and exercise the corrected predicate immediately below, at, and above the threshold. The control also checks that intentional grouping of a list stays lint-clean.
 
 ### Identifying a locally rebuilt executable
 
@@ -107,13 +109,27 @@ An RC2 build of `klong-sim` on its own changed the expected source spans in the 
 
 ### A named parameter with the spelling `x`
 
-While writing a Linux latency probe, `kg -e 'foo(x)::{x};foo(1)'` reported an undefined function at the call. Running the same expression with `--strict 1` located the definition and explained the reserved parameter names. Both `foo(a)::{a};foo(1)` and `foo::{x};foo(1)` return 1. Use strict mode when checking generated function definitions. [Named parameter rules](../../docs/language-additions.md#named-parameters)
+While writing a Linux latency probe, `kg -e 'foo(x)::{x};foo(1)'` reported an undefined function at the call. Running the same expression with `--strict 1` located the definition and explained the reserved parameter names. Both `foo(a)::{a};foo(1)` and `foo::{x};foo(1)` return 1. Fixed in RC2. At every strict level the parser now points to the reserved name in the malformed definition. [Named parameter rules](../../docs/language-additions.md#named-parameters)
+
+If the function already exists, the same mistake can return a plausible answer. In a file containing `bump(n)::{n+1};bump(x)::{x+10};.p(bump(1))`, both commands printed 2 and exited successfully at level 0. Only `kgpy` printed the warning that the second definition had been ignored. After the fix, both hosts stop with a syntax error on the second definition at levels 0, 1 and 2. The regression checks that the final print never runs. [CLI regression](test_cli_automation.py)
 
 ### Checking the Pico version after a flash
 
 On November 20 the bench supervisor verified the RC1 flash on node 2, but `klong_bench.py status` still showed its earlier `0.0.1` greeting. The firmware answered `2.0.0-rc.1` when asked directly. After a flash, use `python3 native/tools/klong_bench.py --host HOST eval --node 2 '.ver()?"version"'` and keep the supervisor's readback receipt to identify the exact image. The bridge caches the greeting between polls.
 
 ## Fixed in the working tree
+
+### Retaining private state through a projection
+
+A projection returned by `tiny.make(10)` formerly lost its private helper when the caller rebound `tiny`. The module now stays available through the projection, including when the caller loaded it into a local variable. Repeated calls to a private counter return 13 and 14. Releasing the last handle and loading the module again resets the count. On a constrained heap, the runtime can defer collecting a module until space is available. [Desktop and heap-limit regressions](test_language_regressions.py)
+
+### Recovering from a failed multi-name binding
+
+At strict level 2, `a::42;f()::{0;[a b]::[8 9]};r::.try(f;[]);[;r@0;a]` previously gave `[0 8]`. It now gives `[0 42]`. Importing a valid export followed by an invalid binding name likewise restores the original value. Interpreter-owned local names, globals and dictionary fields retain their previous values when a binding fails. Writes to externally owned fields begin after local validation. If an external service rejects a later write, the service determines the outcome of its earlier writes. [Desktop binding regressions](test_language_regressions.py)
+
+### Loading assertions from a script
+
+Both desktop commands load `.l("checks")` at strict level 2. `checks.require(1;"range";"bad width")` returns 1, and a zero condition raises the supplied error kind and message. [Language program](programs/test_language.kg)
 
 ### Reading verified trades from a damaged WAL
 
@@ -195,5 +211,7 @@ The 2022–2025 ports exercise named functions, projections, multi-name binding,
 2. **Fixed whole-word XOR.** The VM used to walk the bits, and the market generator expanded every word into 24 bit positions three times per iteration. The ports now call `.bitxor`. Tests cover signed words, scalars, vectors, matrices, empty inputs, shape agreement and invalid types. [Klong cases](programs/aoc_bitxor.kg) · [VM](../../examples/aoc/2024/day17.kg) · [Market generator](../../examples/aoc/2024/day22.kg)
 
 3. **Fixed exact scalar arithmetic in the hailstone solver.** The earlier solver manufactured a large operand to get exact products and used integer doubling and subtraction for division. It still wrapped when summing three valid machine-width coordinates. A generated trajectory now returns 13835958055282163726 using `.exactadd`, `.exactsub`, `.exactmul` and `.exactdiv`. The exact operations promote on bigint builds and report out-of-range results on fixed-width builds. Regression cases exercise both sides of the signed limit, division beyond floating-point precision, cancellation back to a small integer, nonintegral division and division by zero. [Arithmetic cases](programs/aoc_exact.kg) · [Trajectory regression](test_aoc.py) · [Port](../../examples/aoc/2023/day24.kg)
+
+The antenna and claw solvers needed GCD. Native `kg` previously stopped in `help.kg` because the help table had no initial value. A fresh strict interpreter now loads `.l("math")` and returns 6 from `gcd(12;18)` on both desktop hosts. The recursive 45-bit adder search also exposed an ambiguous depth diagnostic. Running `f(n)::{:[n;f(n-1);0]};f(255)` on native `kg` now identifies the evaluation depth limit. A separate hint identifies the native stack budget when it is reached. The iterative solver used evaluation depth 34. [Language checks](programs/test_language.kg) · [CLI diagnostic](test_cli_automation.py) · [Adder regression](test_aoc_search.py)
 
 **Keep the current loop forms.** For a fixed count the market generator uses `2000 next:*x`. For early exit the marker search uses `condition step:~initial`. The hill-climbing solver processes a frontier with each until it is empty. Each-Pair and scan already cover adjacent values and prefix totals. For a fixed-width window, gather `signal@(index+offsets)` with `offsets::!width`. Against an earlier version taking a window from each dropped suffix, the gather cut warm times from 44.0 to 20.3 ms for four characters and from 47.1 to 29.1 ms for fourteen on the same generated signal and executable. Try fusing take-after-drop for strings if profiling other workloads shows the same pattern. [Marker search](../../examples/aoc/2022/day06.kg) · [Frontier traversal](../../examples/aoc/2022/day12.kg)

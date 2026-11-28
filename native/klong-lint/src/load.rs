@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 /// The library of klongpy/lib, built into the binary.
 pub static EMBEDDED_LIB: &[(&str, &str)] = &[
+    ("checks.kg", include_str!("../../../klongpy/lib/checks.kg")),
     ("csv.kg", include_str!("../../../klongpy/lib/csv.kg")),
     ("edt.kg", include_str!("../../../klongpy/lib/edt.kg")),
     ("eigenv.kg", include_str!("../../../klongpy/lib/eigenv.kg")),

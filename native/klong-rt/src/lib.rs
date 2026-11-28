@@ -534,6 +534,12 @@ impl<P: Platform + 'static> Runtime<P> {
         // .e (Epsilon), as KlongPy has it
         let e = interp.syms.intern(".e");
         interp.set_global(e, Value::Flt(1e-18));
+        #[cfg(any(feature = "lib", feature = "files"))]
+        {
+            // help.kg extends this table when math and other libraries load.
+            let helpdb = interp.syms.intern(".helpdb");
+            interp.set_global(helpdb, Value::empty());
+        }
 
         #[cfg(feature = "files")]
         chan::register(&mut interp, &shared);

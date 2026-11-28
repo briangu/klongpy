@@ -12,6 +12,33 @@ def invoke(command, args, cwd):
                           env=environment(), capture_output=True, text=True, timeout=10)
 
 
+@pytest.mark.parametrize("level", ["0", "1", "2"])
+def test_malformed_redefinition_stops_before_stale_function_runs(host, tmp_path, level):
+    script = tmp_path / "redefine.kg"
+    script.write_text("bump(n)::{n+1}\nbump(x)::{x+10}\n.p(bump(1))\n")
+    result = invoke(host, ["--strict", level, str(script)], tmp_path)
+    assert "redefine.kg:2:" in result.stderr and "parameter" in result.stderr, result.stderr
+    assert result.returncode == 1 and result.stdout == "", result.stdout
+
+
+def test_lint_explains_grouping_a_scalar_in_a_threshold(host, tmp_path):
+    script = tmp_path / "threshold.kg"
+    script.write_text("full(n)::{n>=2048}\n")
+    result = invoke(host, ["lint", "-v", str(script)], tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "threshold.kg:1:" in result.stdout and "1 warning" in result.stdout, result.stdout
+    assert "~n<2048" in result.stdout.replace(" ", ""), result.stdout
+
+
+def test_comparison_and_intentional_grouping_stay_lint_clean(host, tmp_path):
+    script = tmp_path / "valid.kg"
+    script.write_text("full(n)::{~n<2048}\ngroups(items)::{=items}\n.p(full'[2047 2048 2049])\n")
+    result = invoke(host, ["lint", str(script)], tmp_path)
+    assert result.returncode == 0 and "0 errors, 0 warnings" in result.stdout, result.stdout
+    run = invoke(host, [str(script)], tmp_path)
+    assert run.returncode == 0 and run.stdout.strip() == "[0 1 1]", run.stderr
+
+
 def test_discover_capabilities_without_a_repl(kg, tmp_path):
     help_text = invoke(kg, ["--help"], tmp_path)
     assert help_text.returncode == 0 and help_text.stderr == ""
@@ -70,3 +97,11 @@ def test_error_is_located_and_failed_command_has_no_result(kg, tmp_path):
     bad_option = invoke(kg, ["--unknown-option"], tmp_path)
     assert bad_option.returncode == 2 and bad_option.stdout == ""
     assert "usage: kg" in bad_option.stderr
+
+
+def test_evaluator_depth_diagnostic(kg, tmp_path):
+    script = tmp_path / "depth.kg"
+    script.write_text("f(n)::{:[n;f(n-1);0]};f(255)\n")
+    result = invoke(kg, ["--max-depth", "32", str(script)], tmp_path)
+    assert result.returncode == 1
+    assert "evaluation depth limit" in result.stderr

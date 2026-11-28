@@ -70,7 +70,7 @@ def main(argv):
         name = os.path.basename(path)
         res = []
         for level in LEVELS:
-            code, out, err = run(binary, level, f'.helpdb::[];.l("{name}");"loaded"', cwd=LIB)
+            code, out, err = run(binary, level, f'.l("{name}");"loaded"', cwd=LIB)
             ok = code == 0 and out.strip().endswith('"loaded"')
             res.append("loads" if ok else "FAILS: " + (err.strip().splitlines() or ["?"])[0])
             bad += not ok
@@ -88,7 +88,6 @@ def main(argv):
             import contextlib
             import io
             k = KlongInterpreter()
-            k[".helpdb"] = []
             cwd = os.getcwd()
             os.chdir(LIB)
             try:
@@ -101,7 +100,7 @@ def main(argv):
     for fname, text in calls():
         got = []
         for level in LEVELS:
-            code, out, err = run(binary, level, f'.helpdb::[];.l("{fname}");{text}', cwd=LIB)
+            code, out, err = run(binary, level, f'.l("{fname}");{text}', cwd=LIB)
             got.append(out.strip() if code == 0 else "error: " + (err.strip().splitlines() or ["?"])[0])
         want = ref(fname, text) if ref else got[0]
         total += 1

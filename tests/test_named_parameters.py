@@ -457,21 +457,12 @@ class TestSyntax(unittest.TestCase):
         cases = {"f(a;x)::{a}": "x, y and z", "f(a;a)::{a}": "a is named twice", "f(x)::{1}": "x, y and z",
                  "f(a;b;a)::{a}": "a is named twice"}
         for text, word in cases.items():
-            with self.subTest(text=text):
-                for level in (1, 2):
+            for level in LEVELS:
+                with self.subTest(text=text, level=level):
                     e = error(level, text)
                     self.assertIsInstance(e, KlongSyntaxError)
                     self.assertIn(word, str(e))
                     self.assertEqual(e.span[0], 0)
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
-                    k = KlongInterpreter()
-                    k(text)
-                w = [q for q in w if issubclass(q.category, KlongSyntaxWarning)]
-                self.assertEqual(len(w), 1)
-                self.assertIn(word, str(w[0].message))
-                self.assertIn("nothing is defined", str(w[0].message))
-                self.assertEqual(w[0].message.code, "not-a-definition")
 
     def test_no_warning_for_a_definition(self):
         with warnings.catch_warnings():

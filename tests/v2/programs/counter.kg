@@ -1,0 +1,5 @@
+count::0
+advance()::{count::count+1;count}
+step(base;n)::{base+n+advance()}
+make(base)::{step(base;)}
+export:::{;"make";make;"ok";7;"bad-key";9}

@@ -389,6 +389,21 @@ fn a_qualified_name_on_a_host_value_asks_the_host_as_at_does() {
 }
 
 #[test]
+fn destructuring_checks_local_destinations_before_external_writes() {
+    let _g = lock();
+    let mut ip = interp();
+    let host = Rc::new(ExtBox(Box::new(Remote { puts: Default::default() })));
+    ip.define_global("h", Value::Ext(host.clone())).unwrap();
+    let remote = host.0.as_any().downcast_ref::<Remote>().unwrap();
+    assert!(ip.run("a::4;[h.k a a.bad]::[7 8 9]", "<test>").is_err());
+    assert!(remote.puts.borrow().is_empty());
+    assert_eq!(show(&mut ip, "a"), "4");
+    assert_eq!(show(&mut ip, "[h.k a]::[7 8];a"), "8");
+    assert_eq!(*remote.puts.borrow(), vec!["[\"k\" 7]"]);
+    assert_eq!(show(&mut ip, "d:::{};[h.parent h.parent.n]::[;d;12];d.n"), "12");
+}
+
+#[test]
 fn float_width_32_computes_floats_as_float32_and_64_is_the_default() {
     let _g = lock();
     let mut ip = interp();

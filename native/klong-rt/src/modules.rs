@@ -280,7 +280,7 @@ fn freeze(ip: &mut Interp, id: u16, label: &str) -> Result<Value> {
 
 /// A name `.l` is to bind: a string or a symbol that is a plain variable name.
 #[cfg(any(feature = "files", feature = "lib"))]
-fn bind_name(ip: &mut Interp, name: &str, v: Value, what: &str) -> Result<()> {
+fn binding_symbol(ip: &mut Interp, name: &str, what: &str) -> Result<klong_core::SymId> {
     let _ = what;
     if !module::is_binding_name(name) {
         return Err(Error::name(klong_core::dmsg!(".l: not a name", ".l: \"{}\" cannot be the name of a variable; {}", name, what)));
@@ -289,7 +289,7 @@ fn bind_name(ip: &mut Interp, name: &str, v: Value, what: &str) -> Result<()> {
     if let Some(e) = ip.syms.failure() {
         return Err(e);
     }
-    ip.assign(s, v)
+    Ok(s)
 }
 
 /// The second argument of `.l`, checked before anything is loaded.
@@ -344,16 +344,23 @@ fn bind(ip: &mut Interp, spec: &str, dict: &Value, how: Bind) -> Result<()> {
     match how {
         Bind::Stem => {
             check_stem(spec, &Bind::Stem)?;
-            bind_name(ip, module::stem(spec), dict.clone(), "")
+            let s = binding_symbol(ip, module::stem(spec), "")?;
+            ip.assign(s, dict.clone())
         }
-        Bind::Alias(name) => bind_name(ip, &name, dict.clone(), "a name is letters and digits, starting with a letter"),
+        Bind::Alias(name) => {
+            let s = binding_symbol(ip, &name, "a name is letters and digits, starting with a letter")?;
+            ip.assign(s, dict.clone())
+        }
         Bind::Names(names) => {
             let Value::Dict(d) = dict else { return Err(Error::internal("a module is not a dictionary")) };
-            let mut vals: Vec<Value> = Vec::new();
+            let mut pairs = klong_core::value::try_vec(names.len())?;
             for n in &names {
                 let key = Value::text(n)?;
                 match d.borrow().get(&key) {
-                    Some(v) => klong_core::value::try_push(&mut vals, v.clone())?,
+                    Some(v) => {
+                        let s = binding_symbol(ip, n, "an entry is bound under its own name, which must be letters and digits")?;
+                        pairs.push((s, v.clone()));
+                    }
                     None => {
                         let e = Error::name(klong_core::dmsg!("no such entry", "{} has no entry \"{}\"", spec, n));
                         #[cfg(feature = "diag")]
@@ -370,10 +377,7 @@ fn bind(ip: &mut Interp, spec: &str, dict: &Value, how: Bind) -> Result<()> {
                     }
                 }
             }
-            for (n, v) in names.iter().zip(vals) {
-                bind_name(ip, n, v, "an entry is bound under its own name, which must be letters and digits")?;
-            }
-            Ok(())
+            ip.assign_many(pairs.into_iter())
         }
     }
 }

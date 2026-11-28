@@ -12,6 +12,7 @@ pub static FILES: &[(&str, &str)] = &[
     ("set", include_str!("../../../klongpy/lib/set.kg")),
     ("util", include_str!("../../../klongpy/lib/util.kg")),
     ("csv", include_str!("../../../klongpy/lib/csv.kg")),
+    ("checks", include_str!("../../../klongpy/lib/checks.kg")),
     ("time", include_str!("../../../klongpy/lib/time.kg")),
     ("print", include_str!("../../../klongpy/lib/print.kg")),
     ("huffman", include_str!("../../../klongpy/lib/huffman.kg")),

@@ -1,0 +1,3 @@
+:" Assert a condition and preserve the caller's error kind and message."
+require(ok;kind;message)::{:[ok;1;.err(kind;message)]}
+export:::{;"require";require}
