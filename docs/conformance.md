@@ -4,7 +4,7 @@ The conformance suite is a set of test cases for the Klong language that does no
 
 Each case is a program and the text the REPL prints for its value, or the kind of error it must raise. KlongPy runs the cases in process. The [native runtime](native/index.md) runs the same files through a small command-line protocol, with no Python. KlongPy is the reference: when it fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.
 
-The suite has 2220 cases in 25 files under `conformance/cases/`, 5 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
+The suite has 2227 cases in 25 files under `conformance/cases/`, 5 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
 
 ## A case
 
@@ -39,14 +39,14 @@ error: range
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py
-2199 passed, 0 failed, 21 skipped by tags (KlongPy (in process))
+2206 passed, 0 failed, 21 skipped by tags (KlongPy (in process))
 ```
 
 The in-process run takes about a second. To run KlongPy through the same executable protocol that a native implementation uses, give the reference shim as the command (about 17 seconds with 8 jobs):
 
 ```text
 $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.py" --jobs 8
-2199 passed, 0 failed, 21 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
+2206 passed, 0 failed, 21 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
 ```
 
 `--tags a,b` is the list of tags the implementation declares; other cases are skipped and counted. `--list` shows what would run. A file or directory argument limits the run. A failure prints the file, the line and the case name with the expected and the actual text.
@@ -56,7 +56,7 @@ $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.p
 $ python conformance/run.py conformance/cases/90-errors.cases
 63 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 $ python conformance/run.py --list --tags core | awk 'END { print NR }'
-805
+808
 ```
 
 `python -m pytest tests/test_conformance.py --backend torch --device cpu` runs the in-process cases on the torch backend. The numpy backend declares every tag except `torch-only`, `timers`, `ipc` and `desktop`. The torch backend declares `torch-only` instead of `numpy-only`, because float32 text and `:undefined` inside a list differ there by design.
@@ -70,10 +70,10 @@ $ cd native && cargo build --release
 $ cd ..
 $ python conformance/run.py --cmd "native/target/release/kg --conformance" \
       --jobs 8
-2220 passed, 0 failed, 0 skipped by tags (native/target/release/kg --conformance)
+2227 passed, 0 failed, 0 skipped by tags (native/target/release/kg --conformance)
 ```
 
-Measured on 2026-11-19 on an Apple M2 Ultra: 2220 of 2220 in about 3 seconds with 8 jobs. With `--tags core` alone, 805 cases run. The desktop binary declares `bigint` (it is built with the feature `bigint`, on by default for `klong-cli`), `clock` and `kg-only`; it does not declare `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`. Without `bigint` the run is smaller by the cases of big integers: a board build leaves them out.
+The desktop run passed all 2227 cases in 4.0 seconds with eight jobs on an Apple M2 Ultra on 2026-11-27. With `--tags core` alone, 808 cases run. The desktop binary declares `bigint` (it is built with the feature `bigint`, on by default for `klong-cli`), `clock` and `kg-only`; it does not declare `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`. Without `bigint` the run is smaller by the cases of big integers: a board build leaves them out.
 
 `native/scripts/conformance.py` prints the same run as a table of counts per file. The golden parse trees run the same way:
 
@@ -91,7 +91,7 @@ A board is driven through its serial console, not through the `kg` binary. `nati
 ```text
 $ python native/scripts/console_conformance.py
 ...
-total                         1716  1716   in 3.1 s through console of native/target/release/klong-sim, 8 jobs
+total                         1720  1720   in 3.3 s through console of native/target/release/klong-sim, 8 jobs
 ```
 
 `--narrow` runs the tags of a 32-bit build (1527 cases passed on 2026-11-19). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. It is the only conformance run on a board; the other hardware results are on the [native status table](native/index.md#status-what-has-and-has-not-been-proven).
@@ -100,16 +100,16 @@ total                         1716  1716   in 3.1 s through console of native/ta
 
 | Implementation and run | Cases run | Passed | Date |
 |---|---|---|---|
-| KlongPy, in process | 2199 (21 `kg-only` skipped) | 2199 | 2026-11-19 |
-| KlongPy through the executable shim | 2199 (21 `kg-only` skipped) | 2199 | 2026-11-19 |
-| Native runtime, desktop, default build | 2220 | 2220 | 2026-11-19 |
-| Native runtime, simulated boards through the console | 1716 | 1716 | 2026-11-19 |
+| KlongPy, in process | 2206 (21 `kg-only` skipped) | 2206 | 2026-11-27 |
+| KlongPy through the executable shim | 2206 (21 `kg-only` skipped) | 2206 | 2026-11-27 |
+| Native runtime, desktop, default build | 2227 | 2227 | 2026-11-27 |
+| Native runtime, simulated boards through the console | 1720 | 1720 | 2026-11-27 |
 | Native runtime, desktop, without `bigint`, and the 32-bit build (`--narrow`) | not run since the suite grew | | 2026-11-18 (1570 and 1408 of an earlier, smaller suite) |
 | Native runtime on an ESP32-P4 over the serial port | 1266 | 1266 | 2026-11-16 |
 
 ### Why the counts differ
 
-The hosted run skips the 21 `kg-only` cases and runs 2199 of 2220. The board and simulator omit cases for features they do not declare, such as `bigint`. A 32-bit build also omits tests requiring the desktop numeric widths. The physical ESP32-P4 result records the 1266-case suite of 2026-11-16. The desktop and simulator counts above use the expanded suite.
+The hosted run skips the 21 `kg-only` cases and runs 2206 of 2227. The board and simulator omit cases for features they do not declare, such as `bigint`. A 32-bit build also omits tests requiring the desktop numeric widths. The physical ESP32-P4 result records the 1266-case suite of 2026-11-16. The desktop and simulator counts above use the expanded suite.
 
 ## The pending list
 

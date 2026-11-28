@@ -1,0 +1,13 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Camel Cards. Promote the largest equal-rank group with jokers, then compare the original card order."
+strength(hand;part)::{[order cards freq jokers counts code];
+    order:::[part=1;"23456789TJQKA";"J23456789TQKA"];
+    cards::{*order?x}'hand;jokers:::[part=2;#cards?0;0];
+    freq::{#cards?x}'!13;:[part=2;freq::freq:=0,0;0];
+    counts::freq@>freq;code::((counts@0)+jokers)*6;code::code+counts@1;
+    {code::x+13*code}'cards;code}
+solve(lines;part;parameter)::{[rows ranks bids];rows::.words'lines;
+    ranks::{strength(*x;part)}'rows;bids::{.num(x@1)}'rows;
+    +/(1+!#rows)*bids@<ranks}
+
+export:::{;"solve";solve}

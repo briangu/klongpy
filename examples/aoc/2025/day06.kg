@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Trash Compactor. Keep the worksheet's original column positions for vertical numbers."
+operation(symbol;values)::{:[symbol~"+";+/values;*/values]}
+solve(lines;part;parameter)::{[ops rows width starts total];
+    ops::*|lines;rows::(-1)_lines;total::0;
+    :[part=1;
+      {rows::+{.num'.words(x)}'rows;ops::.words(ops);
+       +/{operation(ops@x;rows@x)}'!#ops}();
+      {width::|/{#x}'lines;
+       starts::(ops?"+"),ops?"*";starts::starts@<starts;
+       {[left right digits];left::starts@x;right:::[(x+1)<#starts;starts@(x+1);width];
+        digits::{[col];col::x;.num(.trim(.join({:[col<#x;x@col;0c ]}'rows;"")))}'left+!right-left;
+        total::total+operation(,ops@left;digits@&{~:_x}'digits)}'!#starts;total}()]}
+
+export:::{;"solve";solve}

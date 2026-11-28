@@ -1,0 +1,8 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Cosmic Expansion. An empty row expands the distance between every pair straddling it."
+axis(counts;factor)::{[before total distance];before::0;total::+/counts;distance::0;
+    {before::before+x;distance::distance+(before*(total-before))*:[x=0;factor;1]}'counts;distance}
+solve(lines;part;parameter)::{[grid factor];grid::{{x~0c#}'x}'lines;factor:::[part=1;2;1000000];
+    axis({+/x}'grid;factor)+axis({+/x}'+grid;factor)}
+
+export:::{;"solve";solve}

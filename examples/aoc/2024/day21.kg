@@ -1,0 +1,20 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Keypad Conundrum. Price every shortest legal route using the next directional
+   keypad. Memoization makes a chain of 25 robots a small set of transitions."
+numeric::"789456123 0A";directional::" ^A<v>"
+paths(pad;pos;goal)::{[dr dc options];
+    :[pos=goal;,"A";
+      {dr::(goal:%3)-pos:%3;dc::(goal!3)-pos!3;options::[];
+       :[dr;{[step button];step:::[dr<0;-3;3];button:::[dr<0;"^";"v"];
+              :[~(pad@(pos+step))~0c ;options::options,{button,x}'paths(pad;pos+step;goal);0]}();0];
+       :[dc;{[step button];step:::[dc<0;-1;1];button:::[dc<0;"<";">"];
+              :[~(pad@(pos+step))~0c ;options::options,{button,x}'paths(pad;pos+step;goal);0]}();0];options}()]}
+press(memo;pad;from;to;depth)::{[key old routes cost];key::.json([;pad;from;to;depth]);old::memo@key;
+    :[~:_old;old;{routes::paths(pad;*pad?from;*pad?to);
+      cost:::[depth=0;#*routes;&/{sequence(memo;directional;x;depth-1)}'routes];
+      memo,key,cost;cost}()]}
+sequence(memo;pad;code;depth)::{[keys];keys::"A",code;
+    +/{press(memo;pad;x;y;depth)}:'keys}
+solve(lines;part;parameter)::{[memo depth];memo:::{};depth:::[part=1;2;25];
+    +/{(.num((-1)_x))*sequence(memo;numeric;x;depth)}'lines}
+export:::{;"solve";solve}

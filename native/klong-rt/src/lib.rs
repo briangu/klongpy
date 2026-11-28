@@ -29,8 +29,10 @@ pub mod node;
 pub mod selftest;
 pub mod platform;
 
+mod bitxor;
 #[cfg(feature = "files")]
 mod chan;
+mod exact;
 mod fmtfn;
 mod json;
 mod modules;
@@ -523,6 +525,8 @@ impl<P: Platform + 'static> Runtime<P> {
         );
         modules::register(&mut interp, &shared);
         strfn::register(&mut interp);
+        bitxor::register(&mut interp);
+        exact::register(&mut interp);
         json::register(&mut interp);
         #[cfg(feature = "tables")]
         tables::register(&mut interp);

@@ -1,0 +1,27 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Disk Fragmenter. Track file identity even when length is zero. Adjust the checksum
+   directly from source and destination positions instead of moving disk contents."
+series(start;len)::{(len*((2*start)+len-1)):%2}
+solve(lines;part;parameter)::{[sizes starts length free files checksum];
+    sizes::{(#x)-48}'*lines;starts::(#sizes)#0,(+\sizes);length::#sizes;
+    files::2*!((length+1):%2);free::1+2*!(length:%2);
+    checksum::0+/{(x:%2)*series(starts@x;sizes@x)}'files;
+    :[part=1;
+      {[left right gap remain amount src dst];left::0;right::(#files)-1;gap::0;remain::0;
+       {x;((gap>0)|left<#free)&((remain>0)|right>(-1))}{x;
+         :[gap=0;{gap::sizes@(free@left);dst::starts@(free@left);left::left+1}();0];
+         :[remain=0;{remain::sizes@(files@right);src::((starts@(files@right))+remain)-1;right::right-1}();0];
+         amount::(gap&remain)&0|((src-dst)+1):%2;
+         checksum::checksum+(right+1)*(series(dst;amount)-series((src-amount)+1;amount));
+         dst::dst+amount;src::src-amount;gap::gap-amount;remain::remain-amount;
+         :[(dst>src)|dst=src;{left::#free;gap::0}();0]}:~0}();
+      {[positions lengths];positions::[];lengths::[];
+       {[at n last];at::starts@x;n::sizes@x;last::(#lengths)-1;
+        :[n>0;:[((#positions)>0)&{:[last<0;0;at=(positions@last)+lengths@last]}();
+          lengths::lengths:=((lengths@last)+n),last;
+          {positions::positions,at;lengths::lengths,n}()];0]}'free;
+       {[idx n candidates j at];idx::x;n::sizes@idx;candidates::&(~lengths<n)&positions<starts@idx;
+        :[(n>0)&0<#candidates;
+          {j::*candidates;at::positions@j;checksum::checksum+(idx:%2)*n*at-starts@idx;
+           positions::positions:=(at+n),j;lengths::lengths:=((lengths@j)-n),j}();0]}'|files}()];checksum}
+export:::{;"solve";solve}

@@ -1,0 +1,12 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Ceres Search. A sentinel border keeps every three-step ray inside the padded array."
+solve(lines;part;parameter)::{[width border cells dirs starts];
+    width::6+#*lines;border::(3*width)#".";
+    cells::border,(.join({"...",x,"..."}'lines;"")),border;
+    dirs::[;1;-1;width;-width;width+1;width-1;1-width;(-1)-width];
+    :[part=1;{starts::cells?"X";
+       0+/{[i];i::x;0+/{"XMAS"~cells@(i+x*!4)}'dirs}'starts}();
+      {starts::cells?"A";
+       0+/{[a b];a::cells@(x+[;(-1)-width;width+1]);b::cells@(x+[;1-width;width-1]);
+           ((a~"MS")|a~"SM")&((b~"MS")|b~"SM")}'starts}()]}
+export:::{;"solve";solve}

@@ -1,0 +1,12 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Resonant Collinearity. Every ordered pair supplies one outward ray."
+gcd(a;b)::{{x;b>0}{[r];x;r::a!b;a::b;b::r}:~0;a}
+inside(p;h;w)::{((p@0)>-1)&((p@1)>-1)&((p@0)<h)&(p@1)<w}
+solve(lines;part;parameter)::{[h w flat nodes];h::#lines;w::#*lines;flat::.join(lines;"");nodes:::{};
+    {[points];points::flat?x;
+      {[a];a::[;x:%w;x!w];
+       {[b d p];b::[;x:%w;x!w];d::b-a;
+        :[~a~b;{p:::[part=1;b+d;{d::d:%gcd(#d@0;#d@1);a}()];
+                {x;inside(p;h;w)}{x;nodes,((w*p@0)+p@1),1;p:::[part=1;[-1 -1];p+d]}:~0}();0]}'points}'points
+    }'(?flat)@&{~x~0c.}'?flat;#nodes}
+export:::{;"solve";solve}

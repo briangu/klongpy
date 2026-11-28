@@ -1,0 +1,16 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Hot Springs. dp[i] counts suffix arrangements beginning at i. Process each group from right to left."
+arrangements(pattern;groups)::{[length after row size end];length::#pattern;
+    after::{0=#(x _ pattern)?"#"}'!1+length;
+    {[group];group::x;row::(length+1)#0;
+      {[i];i::x;end::i+group;
+       size:::[(pattern@i)~0c#;0;row@(1+i)];
+       :[end>length;0:|0<#(group#i _ pattern)?".";0:|
+         :[end=length;1;~(pattern@end)~0c#];size::size+after@((end+1)&length);0];
+       row::row:=size,i}'|!length;after::row}'|groups;
+    *after}
+solve(lines;part;parameter)::{+/{
+    [pattern sizes groups copies];[pattern sizes]::.words(x);copies:::[part=1;1;5];groups::.num'.split(sizes;",");
+    arrangements(.join(copies#,pattern;"?");(copies*#groups)#groups)}'lines}
+
+export:::{;"solve";solve}

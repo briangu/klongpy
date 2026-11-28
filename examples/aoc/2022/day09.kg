@@ -1,0 +1,14 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 9 - Rope Bridge.
+   Move the head one step, then let each knot follow its predecessor. Count distinct tail coordinates."
+
+dirs:::{;"U";[0 1];"D";[0 -1];"L";[-1 0];"R";[1 0]}
+follow(head;tail)::{[delta];delta::head-tail;:[1<|/{#x}'delta;tail+((delta>0)-delta<0);tail]}
+solve(lines;part;row)::{[length rope seen];length:::[part=1;2;10];rope::[;length;2]:^,0;seen:::{;"[0,0]";1};
+    { [dir n];[dir n]::.words(x);
+      {x;rope::rope:=(,((rope@0)+dirs@dir)),0;
+       {rope::rope:=(,follow(rope@(x-1);rope@x)),x}'1+!(length-1);
+       seen,.json(*|rope),1}'!.num(n)}'lines;
+    #seen}
+
+export:::{;"solve";solve}

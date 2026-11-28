@@ -1,0 +1,28 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Haunted Wasteland. Each walker has a finite prefix and periodic goal residues.
+   Intersect the residue sets so phase offsets and multiple goal nodes work."
+modulo(n;m)::{(m+n!m)!m}
+bezout(a;b)::{[g p q];:[b=0;[;a;1;0];{[g p q]::bezout(b;a!b);[;g;q;p-(a:%b)*q]}()]}
+merge(left;r;n)::{[a m g inv unused delta modulus];[a m]::left;[g inv unused]::bezout(m;n);
+    delta::r-a;modulus::m*(n:%g);
+    :[delta!g;[];[;modulo(a+m*modulo((delta:%g)*inv;n:%g);modulus);modulus]]}
+orbit(start;net;turns;part)::{[node step seen goals key begin period];node::start;step::0;seen:::{};goals::[];
+    key::node,"/0";
+    {x;:_seen@key}{x;seen,key,step;
+      :[:[part=1;node~"ZZZ";(node@2)~0cZ];goals::goals,step;0];
+      node::(net@node)@(turns@(step!#turns));step::step+1;key::node,"/",$step!#turns}:~0;
+    begin::seen@key;period::step-begin;
+    :{;"begin";begin;"period";period;"hits";goals;"residues";?(goals@&~goals<begin)!period}}
+matches(o;n)::{:[n<o.begin;0<#o.hits?n;0<#o.residues?(n!o.period)]}
+solve(lines;part;parameter)::{[net starts turns orbits limit solutions n];
+    net:::{};starts::[];turns::{x~0cR}'*lines;
+    {[name];name::3#x;net,name,,[;3#7_x;3#12_x];:[(name@2)~0cA;starts::starts,,name;0]}'2_lines;
+    orbits::orbit(;net;turns;part)'(:[part=1;,"AAA";starts]);limit::|/{x.begin}'orbits;
+    n::0;{x;(n<limit)&~&/matches(;n)'orbits}{x;n::n+1}:~0;
+    :[n<limit;n;{solutions::, [0 1];
+       {[o next];o::x;next::[];
+         {[pair];pair::x;{[mixed];mixed::merge(pair;x;o.period);:[#mixed;next::next,,mixed;0]}'o.residues}'solutions;
+         solutions::?next}'orbits;
+       :[0=#solutions;.err("range";"walkers never meet");&/{[a m]::x;a+m*((0|limit-a)+m-1):%m}'solutions]}()]}
+
+export:::{;"solve";solve}

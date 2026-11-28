@@ -1,0 +1,22 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Sand Slabs. Settle in bottom-height order and keep the resulting support graph.
+   A brick falls once every supporting brick has fallen."
+point(text)::{.num'.split(text;",")}
+brick(line)::{[a b]::point'.split(line;"~");[;(a&b);(a|b)]}
+cascade(parents;seed)::{[fallen];fallen::(#parents)#0;fallen::fallen:=1,seed;
+    {[below];below::parents@x;
+     :[(#below)&x>seed;:[&/fallen@below;fallen::fallen:=1,x;0];0]}'!#parents;
+    (+/fallen)-1}
+solve(lines;part;parameter)::{[bricks top parents safe];bricks::brick'lines;bricks::bricks@<{(*x)@2}'bricks;
+    top:::{};parents::[];
+    {[id lo hi keys floor support];id::x;[lo hi]::bricks@id;
+      keys::,/{[col];col::x;{.json([;col;x])}'(lo@1)+!1+(hi@1)-lo@1}'(lo@0)+!1+(hi@0)-lo@0;
+      floor::0;support::[];
+      {[tile height];tile::top@x;:[~:_tile;{height::tile@0;
+        :[height>floor;{floor::height;support::,tile@1}():|height=floor;support::support,tile@1;0]}();0]}'keys;
+      parents::parents,,?support;
+      {top,x,,[;floor+1+(hi@2)-lo@2;id]}'keys}'!#bricks;
+    :[part=1;{safe::(#bricks)#1;{:[1=#x;safe::safe:=0,*x;0]}'parents;+/safe}();
+      +/cascade(parents;)'!#bricks]}
+
+export:::{;"solve";solve}

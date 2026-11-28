@@ -1,0 +1,22 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 14 - Regolith Reservoir.
+   Store occupied cells in a sparse dictionary. Try down, down-left and down-right before settling a grain."
+
+point(text)::{.num'.split(text;",")}
+key(col;depth)::{.json([;col;depth])}
+segment(cave;a;b)::{[dx dy length];dx::(b@0)-a@0;dy::(b@1)-a@1;length::(#dx)|#dy;
+    {cave,key((a@0)+x*((dx>0)-dx<0);(a@1)+x*((dy>0)-dy<0)),1}'!1+length}
+openCell(cave;col;depth;floor)::{(depth<floor)&:_cave@key(col;depth)}
+dropGrain(cave;bottom;part)::{[col depth floor falling];col::500;depth::0;floor::bottom+2;falling::1;
+    {x;falling&(depth<floor)}{x;
+      :[(part=1)&depth>bottom;falling::0:|openCell(cave;col;depth+1;floor);depth::depth+1:|
+       openCell(cave;col-1;depth+1;floor);{col::col-1;depth::depth+1}():|
+       openCell(cave;col+1;depth+1;floor);{col::col+1;depth::depth+1}();
+       {cave,key(col;depth),1;falling::0}()]}:~0;
+    (part=2)|~depth>bottom}
+solve(lines;part;row)::{[cave bottom count more];cave:::{};bottom::0;count::0;more::1;
+    {[points];points::point'.split(x;" -> ");bottom::bottom||/{x@1}'points;
+     {segment(cave;x;y)}:'points}'lines;
+    {x;more&:_cave@key(500;0)}{x;more::dropGrain(cave;bottom;part);count::count+more}:~0;count}
+
+export:::{;"solve";solve}

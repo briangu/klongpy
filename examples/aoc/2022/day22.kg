@@ -1,0 +1,44 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Monkey Map. Fold each face by assigning it three orthogonal unit vectors.
+   The face normal identifies the destination of a step across a folded edge."
+steps::[[0 1] [1 0] [0 -1] [-1 0]]
+mod(i;n)::{(n+i!n)!n}
+key(pos)::{.json(pos)}
+axes(frame)::{[u v n]::frame;[;u;v;-u;-v]}
+fold(frame;dir)::{[u v n]::frame;
+    :[dir=0;[;-n;v;u]:|dir=1;[;u;-n;v]:|dir=2;[;n;v;-u];[;u;n;-v]]}
+parseBoard(lines;cube)::{[rows h w board faces size frames normals queue origin];
+    rows::(-2)_lines;h::#rows;w::|/{#x}'rows;board:::{};
+    {[r];r::x;{[ch];ch::(rows@r)@x;:[~ch~0c ;board,[;key([;r;x]);ch];0]}'!#rows@r}'!h;
+    origin::[;0;*(*rows)?"."];size::_(((#board):%6)^0.5);
+    faces:::{};frames:::{};normals:::{};
+    :[cube;
+      {{[pos];pos::.unjson(x@0);faces,key(pos:%size),1}'board;
+       queue::,origin:%size;frames,key(*queue),,[[1 0 0] [0 1 0] [0 0 1]];
+       {x;0<#queue}{[face frame];x;face::*queue;queue::1_queue;frame::frames@key(face);
+         normals,key(frame@2),,face;
+         {[adj k dir];dir::x;adj::face+steps@dir;k::key(adj);
+          :[(~:_faces@k)&:_frames@k;
+            {frames,k,,fold(frame;dir);queue::queue,,adj}();0]}'!4;0}:~0}();0];
+    :{;"map";board;"dims";[;h;w];"origin";origin;"size";size;"frames";frames;"normals";normals}}
+across(b;pos;dir)::{[face frame target newface newframe facing axis other offset size local];
+    size::b.size;face::pos:%size;frame::b.frames@key(face);target::(axes(frame))@dir;
+    newface::b.normals@key(target);newframe::b.frames@key(newface);
+    facing::*((axes(newframe))?(-frame@2));
+    axis::frame@:[dir!2;0;1];other::newframe@:[facing!2;0;1];
+    offset::(pos@:[dir!2;1;0])!size;
+    :[~axis~other;offset::(size-1)-offset;0];
+    local:::[facing=0;[;offset;0]:|facing=1;[;0;offset]:|facing=2;[;offset;size-1];[;size-1;offset]];
+    [;(newface*size)+local;facing]}
+move(s;b;cube)::{[dir loc tile];dir::s.dir;loc::s.pos+steps@dir;tile::b.map@key(loc);
+    :[:_tile;:[cube;{[dest facing];[dest facing]::across(b;s.pos;dir);loc::dest;dir::facing}();
+       {loc::mod(loc;b.dims);{x;:_b.map@key(loc)}{x;loc::mod(loc+steps@dir;b.dims)}:~0}()];0];
+    :[(b.map@key(loc))~0c#;s.blocked::1;{s.pos::loc;s.dir::dir}()]}
+solve(lines;part;parameter)::{[b s instructions terms];b::parseBoard(lines;part=2);
+    s:::{;"pos";b.origin;"dir";0;"blocked";0};instructions::*|lines;
+    terms::.words(.join(.split(.join(.split(instructions;"R");" R ");"L");" L "));
+    {[remaining token];token::x;:[x~"R";s.dir::mod(s.dir+1;4):|x~"L";s.dir::mod(s.dir-1;4);
+      {remaining::.num(token);s.blocked::0;
+       {x;(remaining>0)&~s.blocked}{x;move(s;b;part=2);remaining::remaining-1}:~0}()]}'terms;
+    (1000*1+s.pos@0)+(4*1+s.pos@1)+s.dir}
+export:::{;"solve";solve}

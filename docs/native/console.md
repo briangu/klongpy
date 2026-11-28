@@ -347,9 +347,9 @@ Without `--port` it starts simulated boards, one per job, and talks to each thro
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native conformance -->
 ```console
 $ python native/scripts/console_conformance.py | tail -1 | cut -c1-40
-total                         1716  1716
+total                         1720  1720
 ```
 
-That passed 1716 of 1716 on 2026-11-19 in about 3 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 (the suite of 2026-11-16; see [why the counts differ](../conformance.md#why-the-counts-differ)) with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
+That passed 1720 of 1720 on 2026-11-27 in 3.3 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 (the suite of 2026-11-16; see [why the counts differ](../conformance.md#why-the-counts-differ)) with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
 
 The runner needs a `System::reset` that really resets, because without it all cases share one interpreter and some fail. It needs a banner within `--timeout`, and a `max_run` of at least the largest case (under 4 KiB). The `sysio` cases write files, and on a board without storage you leave them out with `--tags`. `--narrow` selects the cases of a build with `int32,float32`.

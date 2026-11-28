@@ -1,0 +1,22 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Proboscidea Volcanium. Cache the best remaining pressure by location, minutes and unopened valves."
+network(lines)::{[names flows links dist indices];
+    names::{.words(x)@1}'lines;
+    flows::{.num(*.split(.split(x;"=")@1;";"))}'lines;
+    links::{{*names?2#x}'9_.words(x)}'lines;
+    dist::{[i r];i::x;r::(#names)#10000;r::r:=0,i;{r::r:=1,x}'(links@i);r}'!#names;
+    {[k row];k::x;row::dist@k;dist::{x&row+(x@k)}'dist}'!#names;
+    indices::&flows>0;
+    :{;"rates";flows@indices;"cost";{1+x@indices}'dist@indices,(*names?"AA");"memo";:{}}}
+best(net;room;minutes;mask)::{[key old value bits];
+    key::room+((1+#net.rates)*(minutes+32*mask));old::net.memo@key;
+    :[~:_old;old;
+      {value::0;bits::2^!#net.rates;
+       {[i left];i::x;left::minutes-(net.cost@room)@i;
+        :[((mask:%(bits@i))!2)&left>0;
+          value::value|((left*net.rates@i)+best(net;i;left;mask-bits@i));0]}'!#bits;
+       net.memo,key,value;value}()]}
+solve(lines;part;parameter)::{[net start full];net::network(lines);start::#net.rates;full::(2^start)-1;
+    :[part=1;best(net;start;30;full);
+      |/{best(net;start;26;x)+best(net;start;26;full-x)}'!1+full:%2]}
+export:::{;"solve";solve}

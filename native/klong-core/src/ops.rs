@@ -1501,7 +1501,56 @@ fn amend_index(v: &Value, n: usize, allow_end: bool) -> Result<usize> {
     Ok(j as usize)
 }
 
+/// Preserve a rank-one numeric vector's representation when amending it with
+/// the same scalar type. Share the same copy-on-write path for an assignment
+/// and an expression: callers retaining earlier results keep their snapshots.
+#[cfg(feature = "speed")]
+pub(crate) fn amend_packed(target: &mut Value, rhs: &Value) -> Result<bool> {
+    let count = match rhs {
+        Value::Ints(a) if a.rank() == 1 => a.data.len(),
+        Value::Flts(a) if a.rank() == 1 => a.data.len(),
+        Value::List(items) => items.len(),
+        _ => return Ok(false),
+    };
+    if count <= 1 {
+        return Ok(false);
+    }
+    fn apply<T: Copy>(array: &mut Rc<Arr<T>>, value: T, rhs: &Value, count: usize) -> Result<()> {
+        let n = array.data.len();
+        let first = amend_index(&rhs.item(1), n, false)?;
+        let rest = (2..count).map(|k| amend_index(&rhs.item(k), n, false));
+        // All indices refer to the original vector. Validate before mutating a
+        // binding so a bad final index leaves even uniquely owned storage intact.
+        for i in rest.clone() {
+            i?;
+        }
+        let write = |data: &mut [T]| {
+            data[first] = value;
+            for i in rest.flatten() {
+                data[i] = value;
+            }
+        };
+        if let Some(owned) = Rc::get_mut(array) {
+            write(&mut owned.data);
+        } else {
+            let mut data = try_vec(n)?;
+            data.extend_from_slice(&array.data);
+            write(&mut data);
+            *array = Rc::new(Arr::vec(data));
+        }
+        Ok(())
+    }
+    match (target, rhs.item(0)) {
+        (Value::Ints(a), Value::Int(v)) if a.rank() == 1 => apply(a, v, rhs, count)?,
+        (Value::Flts(a), Value::Flt(v)) if a.rank() == 1 => apply(a, v, rhs, count)?,
+        _ => return Ok(false),
+    }
+    Ok(true)
+}
+
 fn d_amend(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
+    #[cfg(feature = "speed")]
+    let mut a = a;
     if !a.is_iterable() {
         return Err(Error::typ(":=: a must be list or str"));
     }
@@ -1510,6 +1559,10 @@ fn d_amend(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
         _ => return Err(Error::typ(":=: the right operand must be a list of a value and indexes")),
     };
     if bn <= 1 {
+        return Ok(a);
+    }
+    #[cfg(feature = "speed")]
+    if amend_packed(&mut a, &b)? {
         return Ok(a);
     }
     let v = b.item(0);

@@ -1,0 +1,14 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Mull It Over. Recognize a product only if both fields have one to three decimal digits."
+digits(s)::{(0<#s)&(4>#s) & (#s)=0+/{(47<#x)&58>#x}'s}
+product(text;pos)::{[tail commas close a b];tail::8#(pos+4)_text;
+    commas::tail?",";close::tail?")";
+    :[(#commas)&#close;{a::(*commas)#tail;b::(1+*commas)_(*close)#tail;
+      :[digits(a)&digits(b);.num(a)*.num(b);0]}();0]}
+solve(lines;part;parameter)::{[text enabled total starts];
+    text::.join(lines;:#10);enabled::1;total::0;
+    starts::(text?"mul("),(text?"do()"),text?"don't()";
+    {[pos];pos::x;
+     :["mul("~4#pos _ text;:[enabled;total::total+product(text;pos);0]:|
+       part=2;enabled::"do()"~4#pos _ text;0]}'starts@<starts;total}
+export:::{;"solve";solve}

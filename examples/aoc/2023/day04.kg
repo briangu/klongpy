@@ -1,0 +1,19 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" 2023 day 4 - Scratchcards.
+   Each card awards its current multiplicity to the following matching cards."
+.l("../parse")
+
+matches(line)::{[win have]::parse.numbers'.split(.split(line;":")@1;"|");
+    +/{0<#win?x}'have}
+
+copiesWon(wins)::{[copies];copies::(#wins)#1;
+    {[i count];i::x;
+     count::(wins@i)&((#wins)-(i+1));
+     {copies::copies:=((copies@x)+copies@i),x}'(i+1)+!count
+    }'!#wins;
+    +/copies}
+
+solve(lines;part;row)::{[wins];wins::matches'lines;
+    :[part=1;+/{:[x>0;2^x-1;0]}'wins;copiesWon(wins)]}
+
+export:::{;"solve";solve}

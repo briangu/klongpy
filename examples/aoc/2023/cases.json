@@ -1,0 +1,195 @@
+{
+  "1/1": {
+    "answer": 142
+  },
+  "1/2": {
+    "answer": 281,
+    "fixture": "1b.txt"
+  },
+  "2/1": {
+    "answer": 8
+  },
+  "2/2": {
+    "answer": 2286
+  },
+  "3/1": {
+    "answer": 4361
+  },
+  "3/2": {
+    "answer": 467835
+  },
+  "4/1": {
+    "answer": 13
+  },
+  "4/2": {
+    "answer": 30
+  },
+  "5/1": {
+    "answer": 35
+  },
+  "5/2": {
+    "answer": 46
+  },
+  "6/1": {
+    "answer": 288,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day06.rs"
+  },
+  "6/2": {
+    "answer": 71503,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day06.rs"
+  },
+  "7/1": {
+    "answer": 6440,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day07.rs"
+  },
+  "7/2": {
+    "answer": 5905,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day07.rs"
+  },
+  "8/1": {
+    "answer": 6,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day08.rs"
+  },
+  "8/2": {
+    "answer": 6,
+    "fixture": "8b.txt",
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day08.rs"
+  },
+  "9/1": {
+    "answer": 114,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day09.rs"
+  },
+  "9/2": {
+    "answer": 2,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day09.rs"
+  },
+  "10/1": {
+    "answer": 4,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day10.rs"
+  },
+  "10/2": {
+    "answer": 4,
+    "fixture": "10b.txt",
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day10.rs"
+  },
+  "11/1": {
+    "answer": 374,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day11.rs"
+  },
+  "11/2": {
+    "answer": 82000210,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day11.rs"
+  },
+  "12/1": {
+    "answer": 21,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day12.rs"
+  },
+  "12/2": {
+    "answer": 525152,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day12.rs"
+  },
+  "13/1": {
+    "answer": 405,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day13.rs"
+  },
+  "13/2": {
+    "answer": 400,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day13.rs"
+  },
+  "14/1": {
+    "answer": 136,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day14.rs"
+  },
+  "14/2": {
+    "answer": 64,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day14.rs"
+  },
+  "15/1": {
+    "answer": 1320,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day15.rs"
+  },
+  "15/2": {
+    "answer": 145,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day15.rs"
+  },
+  "16/1": {
+    "answer": 46,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day16.rs"
+  },
+  "16/2": {
+    "answer": 51,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day16.rs"
+  },
+  "17/1": {
+    "answer": 102,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day17.rs"
+  },
+  "17/2": {
+    "answer": 94,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day17.rs"
+  },
+  "18/1": {
+    "answer": 62,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day18.rs"
+  },
+  "18/2": {
+    "answer": 952408144115,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day18.rs"
+  },
+  "19/1": {
+    "answer": 19114,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day19.rs"
+  },
+  "19/2": {
+    "answer": 167409079868000,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day19.rs"
+  },
+  "20/1": {
+    "answer": 32000000,
+    "fixture_source": "maread99/aoc 2023/20.py, public puzzle example"
+  },
+  "20/2": {
+    "answer": 15,
+    "fixture": "20b.txt",
+    "fixture_source": "Locally authored network with independent period-3 and period-7 flip-flop rings. Expected first rx low checked by direct FIFO simulation."
+  },
+  "21/1": {
+    "answer": 16,
+    "parameter": 6,
+    "fixture_source": "maread99/aoc 2023/21_a.py, public puzzle example"
+  },
+  "21/2": {
+    "answer": 1594,
+    "parameter": 50,
+    "fixture_source": "maread99/aoc 2023/21_a.py, public puzzle example"
+  },
+  "22/1": {
+    "answer": 5,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day22.rs"
+  },
+  "22/2": {
+    "answer": 7,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day22.rs"
+  },
+  "23/1": {
+    "answer": 94,
+    "fixture_source": "maread99/aoc 2023/23_a.py, public puzzle example"
+  },
+  "23/2": {
+    "answer": 154,
+    "fixture_source": "maread99/aoc 2023/23_a.py, public puzzle example"
+  },
+  "24/1": {
+    "answer": 2,
+    "parameter": 7,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day24.rs"
+  },
+  "24/2": {
+    "answer": 47,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day24.rs"
+  },
+  "25/1": {
+    "answer": 54,
+    "fixture_source": "maneatingape/advent-of-code-rust tests/year2023/day25.rs"
+  }
+}

@@ -1,0 +1,28 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Pyroclastic Flow. A repeated top surface is a cycle only if every collision probe
+   since its first appearance stayed inside the recorded surface."
+shapes::[[0 1 2 3] [1 9 10 11 19] [0 1 2 11 20] [0 9 18 27] [0 1 9 10]]
+clear(rows;cells)::{~|/{[col];col::x!9;
+    :[(col=0)|col=8;1;((rows@(x:%9)):%(2^col-1))!2]}'cells}
+land(s;jets;number)::{[rock step trial falling low rows];
+    rows::s.rows,9#0;rock::(shapes@(number!5))+3+9*s.height+4;
+    falling::1;low::s.height+4;
+    {x;falling}{x;step:::[(jets@s.jet)~0c<;-1;1];s.jet::(1+s.jet)!#jets;
+      trial::rock+step;:[clear(rows;trial);rock::trial;0];
+      trial::rock-9;low::low&((&/trial):%9);
+      :[clear(rows;trial);rock::trial;falling::0]}:~0;
+    {[r col];r::x:%9;col::x!9;rows::rows:=((rows@r)+2^col-1),r}'rock;
+    s.height::s.height|((|/rock):%9);s.rows::(1+s.height)#rows;low}
+solve(lines;part;parameter)::{[s goal n extra seen lows key prior span cycles bottom jets];
+    jets::*lines;goal:::[part=1;2022;1000000000000];n::0;extra::0;lows::[];seen:::{};
+    s:::{;"rows";,127;"height";0;"jet";0};
+    {x;n<goal}{x;lows::lows,land(s;jets;n);n::n+1;
+      :[(extra=0)&s.height>64;
+        {key::.json([;n!5;s.jet;(-64)#s.rows]);prior::seen@key;
+         :[:_prior;seen,key,,[;n;s.height];
+           {span::n-prior@0;bottom::&/(prior@0)_lows;
+            :[bottom>(prior@1)-64;
+              {cycles::(goal-n):%span;extra::cycles*(s.height-prior@1);n::n+cycles*span}();
+              seen,key,,[;n;s.height]]}()]}();0]}:~0;
+    extra+s.height}
+export:::{;"solve";solve}

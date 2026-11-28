@@ -1,0 +1,17 @@
+:" kg --strict 2 bench.kg MODULE INPUT PART RUNS PARAMETER"
+args:::[*.try({.a};[]);.a;.os.argv]
+:[5=#args;0;.err("arity";"expected MODULE INPUT PART RUNS PARAMETER")]
+.l(args@0;:puzzle)
+input::.ic(args@1);previous::.fc(input)
+lines::{x;.mi()}{x;.rl()}\~.rl()
+.fc(previous);.cc(input)
+part::.num(args@2);runs::.num(args@3)
+parameter::.num(args@4)
+run()::{puzzle.solve(lines;part;parameter)}
+start::.pc();answer::run();pilot::.pc()-start
+:" Aim for 10 ms per batch to keep short solvers above clock resolution."
+batch::1|2048&0.01:%(0.000001|pilot)
+trial(i)::{[start answers elapsed];start::.pc();answers::{x;run()}'!batch;elapsed::.pc()-start;
+    :[batch=+/{answer~x}'answers;elapsed%batch;.err("range";"answer changed during timing")]}
+times::trial'!runs
+.p(.json(:{;"answer";answer;"batch";batch;"seconds";times}))

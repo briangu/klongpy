@@ -1,0 +1,167 @@
+{
+  "1/1": {
+    "answer": 11
+  },
+  "1/2": {
+    "answer": 31
+  },
+  "2/1": {
+    "answer": 2
+  },
+  "2/2": {
+    "answer": 4
+  },
+  "3/1": {
+    "answer": 161
+  },
+  "3/2": {
+    "answer": 48,
+    "fixture": "3b.txt"
+  },
+  "4/1": {
+    "answer": 18
+  },
+  "4/2": {
+    "answer": 9
+  },
+  "5/1": {
+    "answer": 143
+  },
+  "5/2": {
+    "answer": 123
+  },
+  "6/1": {
+    "answer": 41
+  },
+  "6/2": {
+    "answer": 6
+  },
+  "7/1": {
+    "answer": 3749
+  },
+  "7/2": {
+    "answer": 11387
+  },
+  "8/1": {
+    "answer": 14
+  },
+  "8/2": {
+    "answer": 34
+  },
+  "9/1": {
+    "answer": 1928
+  },
+  "9/2": {
+    "answer": 2858
+  },
+  "10/1": {
+    "answer": 36
+  },
+  "10/2": {
+    "answer": 81
+  },
+  "11/1": {
+    "answer": 55312
+  },
+  "11/2": {
+    "answer": 65601038650482
+  },
+  "12/1": {
+    "answer": 1930
+  },
+  "12/2": {
+    "answer": 1206
+  },
+  "13/1": {
+    "answer": 480
+  },
+  "13/2": {
+    "answer": 875318608908
+  },
+  "14/1": {
+    "answer": 12,
+    "parameter": 11,
+    "fixture_source": "https://github.com/maread99/aoc/blob/3937e4a7c108248fd7637ae36ef924ff72717226/2024/14.py"
+  },
+  "14/2": {
+    "answer": 3,
+    "fixture": "14b.txt",
+    "parameter": 101,
+    "fixture_source": "Constructed regression: a 21-robot horizontal base and triangular canopy first align at t=3 on a 101 × 103 torus."
+  },
+  "15/1": {
+    "answer": 10092
+  },
+  "15/2": {
+    "answer": 9021
+  },
+  "16/1": {
+    "answer": 11048
+  },
+  "16/2": {
+    "answer": 64
+  },
+  "17/1": {
+    "answer": "4,6,3,5,6,3,5,2,1,0"
+  },
+  "17/2": {
+    "answer": 117440,
+    "fixture": "17b.txt"
+  },
+  "18/1": {
+    "answer": 22,
+    "parameter": 7,
+    "fixture_source": "https://github.com/maread99/aoc/blob/3937e4a7c108248fd7637ae36ef924ff72717226/2024/18.py"
+  },
+  "18/2": {
+    "answer": "6,1",
+    "parameter": 7,
+    "fixture_source": "https://github.com/maread99/aoc/blob/3937e4a7c108248fd7637ae36ef924ff72717226/2024/18.py"
+  },
+  "19/1": {
+    "answer": 6
+  },
+  "19/2": {
+    "answer": 16
+  },
+  "20/1": {
+    "answer": 44,
+    "parameter": 2,
+    "fixture_source": "https://github.com/maread99/aoc/blob/3937e4a7c108248fd7637ae36ef924ff72717226/2024/20.py"
+  },
+  "20/2": {
+    "answer": 285,
+    "parameter": 50,
+    "fixture_source": "https://github.com/maread99/aoc/blob/3937e4a7c108248fd7637ae36ef924ff72717226/2024/20.py"
+  },
+  "21/1": {
+    "answer": 126384
+  },
+  "21/2": {
+    "answer": 154115708116294
+  },
+  "22/1": {
+    "answer": 37327623
+  },
+  "22/2": {
+    "answer": 23,
+    "fixture": "22b.txt"
+  },
+  "23/1": {
+    "answer": 7
+  },
+  "23/2": {
+    "answer": "co,de,ka,ta"
+  },
+  "24/1": {
+    "answer": 2024
+  },
+  "24/2": {
+    "answer": "c02,c05,g04,p03,t05,z00,z01,z03",
+    "fixture": "24b.txt",
+    "fixture_source": "Project-authored six-bit ripple-carry adder with four disjoint output exchanges (z00/p03, z01/g04, c02/t05, z03/c05)."
+  },
+  "25/1": {
+    "answer": 3
+  }
+}

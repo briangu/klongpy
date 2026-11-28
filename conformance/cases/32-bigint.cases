@@ -1,5 +1,5 @@
 # Integers beyond 64 bits (the tag `bigint`; KlongPy's integers are Python's).
-# Two operands within 64 bits wrap as before; an operand beyond 64 bits makes `+ - * % :% < > = | &` and a scalar `^` of two integers exact,
+# Two operands within 64 bits wrap as before; an operand beyond 64 bits makes `+ - * < > = | &` and a scalar `^` of two integers exact,
 # and a result that fits goes back to an ordinary integer. `!` with such an operand is a range error. A list that holds one is a list of integers
 # whose elements are exact; the power of a list is computed in 64 bits.
 # Cases marked `?` are filled in by `run.py --bless` from KlongPy.
@@ -553,3 +553,15 @@
 @ bigint.power-each core bigint
 > {2^x}'[10 70]
 = [1024 1180591620717411303424]
+
+@ bigint.exact-promote-and-cancel core bigint
+> .exactsub(.exactmul(3037000500;3037000500);.exactadd(9223372037000249998;1))
+= 1
+
+@ bigint.exact-quotient core bigint
+> .exactdiv(10^80;10^40)
+= 10000000000000000000000000000000000000000
+
+@ bigint.bitxor-refuses-wide-operand core bigint
+> .bitxor(2^64;0)
+! range

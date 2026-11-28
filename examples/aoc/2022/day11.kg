@@ -1,0 +1,23 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 11 - Monkey in the Middle.
+   Route a whole queue at a time, in monkey order. In part two the product of divisors preserves every routing test."
+
+.l("../parse")
+lastNumber(line)::{.num(*|.words(line))}
+monkey(lines)::{[op items];op::.words(lines@2);items::.trim(.split(lines@1;":")@1);
+    :{;"items";:[#items;.num'.split(items;", ");[]];"sign";op@(-2);"arg";.num(*|op);
+      "divisor";lastNumber(lines@3);"yes";lastNumber(lines@4);"no";lastNumber(lines@5);"count";0}}
+inspect(monkeys;index;part;modulus)::{[m items other levels targets];m::monkeys@index;items::m.items;
+    m.items::[];m.count::m.count+#items;
+    :[#items;{other:::[ :_m.arg;items;m.arg];
+      levels:::[m.sign~"*";items*other;items+other];
+      levels:::[part=1;levels:%3;levels!modulus];
+      targets::(levels!m.divisor)=0;
+      { [recipient];recipient::monkeys@:[x;m.yes;m.no];
+        recipient.items::recipient.items,levels@&targets=x}'[0 1]}();0]}
+solve(lines;part;row)::{[monkeys modulus rounds counts];monkeys::monkey'parse.blocks(lines);
+    modulus::*/{x.divisor}'monkeys;rounds:::[part=1;20;10000];
+    {x;inspect(monkeys;;part;modulus)'!#monkeys;0}'!rounds;
+    counts::{x.count}'monkeys;*/counts@2#>counts}
+
+export:::{;"solve";solve}

@@ -1,0 +1,11 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 4 - Camp Cleanup.
+   Two closed intervals overlap whenever neither ends before the other begins."
+
+bounds(text)::{.num'.split(text;"-")}
+matches(line;part)::{[first second lo hi other end];[first second]::bounds'.split(line;",");
+    lo::first@0;hi::first@1;other::second@0;end::second@1;
+    :[part=1;((~lo>other)&~hi<end)|((~other>lo)&~end<hi);~(hi<other)|end<lo]}
+solve(lines;part;row)::{+/matches(;part)'lines}
+
+export:::{;"solve";solve}

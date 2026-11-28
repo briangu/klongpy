@@ -1,0 +1,12 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Lavaduct Lagoon. Shoelace area and lattice boundary length count the dug cells."
+hex(text)::{[v];v::0;{v::(16*v)+*"0123456789abcdef"?x}'text;v}
+solve(lines;part;parameter)::{[pos area boundary];pos::[0 0];area::0;boundary::0;
+    {[dir n color d next];[dir n color]::.words(x);
+      :[part=1;{d::*"RDLU"?dir;n::.num(n)}();
+        {d::.num(,color@(-2));n::hex(5#2_color)}()];
+      next::pos+n*([[1 0] [0 1] [-1 0] [0 -1]]@d);
+      area::area+((pos@0)*next@1)-(pos@1)*next@0;boundary::boundary+n;pos::next}'lines;
+    1+((#area)+boundary):%2}
+
+export:::{;"solve";solve}

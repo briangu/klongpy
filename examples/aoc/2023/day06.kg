@@ -1,0 +1,11 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Wait For It. Binary search the increasing half of the distance parabola."
+wins(time;record)::{[lo hi mid];lo::0;hi::time:%2;
+    :[record<(hi*(time-hi));
+      {{x;lo<hi}{x;mid::(lo+hi):%2;
+        :[(mid*(time-mid))>record;hi::mid;lo::mid+1]}:~0;1+time-2*lo}();0]}
+solve(lines;part;parameter)::{[rows times records];rows::{1_.words(x)}'lines;
+    :[part=2;wins(.num(.join(rows@0;""));.num(.join(rows@1;"")));
+      {times::.num'rows@0;records::.num'rows@1;*/{wins(times@x;records@x)}'!#times}()]}
+
+export:::{;"solve";solve}

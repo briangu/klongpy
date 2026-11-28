@@ -387,6 +387,16 @@ class TestRepositoryGate(unittest.TestCase):
             "tests/golden/fixtures/named_head_destructuring.kg",
             "tests/kgtests/language/test_named_params.kg",
         }
+        # These v2 ports unpack input fields and search states. Their public
+        # answers are checked on both interpreters in tests/v2/test_aoc.py.
+        destructuring_days = {
+            2022: (4, 5, 9, 15, 21, 22),
+            2023: (2, 4, 5, 8, 12, 15, 18, 19, 20, 22, 23),
+            2024: (1, 7, 11, 13, 14, 17, 18, 23, 24),
+            2025: (2, 5, 9, 10, 11, 12),
+        }
+        allowed.update(f"examples/aoc/{year}/day{day:02d}.kg"
+                       for year, days in destructuring_days.items() for day in days)
         try:
             out = subprocess.run(["git", "ls-files", "*.kg"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
         except (OSError, subprocess.CalledProcessError):

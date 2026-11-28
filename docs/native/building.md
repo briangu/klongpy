@@ -259,11 +259,11 @@ $ kg -e '.l("nosuch")' 2>&1 | sed -n '1s/ (looked for.*//p'
 
 (The message goes on to list the places `.l` looked in; the example cuts it after the name.)
 
-(The third line is the value of the expression, which `-e` prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: `.l("csv")` peaks at about 35 KB, `.l("math")` at about 141 KB and `.l("nstat")`, which loads `math`, at about 281 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB): the functions of a loaded file are kept as the place of their text and parsed when called. `.mem()` returns `[in use, peak, limit]` in bytes. The interpreter itself is about 15 KiB after start-up, and `nstat` takes the peak over 250 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:
+(The third line is the value of the expression, which `-e` prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: `.l("csv")` peaks at about 35 KB, `.l("math")` at about 141 KB and `.l("nstat")`, which loads `math`, at about 281 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB): the functions of a loaded file are kept as the place of their text and parsed when called. `.mem()` returns `[in use, peak, limit]` in bytes. The desktop interpreter uses about 20 KiB after start-up, and `nstat` takes the peak over 250 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ kg -e '(.mem()@0)<20000'
+$ kg -e '(.mem()@0)<(24*1024)'
 1
 $ kg -e '.l("nstat");(.mem()@1)>250000'
 1
@@ -306,7 +306,7 @@ $ kg -e '.ver()@"int"'
 
 The default build is 64 bits wide, as the first two lines show: `2147483647+1` is an ordinary number and `9223372036854775807+1` wraps. In the narrow build `.ver()` reports `["int" 32] ["float" 32]`, `2147483647+1` is `-2147483648`, and `1%3` prints `0.33333334`. (This paragraph is not a checked transcript: only the default build is run for the examples.)
 
-Two integers within the build width wrap at it, with no error. As in KlongPy, an integer beyond 64 bits is exact: a long literal, a scalar `^` of two integers, and an operand beyond 64 bits in `+ - * % :% < > = | &`. The native runtime does it with the `num-bigint` crate behind the cargo feature `bigint`, which is on for `klong-cli` (the `kg` binary) and the Python extension. A result that fits goes back to an ordinary integer; ordinary integers stay machine integers, and the feature costs `fib(24)` about 2 percent. A board build leaves the feature off (it adds 22 KB of flash on `thumbv6m-none-eabi` and `thumbv7em-none-eabihf` and 32 KB on `riscv32imac-unknown-none-elf`), and there an integer literal that does not fit the build is a `syntax` error (`malformed number`); `klong-board` and `klong-ffi` have the feature `bigint` for a build that has the flash. See [How it relates to KlongPy](index.md#how-it-relates-to-klongpy).
+Two integers within the build width wrap at it, with no error. As in KlongPy, an integer beyond 64 bits is exact: a long literal, a scalar `^` of two integers, and an operand beyond 64 bits in `+ - * < > = | &`. With a bigint operand, `:%` truncates a floating-point quotient. Use `.exactdiv(a;b)` for an exactly divisible integer pair. The native runtime implements big integers with the `num-bigint` crate behind the cargo feature `bigint`, which is on for `klong-cli` (the `kg` binary) and the Python extension. A result that fits goes back to an ordinary integer; ordinary integers stay machine integers, and the feature costs `fib(24)` about 2 percent. A board build leaves the feature off (it adds 22 KB of flash on `thumbv6m-none-eabi` and `thumbv7em-none-eabihf` and 32 KB on `riscv32imac-unknown-none-elf`), and there an integer literal that does not fit the build is a `syntax` error (`malformed number`); `klong-board` and `klong-ffi` have the feature `bigint` for a build that has the flash. See [How it relates to KlongPy](index.md#how-it-relates-to-klongpy).
 
 `strings` and `dicts` exist as features of `klong-core` but do not remove anything yet.
 
@@ -364,10 +364,10 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/kg; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         2220  2220
+total                         2227  2227
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 2220 of 2220 on 2026-11-19, in about three seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The desktop run passed all 2227 cases in 4.0 seconds on 2026-11-27. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/kg python native/scripts/conformance.py --narrow

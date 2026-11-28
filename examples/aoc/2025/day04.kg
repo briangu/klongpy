@@ -1,0 +1,13 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Printing Department. Use a zero border so the eight shifted views share one index space."
+solve(lines;part;parameter)::{[width edge sheet slots offsets active remove total];
+    width::2+#*lines;edge::width#0;
+    sheet::edge,(,/{0,({x~0c@}'x),0}'lines),edge;
+    offsets::[;(-1)-width;-width;1-width;-1;1;width-1;width;width+1];
+    total::0;active::1;
+    {x;active}{x;slots::&sheet;
+      remove::slots@&4>0+/{sheet@(slots+x)}'offsets;
+      total::total+#remove;{sheet::sheet:=0,x}'remove;
+      active::(part=2)&0<#remove}:~0;total}
+
+export:::{;"solve";solve}

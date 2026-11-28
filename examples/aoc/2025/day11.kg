@@ -1,0 +1,21 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Reactor. Propagate four suffix-path counts backwards through the acyclic graph.
+   The two mask bits record whether a path has visited fft and dac."
+solve(lines;part;parameter)::{[parents degree totals targets frontier next counts from old n answer];
+    parents:::{};degree:::{};totals:::{};targets::,"out";
+    {[name children]::.split(x;": ");children::.words(children);degree,name,#children;targets::targets,children;
+     {[group];group::parents@x;parents,x,,(:[:_group;[];group]),,name}'children}'lines;
+    targets::?targets;frontier::targets@&{[d];d::degree@x;(:_d)|d~0}'targets;
+    {totals,x,,[0 0 0 0]}'frontier;totals,"out",,[1 0 0 0];
+    {x;0<#frontier}{x;next::[];
+      {[name group];name::x;counts::totals@name;group::parents@name;
+       :[~:_group;{from::x;old::totals@from;old::counts+:[:_old;[0 0 0 0];old];
+         n::(degree@from)-1;degree,from,n;
+         :[0=n;{next::next,,from;
+           :[from~"fft";old::[;0;(old@0)+old@1;0;(old@2)+old@3]
+             :|from~"dac";old::[;0;0;(old@0)+old@2;(old@1)+old@3];0]}();0];
+         totals,from,,old}'group;0]}'frontier;frontier::next}:~0;
+    answer::totals@:[part=1;"you";"svr"];
+    :[:_answer;0:|part=1;+/answer;answer@3]}
+
+export:::{;"solve";solve}

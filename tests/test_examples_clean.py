@@ -65,6 +65,8 @@ STRICT1_PARSE_ALLOW = {}
 TORCH = (["torch"], ["--backend", "torch", "--device", "cpu"])
 PLAIN = ([], [])
 RUNNABLE = {
+    "examples/aoc/parse.kg": PLAIN,
+    **{path: PLAIN for path in FILES if Path(path).match("examples/aoc/20??/day??.kg")},
     "examples/db/taxi-queries.kg": PLAIN,
     "examples/hardware/crossover.kg": PLAIN,         # a static-profile program: loading it defines its functions and state
     "examples/autograd/basic_gradient.kg": PLAIN,
@@ -108,6 +110,8 @@ CLIENT = "client that waits for a server on port 8888 (timed out at strict 2 aft
 MODULE_PART = "a part of the backtest of examples/modules/main.kg (a module it loads, or a classic file it loads): not a program of its own"
 MODULE_ERROR = "stops with the error named for it in examples/modules/EXPECTED-ERRORS.txt, by design"
 EXCLUDED = {
+    "examples/aoc/bench.kg": "takes a puzzle module, input path, part, run count and puzzle parameter in tests/v2/test_aoc.py",
+    "examples/aoc/generate.kg": "writes scale fixtures to a supplied temporary directory in tests/v2/test_aoc.py",
     **{f"examples/modules/{n}": MODULE_PART for n in (
         "config.kg", "legacy.kg", "lib/rng.kg", "lib/series.kg", "lib/stats.kg", "data/feed.kg", "book/portfolio.kg",
         "strategy/crossover.kg", "strategy/meanrev.kg", "strategy/registry.kg", "report/table.kg")},

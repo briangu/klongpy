@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Full of Hot Air. The remainder chooses a balanced base-five digit from -2 through 2."
+digits::"=-012"
+decode(text)::{[n];n::0;{n::(5*n)+(*digits?x)-2}'text;n}
+encode(value)::{[n index out];n::value;out::"";
+    {x;~n=0}{x;index::(5+((n+2)!5))!5;out::(,digits@index),out;n::(n-(index-2)):%5}:~0;
+    :[#out;out;"0"]}
+solve(lines;part;parameter)::{encode(+/decode'lines)}
+export:::{;"solve";solve}

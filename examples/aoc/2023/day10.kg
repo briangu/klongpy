@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Pipe Maze. Trace the unique loop; its centreline is a lattice polygon."
+links(ch;w)::{:[ch~0c|;[;-w;w]:|ch~0c-;[-1 1]:|ch~0cL;[;-w;1]:|ch~0cJ;[;-w;-1]:|
+    ch~0c7;[;-1;w]:|ch~0cF;[;1;w];[]]}
+solve(lines;part;parameter)::{[w border grid start dirs prev cur next sides area];
+    w::2+#*lines;border::w#".";
+    grid::border,.join({".",x,"."}'lines;""),border;start::*grid?"S";
+    dirs::[;1;-1;w;-w];dirs::dirs@&{0<#(links(grid@(start+x);w))?(-x)}'dirs;
+    prev::start;cur::start+*dirs;sides::1;area::0;
+    {x;~cur=start}{[opts];x;area::area+((prev!w)*(cur:%w))-(cur!w)*prev:%w;
+      opts::cur+links(grid@cur;w);next::*opts@&{~x=prev}'opts;prev::cur;cur::next;sides::sides+1}:~0;
+    area::area+((prev!w)*(start:%w))-(start!w)*prev:%w;
+    :[part=1;sides:%2;1+((#area)-sides):%2]}
+
+export:::{;"solve";solve}

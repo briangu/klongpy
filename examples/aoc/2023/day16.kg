@@ -1,0 +1,16 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" The Floor Will Be Lava. Mark directed beam states to terminate cycles."
+directions(tile;dir)::{:[tile=47;[1 0 3 2]@dir:|tile=92;[3 2 1 0]@dir:|
+    (tile=124)&dir!2;[0 2]:|(tile=45)&0=dir!2;[1 3];dir]}
+energy(s;start;dir)::{[queue seen cells pos facing next];queue::,(4*start)+dir;seen:::{};cells:::{};
+    {x;#queue}{[state];x;state::*|queue;queue::(-1)_queue;pos::state:%4;facing::state!4;
+     :[(:_seen@state)&0<s.tiles@pos;{seen,state,1;cells,pos,1;
+       next::,directions(s.tiles@pos;facing);next::,/next;
+       queue::queue,next+4*pos+s.moves@next}();0]}:~0;#cells}
+solve(lines;part;parameter)::{[w h grid s entries];w::2+#*lines;h::#lines;
+    grid::(w#0),(,/{0,({#x}'x),0}'lines),w#0;
+    s:::{;"tiles";grid;"moves";[;-w;1;w;-1]};
+    :[part=1;energy(s;w+1;1);{entries::(energy(s;;1)'1+w*1+!h),(energy(s;;3)'(w-2)+w*1+!h);
+      entries::entries,(energy(s;;2)'(w+1)+!w-2),(energy(s;;0)'(1+w*h)+!w-2);|/entries}()]}
+
+export:::{;"solve";solve}

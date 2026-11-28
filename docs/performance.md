@@ -2,6 +2,12 @@
 
 The release comparisons below describe their workload, baseline, candidate and machine. The older array microbenchmarks that follow describe a separate development build.
 
+## Advent of Code in strict Klong v2
+
+The four-year corpus checks 170 puzzle answers and times ten larger workloads. The Apple M2 Ultra baseline records seven batches per case, source and input checksums, and the native executable checksum. For runtime comparisons, run the same Klong modules and fixtures with both binaries. A separate matched-process comparison runs three original Klong scripts and their v2 ports on the same binary. [Results and reproduction commands](https://github.com/briangu/klongpy/tree/main/examples/aoc#apple-m2-ultra-baseline) · [Per-part source index](https://github.com/briangu/klongpy/blob/main/examples/aoc/SOURCES.md)
+
+On the same M2 Ultra, the new collection updates reduced the 4,096-card propagation workload from 112.69 ms to 17.56 ms. The four-seed market generator went from 21.82 ms to 2.25 ms with native integer XOR and a vector of seeds. The exact arithmetic regression also checks a hailstone coordinate sum above the signed 64-bit limit. [Before-and-after results](https://github.com/briangu/klongpy/tree/main/examples/aoc#runtime-improvements-on-the-apple-m2-ultra)
+
 ## Native kg and NumPy on resident CPU arrays
 
 The November 21 development build ran 16 array workloads on an Apple M2 Ultra with 192 GiB, using standalone `kg` and NumPy 2.5.5 with Apple Accelerate. Each workload uses matching contiguous 64-bit inputs. The harness checks every output value, shape and inferred numeric dtype against NumPy before timing. Both engines warm up and calibrate a batch of at least 5 ms. The table reports medians of seven batches for 4,096 and one million elements and five batches for eight million. Timing covers the operation on resident data, including result allocation. Input construction, interpreter startup and JSON transfer happen outside the timer. These workloads cover NumPy operations also exercised by the upstream benchmark suite. [NumPy reductions](https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_reduce.py) · [NumPy sorting workloads](https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_function_base.py)
@@ -229,6 +235,8 @@ On November 27, 2026, each of three journal builds sustained **2,097,152 offered
 | Optimized Klong | 1,198 / 1,198 | 44.5–45.1 ms | 2.2–2.4 ms | 1.932–1.938 M trades/s |
 
 The two runs started their quote schedules at offsets of 0 and 17 ms. Scheduled p99 covers answered slots. Skipped slots count against the 99% budget. The optimized build answered all 2,400 historical slots on time. Its publisher acknowledgment p99 was 60.2–64.8 ms, measured from batch submission. Both 60-second runs drained within 11.5 ms of the deadline, and rollover took 4.88–5.08 s. The head’s 100 GbE interface averaged 0.56 Gbit/s received and 1.12 Gbit/s transmitted, with zero recorded drops or errors.
+
+**AoC runtime regression check, November 28 UTC.** The runtime before the collection and integer changes (`3625a34`) and the working-tree build each sustained 2,097,152 offered trades/s in two verified minutes on the same hosts. Live scheduled p99 was 45.06–47.05 ms before and 43.37–44.71 ms after. Publisher acknowledgment p99 was 67.23–68.43 ms before and 68.02–68.39 ms after. Direct durable append at 98,304 rows had overlapping trial medians of 14.23–14.50 ms and 14.35–14.50 ms, respectively. All four runs met both quote budgets. These fixed-rate runs leave the maximum sustainable rate unmeasured. [Trial records, binary and WAL checksums](https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/results/2026-11-28-aoc-runtime-100gbe.jsonl)
 
 **Append and replay.** A separate test on Milan excluded IPC, DuckDB and subscribers. It timed a synchronous append of four precomputed integer columns, then read every batch back from the warm file cache and compared every field. At 98,304 rows per batch, the daily file held 6,291,456 rows in 64 records. All three writers produced identical bytes.
 

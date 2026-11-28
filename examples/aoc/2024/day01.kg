@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Historian Hysteria. Grade both columns or count equal identifiers in the right column."
+.l("../parse")
+solve(lines;part;parameter)::{[cols left right counts];cols::+parse.numbers'lines;
+    [left right]::cols;
+    :[part=1;+/{#x}'(left@<left)-right@<right;
+      {counts:::{};{[old];old::counts@x;counts,x,,:[ :_old;1;old+1]}'right;
+       0+/{[n];n::counts@x;:[:_n;0;n*x]}'left}()]}
+export:::{;"solve";solve}

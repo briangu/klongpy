@@ -1,0 +1,5 @@
+# Preserve the input bytes used by the benchmark checksums.
+*.txt -text
+# The packet input ends with a separator, and the worksheet has padded columns.
+2022/13.txt whitespace=-blank-at-eof
+2025/6.txt whitespace=-blank-at-eol

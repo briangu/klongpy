@@ -1,0 +1,46 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Never Tell Me The Odds. Compare intersection coordinates as integer ratios.
+   Subtracting two hailstone cross-product equations cancels the nonlinear rock term."
+neg(a)::{.exactsub(0;a)}
+difference(a;b)::{ {.exactsub(a@x;b@x)}'!3}
+det(a;b;c;d)::{.exactsub(.exactmul(a;d);.exactmul(b;c))}
+ray(line)::{.num'.words(.join(.split(.join(.split(line;",");" ");"@");" "))}
+crosses(a;b;low;high)::{[dx dy den t u cx cy lower upper];
+    dx::.exactsub(b@0;a@0);dy::.exactsub(b@1;a@1);den::det(a@3;a@4;b@3;b@4);
+    t::det(dx;dy;b@3;b@4);u::det(dx;dy;a@3;a@4);
+    :[den<0;{den::neg(den);t::neg(t);u::neg(u)}();0];
+    :[(den=0)|(t<0)|u<0;0;
+      {cx::.exactadd(.exactmul(a@0;den);.exactmul(a@3;t));cy::.exactadd(.exactmul(a@1;den);.exactmul(a@4;t));
+       lower::.exactmul(low;den);upper::.exactmul(high;den);
+       (~cx<lower)&(~cx>upper)&(~cy<lower)&~cy>upper}()]}
+pairEq(a;b;i;j)::{[dv dp coeff ai bi];dv::difference(3_b;3_a);dp::difference(3#b;3#a);
+    coeff::6#0;coeff::coeff:=(dv@j),i;coeff::coeff:=neg(dv@i),j;
+    coeff::coeff:=neg(dp@j),(3+i);coeff::coeff:=(dp@i),(3+j);
+    ai::det(a@i;a@j;a@(3+i);a@(3+j));bi::det(b@i;b@j;b@(3+i);b@(3+j));
+    coeff,.exactsub(bi;ai)}
+eliminate(vector;basis;pivot)::{[a b];a::basis@pivot;b::vector@pivot;
+    {.exactsub(.exactmul(vector@x;a);.exactmul(basis@x;b))}'!7}
+addRow(s;values)::{[v i basis];v::values;i::0;
+    {x;i<6}{x;basis::s.basis@i;
+      :[0=v@i;i::i+1:|:_basis;{s.basis,i,,v;s.rank::s.rank+1;i::6}();
+        {v::eliminate(v;basis;i);i::i+1}()]}:~0}
+meets(ray;rock)::{[pos vel moving axis];
+    pos::difference(3#ray;3#rock);vel::difference(3_rock;3_ray);moving::&~vel=0;
+    :[0=#moving;pos~[0 0 0];
+      {axis::*moving;((.exactmul(pos@axis;vel@axis))>(-1))&
+        &/{.exactmul(pos@x;vel@axis)=.exactmul(vel@x;pos@axis)}'!3}()]}
+rock(rays)::{[s i solution row total answer];
+    s:::{;"basis";:{};"rank";0};i::1;
+    {x;(s.rank<6)&i<#rays}{x;
+      {addRow(s;pairEq(*rays;rays@i;x;(x+1)!3))}'!3;i::i+1}:~0;
+    :[s.rank<6;.err("range";"hailstones do not determine a unique trajectory");0];
+    solution::6#0;
+    {[i];i::x;row::s.basis@i;total::row@6;
+      {total::.exactsub(total;.exactmul(row@x;solution@x))}'(i+1)+!5-i;
+      answer::.exactdiv(total;row@i);
+      solution::solution:=answer,i}'|!6;
+    :[&/meets(;solution)'rays;.exactadd(.exactadd(solution@0;solution@1);solution@2);.err("range";"trajectory misses a hailstone")]}
+solve(lines;part;parameter)::{[rays low high];rays::ray'lines;
+    low:::[parameter=7;7;200000000000000];high:::[parameter=7;27;400000000000000];
+    :[part=2;rock(rays);0+/{[a];a::rays@x;0+/crosses(a;;low;high)'(x+1)_rays}'!#rays]}
+export:::{;"solve";solve}

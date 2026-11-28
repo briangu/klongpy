@@ -1,0 +1,5 @@
+numbers(text)::{.num'.words(text)}
+nl:::#10
+blocks(lines)::{[parts];parts::.split(.join(lines;nl);nl,nl);{.split(x;nl)}'parts}
+codes(text)::{ {#x}'text}
+export:::{;"numbers";numbers;"blocks";blocks;"codes";codes}

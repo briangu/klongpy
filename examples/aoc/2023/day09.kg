@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Mirage Maintenance. Extrapolate the last value of successive difference rows."
+.l("../parse")
+forecast(values)::{[row result];row::values;result::0;
+    {x;(#row)&|/{~x=0}'row}{x;result::result+*|row;row::(1_row)-(-1)_row}:~0;result}
+solve(lines;part;parameter)::{[rows];rows::parse.numbers'lines;
+    +/forecast'(:[part=1;rows;{|x}'rows])}
+
+export:::{;"solve";solve}

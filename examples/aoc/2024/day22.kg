@@ -1,0 +1,13 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Monkey Market. Use one base-19 key for each four-change price history."
+:" Keep the low 24 bits. Mask before left shifts so even 32-bit products fit."
+next(n)::{[v];v::.bitxor(n!16777216;64*(n!262144));v::.bitxor(v;v:%32);
+    .bitxor(v;2048*(v!8192))}
+prices(seed;totals)::{[v price code seen];v::seed;price::v!10;code::0;seen:::{};
+    {[new];v::next(v);new::v!10;code::(19*(code!6859))+9+new-price;price::new;
+     :[(x>2)&:_seen@code;{[old];seen,code,1;old::totals@code;
+       totals,code,,price+:[ :_old;0;old]}();0]}'!2000;0}
+solve(lines;part;parameter)::{[seeds totals];seeds::.num'lines;
+    :[part=1;+/2000 next:*seeds;
+      {totals:::{};prices(;totals)'seeds;|/{x@1}'totals}()]}
+export:::{;"solve";solve}

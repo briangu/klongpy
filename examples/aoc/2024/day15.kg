@@ -1,0 +1,23 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Warehouse Woes. Collect every box a push would move. Commit all changes together
+   once the frontier reaches empty cells on every branch."
+push(board;pos;delta;wide)::{[first box frontier boxes seen ok];
+    first::board@pos;
+    :[first=1;[;board;0]:|first=0;[;board;1];
+      {box::pos-(first=3);frontier::,box;boxes::[];seen:::{};seen,box,1;ok::1;
+       {x;ok&0<#frontier}{[next];x;next::[];
+          {[p targets];p::x;boxes::boxes,p;targets::p+delta+!1+wide;
+            {[v left];v::board@x;:[v=1;ok::0:|v>1;
+                {left::x-(v=3);:[ :_seen@left;{seen,left,1;next::next,left}();0]}(x);0]}'targets
+          }'frontier;frontier::next}:~0;
+       :[ok;{{board::board:=0,x;:[wide;board::board:=0,1+x;0]}'boxes;
+              {board::board:=2,x;:[wide;board::board:=3,1+x;0]}'boxes+delta}();0];
+       [;board;ok]}()]}
+solve(lines;part;parameter)::{[cut rows moves width wide board pos dirs delta r];
+    cut::*lines?"";rows::cut#lines;moves::.join((1+cut)_lines;"");wide::part=2;
+    width::(1+wide)*#*rows;
+    board::,/{:[x~0c#;(1+wide)#1:|x~0cO;:[wide;[2 3];,2]:|x~0c@;:[wide;[4 0];,4];(1+wide)#0]}'.join(rows;"");
+    pos::*board?4;board::board:=0,pos;dirs::[;1;width;-1;-width];
+    {delta::dirs@*">v<^"?x;r::push(board;pos+delta;delta;wide);board::r@0;pos::pos+delta*r@1}'moves;
+    0+/{(x!width)+100*x:%width}'board?2}
+export:::{;"solve";solve}

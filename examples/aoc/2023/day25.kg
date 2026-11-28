@@ -1,0 +1,26 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Snowverload. Four augmentations rule out a three-edge cut for a source/sink
+   pair. When three augmentations exhaust all paths, the reachable set gives one component."
+connect(adj;a;b)::{[old];old::adj@a;adj,a,,?(:[:_old;[];old]),b}
+cut(adj;n;sink)::{[used flow parent front count u v key old];
+    used:::{};flow::0;count::0;
+    {x;(flow<4)&count=0}{x;parent:::{[0 0]};front::,0;
+      {x;(0<#front)&:_parent@sink}{[next];x;next::[];
+        {[from];from::x;
+          {[dst k];dst::x;k::(from*n)+dst;
+           :[(:_parent@dst)&~1~used@k;
+             {parent,dst,from;next::next,dst}();0]}'adj@from}'front;
+        front::next;0}:~0;
+      :[:_parent@sink;count::#parent;
+        {v::sink;{x;v>0}{x;u::parent@v;key::(u*n)+v;old::used@key;
+          used,key,1+:[ :_old;0;old];key::(v*n)+u;old::used@key;
+          used,key,(-1)+:[ :_old;0;old];v::u}:~0;flow::flow+1}()]}:~0;
+    :[flow=3;count*(n-count);0]}
+solve(lines;part;parameter)::{[pairs names index adj n sink answer];
+    pairs::{.words(.join(.split(x;":");" "))}'lines;names::?,/pairs;n::#names;index:::{};adj:::{};
+    {index,[;names@x;x]}'!n;
+    {[first];first::index@*x;
+      {[other];other::index@x;connect(adj;first;other);connect(adj;other;first)}'1_x}'pairs;
+    sink::1;answer::0;{x;(sink<n)&answer=0}{x;answer::cut(adj;n;sink);sink::sink+1}:~0;
+    :[answer;answer;.err("range";"three-edge cut not found")]}
+export:::{;"solve";solve}

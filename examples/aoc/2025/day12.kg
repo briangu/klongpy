@@ -1,0 +1,51 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Christmas Tree Farm. The area and bounding-box checks settle easy regions immediately.
+   Otherwise pack the first free cell, trying every compatible piece or leaving it empty."
+.l("../parse")
+
+coordinates(block)::{[rows];rows::1_block;
+    ,/{[r];r::x;{[;r;x]}'((rows@r)?"#")}'!#rows}
+
+orient(points;turn)::{[rr cc tmp];rr::{x@0}'points;cc::{x@1}'points;
+    :[turn>3;cc::-cc;0];
+    {x;tmp::rr;rr::-cc;cc::tmp}'!(turn!4);
+    rr::rr-&/rr;cc::cc-&/cc;
+    {[;rr@x;cc@x]}'<(cc+(1+|/cc)*rr)}
+
+placements(shapes;width;height)::{[byCell];byCell:::{};
+    {[kind variants];kind::x;variants::?orient(shapes@kind;)'!8;
+     {[form rows cols offsets nr nc];form::x;rows::{x@0}'form;cols::{x@1}'form;offsets::cols+width*rows;
+      nr::height-|/rows;nc::width-|/cols;
+      :[(nr>0)&nc>0;
+       {[base cells key group];base::(x!nc)+width*x:%nc;cells::base+offsets;key::*cells;
+        group::byCell@key;
+        byCell,key,,(:[:_group;[];group]),,[;kind;cells]}'!nr*nc;0]}'variants
+    }'!#shapes;byCell}
+
+pack(byCell;remaining;board;slack)::{[stack visited success state index key options];
+    stack::,[;remaining;board;slack];visited:::{};success::0;
+    {x;(~success)&0<#stack}{x;state::*|stack;stack::(-1)_stack;[remaining board slack]::state;
+      :[0=+/remaining;success::1;
+        {index::*board?0;key::.json([;remaining;index;(index _ board)?1]);
+         :[:_visited@key;
+           {visited,key,1;
+            :[slack>0;stack::stack,,[;remaining;board:=1,index;slack-1];0];
+            options::byCell@index;
+            :[~:_options;
+              {[kind cells next];[kind cells]::x;
+               :[((remaining@kind)>0)&0=+/board@cells;
+                 {next::remaining:=((remaining@kind)-1),kind;
+                  stack::stack,,[;next;board:=1,cells;slack]}();0]}'options;0]}();0]}()]}:~0;success}
+
+fits(shapes;areas;side;line)::{[dims amounts width height size spare need];
+    [dims amounts]::.split(line;": ");dims::.num'.split(dims;"x");width::&/dims;height::|/dims;
+    need::parse.numbers(amounts);size::width*height;spare::size-+/areas*need;
+    :[spare<0;0:|((width:%side)*height:%side)>(+/need)-1;1;
+      pack(placements(shapes;width;height);need;size#0;spare)]}
+
+solve(lines;part;parameter)::{[blocks shapes areas side];blocks::parse.blocks(lines);
+    shapes::coordinates'(-1)_blocks;areas::{#x}'shapes;
+    side::1+|/{|/|/x}'shapes;
+    +/fits(shapes;areas;side;)'*|blocks}
+
+export:::{;"solve";solve}

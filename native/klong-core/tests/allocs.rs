@@ -70,3 +70,57 @@ fn failures_do_not_grow_the_heap() {
     });
     t.unwrap().join().unwrap();
 }
+
+#[cfg(feature = "speed")]
+fn assert_linear_collection_bytes(body: &'static str) {
+    let mut ip = Interp::new(Config::default(), Box::new(NoHooks));
+    let module = ip.module_new("collections", "", false).unwrap();
+    ip.module_run_static(module, body, "<module>").unwrap();
+    let mut measure = |call| {
+        let before = BYTES.get();
+        let value = ip.module_run_static(module, call, "<call>").unwrap().unwrap();
+        (value.as_int().unwrap(), BYTES.get() - before)
+    };
+    measure("build(8)");
+    let (small_result, small) = measure("build(256)");
+    let (large_result, large) = measure("build(512)");
+    assert_eq!((small_result, large_result), (256, 512));
+    println!("256 steps: {small} bytes; 512 steps: {large} bytes");
+    assert!(large < 3 * small, "doubling the workload allocated {large} bytes versus {small}");
+}
+
+#[cfg(feature = "speed")]
+#[test]
+fn record_appends_allocate_linear_bytes_in_a_module() {
+    assert_linear_collection_bytes(r#"build(n)::{[q];q::[];{q::q,,[;x;"pulse"];0}'!n;#q}"#);
+}
+
+#[cfg(feature = "speed")]
+#[test]
+fn packed_amends_allocate_linear_bytes_in_a_module() {
+    assert_linear_collection_bytes("build(n)::{[v];v::n#0;{v::v:=1,x;0}'!n;+/v}");
+}
+
+#[cfg(feature = "speed")]
+#[test]
+fn shared_vector_amend_allocates_one_packed_copy() {
+    use klong_core::value::{Flt, Int};
+
+    let mut ip = Interp::new(Config::default(), Box::new(NoHooks));
+    for (setup, change, width) in [
+        ("v::8192#0", "v::v:=[9 -1]", size_of::<Int>()),
+        ("v::8192#0.0", "v::v:=[9.5 -1.0]", size_of::<Flt>()),
+    ] {
+        ip.run(setup, "<setup>").unwrap();
+        ip.run("snapshot::v", "<alias>").unwrap();
+        let before = BYTES.get();
+        ip.run(change, "<update>").unwrap();
+        let allocated = BYTES.get() - before;
+        println!("{setup}: {allocated} bytes for an aliased amend");
+        // The primitive copies one packed buffer. The remaining allowance covers
+        // parsing the short standalone expression, dispatch and the array header.
+        assert!(allocated <= (8192 * width + 8192) as u64, "allocated {allocated} bytes");
+        let unchanged = ip.run("0=snapshot@(-1)", "<check>").unwrap().unwrap();
+        assert_eq!(unchanged.as_int(), Some(1));
+    }
+}

@@ -1,0 +1,17 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 12 - Hill Climbing Algorithm.
+   Search backwards from E in layers. One distance map answers both starting-point questions."
+
+.l("../parse")
+solve(lines;part;row)::{[width border grid start goal dist front offsets level];
+    width::2+#*lines;border::width#-100;
+    grid::border,(,/{(-100),parse.codes(x),-100}'lines),border;
+    start::*grid?83;goal::*grid?69;grid::grid:=97,start;grid::grid:=122,goal;
+    offsets::[;1;-1;width;-width];dist::(#grid)#-1;dist::dist:=0,goal;
+    front::,goal;level::0;
+    {x;0<#front}{[next];x;level::level+1;
+      next::?,/{[near];near::x+offsets;near@&(~(grid@near)<((grid@x)-1))&(dist@near)=-1}'front;
+      front::next;{dist::dist:=level,x}'front;0}:~0;
+    :[part=1;dist@start;&/dist@&((grid=97)&dist>(-1))]}
+
+export:::{;"solve";solve}

@@ -343,9 +343,25 @@ impl Ext for Remote {
                 self.puts.borrow_mut().push(ip.format(y));
                 Some(Ok(Value::Int(0)))
             }
+            ":=" => Some(Ok(Value::Int(7))),
             _ => None,
         }
     }
+}
+
+#[test]
+fn an_external_dyad_result_is_assigned_to_the_collection_target() {
+    let _g = lock();
+    let mut ip = interp();
+    let h = Value::Ext(Rc::new(ExtBox(Box::new(Remote { puts: Default::default() }))));
+    ip.define_global("h", h).unwrap();
+    let module = ip.module_new("external", "", false).unwrap();
+    ip.module_run_static(module, "amend(object)::{[v result];v::object;result::v::v:=[4 0];[;result;v]}", "<module>").unwrap();
+    let amend = ip.module_get(module, "amend").unwrap();
+    ip.define_global("amend", amend).unwrap();
+    let joined = show(&mut ip, "v::h;result::v::v,1;[;result;v]");
+    let amended = show(&mut ip, "amend(h)");
+    assert_eq!((joined.as_str(), amended.as_str()), ("[0 0]", "[7 7]"));
 }
 
 #[test]

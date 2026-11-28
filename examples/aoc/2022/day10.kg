@@ -1,0 +1,12 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 10 - Cathode-Ray Tube.
+   Expand instructions into register changes per cycle. The screen uses the value before the change."
+
+delta(line)::{:[line~"noop";,0;0,.num(5_line)]}
+solve(lines;part;row)::{[changes reg cycles pixels];changes::,/delta'lines;
+    reg::(#changes)#1+(+\0,changes);cycles::1+!#reg;
+    :[part=1;+/((cycles*reg)@&20=cycles!40);
+      {pixels::{"#."@((#x)>1)}'(((!#reg)!40)-reg);
+       {.join(40#x _ pixels;"")}'40*!((#reg):%40)}()]}
+
+export:::{;"solve";solve}

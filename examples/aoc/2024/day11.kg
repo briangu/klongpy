@@ -1,0 +1,12 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Plutonian Pebbles. Equal stones evolve identically, so keep their multiplicities."
+.l("../parse")
+add(counts;stone;n)::{[old];old::counts@stone;counts,stone,,:[ :_old;n;old+n]}
+blink(counts)::{[after];after:::{};
+    {[stone n text half];[stone n]::x;text::$stone;half::(#text):%2;
+     :[stone=0;add(after;1;n):|0=(#text)!2;
+       {add(after;.num(half#text);n);add(after;.num(half _ text);n)}();
+       add(after;stone*2024;n)]}'counts;after}
+solve(lines;part;parameter)::{[counts rounds];counts:::{};{add(counts;x;1)}'parse.numbers(*lines);
+    rounds:::[part=1;25;75];counts::rounds blink:*counts;0+/{x@1}'counts}
+export:::{;"solve";solve}

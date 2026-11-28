@@ -1,0 +1,11 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Cafeteria. Merge inclusive ID ranges once for both membership and span length."
+solve(lines;part;parameter)::{[split ranges ids stop merged start lo hi];
+    split::*lines?"";ranges::{.num'.split(x;"-")}'split#lines;ids::.num'(split+1)_lines;
+    ranges::ranges@<{x@0}'ranges;merged::[];[start stop]::*ranges;
+    {[lo hi]::x;:[lo>stop+1;{merged::merged,,[;start;stop];start::lo;stop::hi}();stop::stop|hi]}'1_ranges;
+    merged::merged,,[;start;stop];
+    :[part=2;+/{1+(x@1)-x@0}'merged;
+      +/{[id];id::x;|/{(~id<x@0)&~id>x@1}'merged}'ids]}
+
+export:::{;"solve";solve}

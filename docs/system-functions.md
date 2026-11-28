@@ -375,6 +375,97 @@ strings) and "platform".
 Example:   (.ver())@"version"
 ```
 
+## Integer arithmetic
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.bitxor(x;y)` | Integer-XOR | Compute the bitwise exclusive OR of signed machine integers or packed integer arrays. |
+| `.exactadd(x;y)` | Exact-Add | Return the exact sum of two scalar integers. |
+| `.exactsub(x;y)` | Exact-Subtract | Return the exact difference of two scalar integers. |
+| `.exactmul(x;y)` | Exact-Multiply | Return the exact product of two scalar integers. |
+| `.exactdiv(x;y)` | Exact-Divide | Return the exact quotient of two scalar integers, requiring divisibility. |
+
+### `.bitxor`
+
+`.bitxor(x;y)` [Integer-XOR]
+
+```text
+Return the bitwise exclusive OR of two signed machine integers.
+Packed integer arrays preserve their shape. A scalar pairs with
+every element of an array. Two arrays must agree on their shared
+leading dimensions. Both arguments use the integer width of the
+build. An out-of-width scalar integer gives a range error.
+```
+
+```kgpy
+?> .bitxor(6;3)
+5
+?> .bitxor([4 5 6];3)
+[7 6 5]
+```
+
+### `.exactadd`
+
+`.exactadd(x;y)` [Exact-Add]
+
+```text
+Add two scalar integers exactly. A build with bigint support
+promotes an overflowing sum to a large integer. On other builds a
+sum outside the machine integer range gives a range error.
+```
+
+```kgpy
+?> .exactadd(9223372036854775807;1)
+9223372036854775808
+```
+
+### `.exactsub`
+
+`.exactsub(x;y)` [Exact-Subtract]
+
+```text
+Subtract the second scalar integer from the first exactly. A build
+with bigint support promotes an overflowing difference to a large
+integer. On other builds a difference outside the machine integer
+range gives a range error.
+```
+
+```kgpy
+?> .exactsub(-9223372036854775808;1)
+-9223372036854775809
+```
+
+### `.exactmul`
+
+`.exactmul(x;y)` [Exact-Multiply]
+
+```text
+Multiply two scalar integers exactly. A build with bigint support
+promotes an overflowing product to a large integer. On other builds
+a product outside the machine integer range gives a range error.
+```
+
+```kgpy
+?> .exactmul(3037000500;3037000500)
+9223372037000250000
+```
+
+### `.exactdiv`
+
+`.exactdiv(x;y)` [Exact-Divide]
+
+```text
+Divide two scalar integers exactly. A zero divisor or a remainder
+gives a range error. A build with bigint support also handles
+quotients outside the machine integer range. On other builds those
+quotients give a range error.
+```
+
+```kgpy
+?> .exactdiv(10^80;10^40)
+10000000000000000000000000000000000000000
+```
+
 ## Reading and files
 
 | Name | Title | Description |

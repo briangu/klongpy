@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Guard Gallivant. A repeated (position, heading) state proves a loop."
+patrol(board;dirs;start;obstacle)::{[visited seen pos heading state next done loop];
+    visited:::{};seen:::{};pos::start;heading::0;done::0;loop::0;
+    {x;~done}{x;state::heading+4*pos;
+      :[~:_seen@state;{done::1;loop::1}();
+        {seen,state,1;visited,pos,1;next::pos+dirs@heading;
+         :[(board@next)~0c!;done::1:|((board@next)~0c#)|next=obstacle;
+            heading::(heading+1)!4;pos::next]}()]}:~0;
+    [;loop;{x@0}'visited]}
+solve(lines;part;parameter)::{[width edge board dirs start result path];
+    width::2+#*lines;edge::width#"!";board::edge,(.join({"!",x,"!"}'lines;"")),edge;
+    dirs::[;-width;1;width;-1];start::*board?"^";result::patrol(board;dirs;start;-1);path::result@1;
+    :[part=1;#path;0+/{*patrol(board;dirs;start;x)}'path@&~path=start]}
+export:::{;"solve";solve}

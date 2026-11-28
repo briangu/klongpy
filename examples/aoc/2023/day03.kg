@@ -1,0 +1,39 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" 2023 day 3 - Gear Ratios.
+   Visit the rectangle around each complete number once, so each neighbouring gear sees it once."
+
+isDigit(char)::{[code];code::#char;(code>47)&code<58}
+
+recordGear(gears;key;number)::{[old];old::gears@key;
+    gears,key,,(:[:_old;[];old]),number}
+
+partNumber(lines;r;start;end;gears)::{[width number total top bottom left right];
+    width::#lines@r;
+    number::.num((end-start)#start _ lines@r);
+    left::0|start-1;right::(width-1)&end;
+    top::0|r-1;bottom::((#lines)-1)&r+1;
+    total::0;
+    {[rr];rr::x;
+        {[char];char::(lines@rr)@x;
+         :[(~isDigit(char))&~char~0c.;total::number;0];
+         :[char~0c*;recordGear(gears;(rr*width)+x;number);0]
+        }'left+!1+right-left
+    }'top+!1+bottom-top;
+    total}
+
+scanRow(lines;r;gears)::{[line width col start total];
+    line::lines@r;width::#line;col::0;total::0;
+    {x;col<width}{x;
+        :[isDigit(line@col);
+          {start::col;
+           {x;:[col<width;isDigit(line@col);0]}{x;col::col+1}:~0;
+           total::total+partNumber(lines;r;start;col;gears)}();
+          col::col+1]}:~0;
+    total}
+
+ratio(entry)::{[numbers];numbers::entry@1;:[2=#numbers;*/numbers;0]}
+solve(lines;part;row)::{[gears total];gears:::{};
+    total::+/scanRow(lines;;gears)'!#lines;
+    :[part=1;total;0+/ratio'gears]}
+
+export:::{;"solve";solve}

@@ -1,0 +1,16 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Boiling Boulders. Flood exterior air in a padded box and count its faces against lava."
+solve(lines;part;parameter)::{[points columns low dims width plane total lava offsets cells front air faces];
+    points::{.num'.split(x;",")}'lines;columns::+points;
+    low::(-1)+{&/x}'columns;dims::2+({|/x}'columns)-low;
+    width::dims@0;plane::width*dims@1;total::*/dims;
+    cells::{[p];p::x-low;(p@0)+(width*p@1)+plane*p@2}'points;
+    offsets::[;1;-1;width;-width;plane;-plane];lava::total#0;
+    {lava::lava:=1,x}'cells;
+    :[part=1;+/{6-+/lava@(x+offsets)}'cells;
+      {air::total#0;air::air:=1,0;front::,0;faces::0;
+       {x;0<#front}{[near];x;near::,/{[p col row depth];p::x;col::p!width;row::(p:%width)!dims@1;depth::p:%plane;
+          p+offsets@&[;col<width-1;col>0;row<(dims@1)-1;row>0;depth<(dims@2)-1;depth>0]}'front;
+          faces::faces+0+/lava@near;front::?near@&(0=lava@near)&0=air@near;
+          {air::air:=1,x}'front;0}:~0;faces}()]}
+export:::{;"solve";solve}

@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Laboratories. Each beam position holds the number of timelines that reach it."
+solve(lines;part;parameter)::{[beams splits];beams::(#*lines)#0;beams::beams:=1,*(*lines)?"S";splits::0;
+    {[hit sent];hit::(beams>0)&{x~0c^}'x;splits::splits++/hit;
+     sent::beams*hit;
+     beams::(beams-sent)+((1_sent),0)+(0,(-1)_sent)}'1_lines;
+    :[part=1;splits;+/beams]}
+
+export:::{;"solve";solve}

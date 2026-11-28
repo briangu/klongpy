@@ -1,0 +1,20 @@
+.l("./expect.kg")
+records(n)::{[q first];q::[];{q::q,,[;x;"pulse"];0}'!n;first::q;q::q,q;[;#first;#q;*q]}
+expect("record queue and retained snapshot";records(4);[4 8 [0 "pulse"]])
+rows::[]
+expect("each iteration retains its record list";{rows::rows,,[;x;"pulse"]}'!2;[[[0 "pulse"]] [[0 "pulse"] [1 "pulse"]]])
+nums::!5
+alias::nums
+expect("multi-index amend returns its assigned vector";nums::nums:=[9 -1 0 0];[9 1 2 3 9])
+expect("aliases of packed vectors keep their contents";alias;!5)
+expect("invalid second index reports range error";(.try({nums::nums:=[1 0 5]};[])@1)@"kind";"range")
+expect("failed index validation leaves binding intact";nums;[9 1 2 3 9])
+expect("float promotion preserves fractional values";nums::nums:=[0.5 0];[0.5 1.0 2.0 3.0 9.0])
+expect("integral float indices support negative offsets";nums::nums:=[1.5 -1.0];[0.5 1.0 2.0 3.0 1.5])
+expect("fractional indices report a type error";(.try({nums::nums:=[4.0 0.5]};[])@1)@"kind";"type")
+v::!3
+expect("right side can rebind the target before it is read";v::v:={v::[4 5];[7 1]}();[4 7])
+trail(n)::{[v];v::n#0;{v::v:=1,x}'!n}
+expect("amend returns an independent row for each iteration";trail(3);[[1 0 0] [1 1 0] [1 1 1]])
+expect("each retains the rank of its snapshots";^trail(3);[3 3])
+.p("PASS aoc collections")

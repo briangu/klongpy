@@ -324,3 +324,27 @@ fn append_assign_keeps_other_holders() {
     ok("l::[1 2];l::l,3;l", "[1 2 3]");
     ok("v::!2;v::v,1.5;v", "[0.0 1.0 1.5]");
 }
+
+#[test]
+fn collection_reassignment_respects_module_and_frame_bindings() {
+    let mut ip = interp();
+    ip.run("v::[1 2 3]", "<global>").unwrap();
+    let m = ip.module_new("collections", "", false).unwrap();
+    ip.module_run_static(m, "v::[4 5];tick()::{v::v:=[9 1]};local()::{[v];v::[3 4];v::v:=[7 0]}", "<module>").unwrap();
+    let value = ip.module_run_static(m, "tick();[;local();v]", "<call>").unwrap().unwrap();
+    assert_eq!(ip.format(&value), "[[7 4] [4 9]]");
+    assert_eq!(run_with(&mut ip, "v").as_deref(), Ok("[1 2 3]"));
+}
+
+#[cfg(feature = "host")]
+#[test]
+fn collection_assignment_respects_host_numeric_hooks() {
+    let mut ip = interp();
+    ip.host_numeric = Some(std::rc::Rc::new(|op, _, _| match op {
+        "," => Some(Ok(Value::Int(41))),
+        ":=" => Some(Ok(Value::Int(42))),
+        _ => None,
+    }));
+    assert_eq!(run_with(&mut ip, "v::!3;v::v,5").as_deref(), Ok("41"));
+    assert_eq!(run_with(&mut ip, "v::!3;v::v:=[2 0]").as_deref(), Ok("42"));
+}

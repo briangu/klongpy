@@ -1,0 +1,25 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Clumsy Crucible. Dijkstra states store the endpoint and axis of the previous segment.
+   Nonnegative integer costs give a monotonic bucket queue."
+push(s;id;cost)::{[old bucket];old::(s@"dist")@id;
+    :[:[:_old;1;cost<old];
+      {(s@"dist"),id,cost;bucket::(s@"bins")@cost;
+       (s@"bins"),cost,,(:[:_bucket;[];bucket]),id;s,"pending",1+(s@"pending")}();0]}
+extend(s;pos;axis;cost;delta)::{[cell length heat valid];cell::pos;length::0;heat::cost;valid::1;
+    {x;valid&length<(s@"upper")}{x;cell::cell+delta;length::length+1;valid::~((s@"grid")@cell)<0;
+      :[valid;{heat::heat+(s@"grid")@cell;
+        :[~length<(s@"lower");push(s;(2*cell)+1-axis;heat);0]}();0]}:~0;0}
+solve(lines;part;parameter)::{[w h s goal cost best active];
+    w::2+#*lines;h::#lines;goal::(w*h)+w-2;
+    s:::{;"grid";(w#-1),(,/{(-1),({(#x)-48}'x),-1}'lines),w#-1;
+          "lower";:[part=1;1;4];"upper";:[part=1;3;10];"dist";:{};"bins";:{};"pending";0};
+    push(s;2*(w+1);0);push(s;1+2*(w+1);0);cost::0;best::-1;
+    {x;(best<0)&(s@"pending")>0}{x;
+      {x;~:_(s@"bins")@cost}{x;active::(s@"bins")@cost;(s@"bins"),cost,(:{}@0);
+        {[pos axis];s,"pending",(s@"pending")-1;pos::x:%2;axis::x!2;
+         :[pos=goal;best::cost:|cost=(s@"dist")@x;
+           {extend(s;pos;axis;cost;x)}'(:[axis=0;[1 -1];[;w;-w]]);0];0}'active;0}:~0;
+      cost::cost+1}:~0;
+    :[best<0;.err("range";"goal unreachable");best]}
+
+export:::{;"solve";solve}

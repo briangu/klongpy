@@ -1,0 +1,31 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Factory. Choose which buttons are pressed an odd number of times.
+   Subtract those presses and halve the counters to solve the smaller integer problem."
+bits(values)::{+/values*2^!#values}
+inside(word)::{(-1)_1_word}
+numbers(word)::{.num'.split(inside(word);",")}
+patterns(buttons;width)::{[groups];groups:::{};
+    {[mask sum count key old];mask::x;sum::width#0;count::0;
+     {:[(mask:%(2^x))!2;{count::count+1;sum::sum+buttons@x}(x);0]}'!#buttons;
+     key::bits(sum!2);old::groups@key;
+     groups,key,,(:[:_old;[];old]),,[;sum;count]}'!2^#buttons;groups}
+minimum(groups;goal;memo)::{[key cached options best];
+    key::.json(goal);cached::memo@key;
+    :[~:_cached;cached:|0=+/goal;0;
+      {options::groups@bits(goal!2);best::-1;
+       :[:_options;0;
+         {[sum cost]::x;
+          :[0=+/sum>goal;
+           {[rest value];rest::minimum(groups;(goal-sum):%2;memo);
+            :[rest>(-1);{value::cost+2*rest;best:::[best<0;value;best&value]}();0]}();0]}'options];
+       memo,key,best;best}()]}
+machine(line;part)::{[words lights buttons groups goal options answer];words::.words(line);
+    lights::{x~0c#}'inside(*words);goal::numbers(*|words);
+    buttons::{[indices];indices::numbers(x);{0<#indices?x}'!#goal}'1_(-1)_words;
+    groups::patterns(buttons;#goal);
+    answer:::[part=1;{options::groups@bits(lights);:[:_options;-1;&/{x@1}'options]}();
+      minimum(groups;goal;:{})];
+    :[answer<0;.err("range";"unreachable machine target");answer]}
+solve(lines;part;parameter)::{+/machine(;part)'lines}
+
+export:::{;"solve";solve}

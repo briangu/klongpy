@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Print Queue. Topologically order the update's induced graph, using original order for ties."
+fix(update;rules)::{[remaining sorted relevant next];remaining::update;sorted::[];
+    relevant::rules@&{(0<#update?x@0)&0<#update?x@1}'rules;
+    {x;0<#remaining}{[blocked choices];x;blocked::{x@1}'relevant;
+        choices::remaining@&{0=#blocked?x}'remaining;
+        :[0=#choices;.err("range";"cyclic page ordering");0];next::*choices;
+        sorted::sorted,next;remaining::remaining@&~remaining=next;
+        relevant::relevant@&{~next=x@0}'relevant}:~0;sorted}
+middle(update;rules;part)::{[sorted];sorted::fix(update;rules);
+    :[(sorted~update)=(part=1);sorted@((#sorted):%2);0]}
+solve(lines;part;parameter)::{[div rules updates];div::*lines?"";
+    rules::{.num'.split(x;"|")}'div#lines;
+    updates::{.num'.split(x;",")}'(div+1)_lines;+/middle(;rules;part)'updates}
+export:::{;"solve";solve}

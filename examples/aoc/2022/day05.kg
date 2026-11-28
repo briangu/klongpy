@@ -1,0 +1,16 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 5 - Supply Stacks.
+   Each stack has its top at index zero. Reverse the lifted block only for the single-crate crane."
+
+solve(lines;part;row)::{[split labels count crates moves];
+    split::*lines?"";labels::lines@(split-1);count::#.words(labels);crates:::{};
+    { [column letters];column::1+4*x;
+      letters::{:[column<#x;x@column;0c ]}'((split-1)#lines);
+      crates,x,,letters@&{~x~0c }'letters}'!count;
+    moves::(split+1)_lines;
+    { [n src dst from lift];[n src dst]::.num'(.words(x)@[1 3 5]);
+      src::src-1;dst::dst-1;from::crates@src;lift::n#from;
+       :[src=dst;0;{crates,src,,n _ from;crates,dst,,(:[part=1;|lift;lift]),crates@dst}()]}'moves;
+    .join({*(crates@x)}'!count;"")}
+
+export:::{;"solve";solve}

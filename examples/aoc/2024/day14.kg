@@ -1,0 +1,18 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Restroom Redoubt. Evaluate toroidal positions at time t. The tree search recognizes
+   the long horizontal run in the image and searches at most one full motion period."
+robot(line)::{[pos vel]::.words(line);(.num'.split(2_pos;",")),.num'.split(2_vel;",")}
+positions(data;t;w;h)::{[xs ys];xs::(data@0)+t*data@2;ys::(data@1)+t*data@3;
+    [;(w+xs!w)!w;(h+ys!h)!h]}
+safety(coords;w;h)::{[xs ys midx midy q mask];[xs ys]::coords;midx::w:%2;midy::h:%2;
+    mask::&((xs=midx)|(ys=midy))=0;q::((xs>midx)+2*ys>midy)@mask;*/{#q?x}'!4}
+tree(coords;w)::{[xs ys rows found];[xs ys]::coords;rows::?ys;found::0;
+    {[row cols];row::ys?x;
+      :[(~found)&19<#row;
+       {[ordered run last];cols::?xs@row;ordered::cols@<cols;run::0;last::-2;
+         {run:::[x=last+1;run+1;1];found::found|run>10;last::x}'ordered}();0]}'rows;found}
+solve(lines;part;parameter)::{[data w h t];data::+robot'lines;w::parameter;h:::[w=11;7;103];
+    :[part=1;safety(positions(data;100;w;h);w;h);
+      {t::1;{x;:[t>w*h;0;~tree(positions(data;t;w;h);w)]}{x;t::t+1}:~0;
+       :[t>w*h;.err("range";"no tree marker within motion period");t]}()]}
+export:::{;"solve";solve}

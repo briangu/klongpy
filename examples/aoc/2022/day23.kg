@@ -1,0 +1,16 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Unstable Diffusion. Count proposals before moving any elf."
+groups::[[[-1 -1] [-1 0] [-1 1]] [[1 -1] [1 0] [1 1]] [[-1 -1] [0 -1] [1 -1]] [[-1 1] [0 1] [1 1]]]
+proposal(elf;occupied;round)::{[near order open];
+    near::{~|/{~:_occupied@.json(elf+x)}'x}'groups;
+    :[4=+/near;elf;{order::(round+!4)!4;open::order@&near@order;
+       :[#open;elf+(groups@*open)@1;elf]}()]}
+solve(lines;part;parameter)::{[elves round moved occupied targets counts columns];
+    elves::,/{[r];r::x;{[;r;x]}'((lines@r)?"#")}'!#lines;round::0;moved::1;
+    {x;:[part=1;round<10;moved]}{x;occupied:::{};{occupied,.json(x),1}'elves;
+      targets::proposal(;occupied;round)'elves;counts:::{};
+      {[key old];key::.json(x);old::counts@key;counts,key,,:[ :_old;1;old+1]}'targets;
+      targets::{[p];p::targets@x;:[1=counts@.json(p);p;elves@x]}'!#elves;
+      moved::~targets~elves;elves::targets;round::round+1}:~0;
+    :[part=2;round;{columns::+elves;(*/{1+(|/x)-&/x}'columns)-#elves}()]}
+export:::{;"solve";solve}

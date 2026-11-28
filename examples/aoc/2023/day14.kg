@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Parabolic Reflector Dish. Compact each lane toward its beginning and skip repeated board states."
+.l("../parse")
+roll(lane)::{[out to];out::lane;to::0;
+    {[i];i::x;:[(lane@i)=35;to::i+1:|(lane@i)=79;{out::out:=46,i;out::out:=79,to;to::to+1}();0]}'!#lane;out}
+north(grid)::{+roll'+grid}
+spin(grid)::{[g];g::roll'north(grid);g::|north(|g);{|roll(|x)}'g}
+weight(grid)::{+/(|1+!#grid)*{#x?79}'grid}
+solve(lines;part;parameter)::{[g seen i goal key old jumps];g::parse.codes'lines;
+    :[part=1;weight(north(g));{seen:::{};i::0;goal::1000000000;
+      {x;i<goal}{x;key::.json(g);old::seen@key;
+       :[:_old;seen,key,i;{jumps::(goal-i):%(i-old);i::i+jumps*(i-old)}()];
+       :[i<goal;{g::spin(g);i::i+1}();0]}:~0;weight(g)}()]}
+
+export:::{;"solve";solve}

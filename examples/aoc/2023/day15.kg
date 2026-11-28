@@ -1,0 +1,16 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Lens Library. Keep ordered labels in each box and focal lengths by label."
+hash(label)::{[v];v::0;{v::(17*(v+#x))!256}'label;v}
+solve(lines;part;parameter)::{[steps boxes lengths];steps::.split(*lines;",");
+    :[part=1;+/hash'steps;{boxes::256#,[];lengths:::{};
+      {[instr label focal bin list idx];instr::x;
+       :[(instr@(-1))~0c-;{label::(-1)_instr;focal::-1}();
+          {0;[label focal]::.split(instr;"=");focal::.num(focal)}()];
+       bin::hash(label);list::boxes@bin;idx::list?label;
+       :[focal<0;:[#idx;list::list@&{~x=*idx}'!#list;0];
+          {lengths,label,focal;:[#idx;0;list::list,,label]}()];
+       boxes::boxes:=(,list),bin}'steps;
+      0+/{[bin labels];bin::x;labels::boxes@bin;
+          (bin+1)*0+/(1+!#labels)*{lengths@x}'labels}'!256}()]}
+
+export:::{;"solve";solve}

@@ -1,0 +1,13 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 3 - Rucksack Reorganization.
+   Intersect the character codes within two compartments or across three rucksacks."
+
+.l("../parse")
+common(left;right)::{left@&{0<#right?x}'left}
+priority(code)::{:[code<97;code-38;code-96]}
+compartment(items)::{[half];half::(#items):%2;priority(*common(half#items;half _ items))}
+badge(group)::{priority(*common/group)}
+solve(lines;part;row)::{[items];items::parse.codes'lines;
+    :[part=1;+/compartment'items;+/badge'{items@(x+!3)}'3*!((#items):%3)]}
+
+export:::{;"solve";solve}

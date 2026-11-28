@@ -1,0 +1,17 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 13 - Distress Signal.
+   Compare packet lists lexicographically. Counting packets before each divider gives its sorted position."
+
+packet(line)::{.rs(.join(.split(line;",");" "))}
+integer(v)::{(@v)&~v~[]}
+compare(left;right)::{[a b size index result];
+    :[integer(left)&integer(right);(left>right)-left<right;
+      {a:::[integer(left);,left;left];b:::[integer(right);,right;right];size::(#a)&#b;index::0;result::0;
+       {x;(index<size)&result=0}{x;result::compare(a@index;b@index);index::index+1}:~0;
+       :[result=0;((#a)>#b)-(#a)<#b;result]}()]}
+solve(lines;part;row)::{[packets pairs];packets::packet'lines@&{0<#x}'lines;
+    :[part=1;{pairs::!((#packets):%2);
+       0+/(1+pairs)@&{0>compare(packets@(2*x);packets@(1+2*x))}'pairs}();
+      (1++/{1>compare(x;[[2]])}'packets)*2++/{1>compare(x;[[6]])}'packets]}
+
+export:::{;"solve";solve}

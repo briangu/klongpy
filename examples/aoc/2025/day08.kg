@@ -1,0 +1,17 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Playground. Sort all unordered pairs by squared distance and merge components by size."
+rootOf(parent;box)::{ {~x~parent@x}{parent@x}:~box}
+solve(lines;part;parameter)::{[coords n left right distances order parent sizes remaining index final];
+    coords::{.num'.split(x;",")}'lines;n::#coords;
+    left::,/{((n-1)-x)#x}'!(n-1);right::,/{(x+1)+!((n-1)-x)}'!(n-1);
+    distances::+/(+(coords@left)-coords@right)^2;order::<distances;
+    parent::!n;sizes::n#1;remaining::n;index::0;final::0;
+    {x;:[part=1;index<(parameter&#order);remaining>1]}{[edge a b ra rb tmp];x;
+      edge::order@index;a::left@edge;b::right@edge;ra::rootOf(parent;a);rb::rootOf(parent;b);
+      :[ra=rb;0;{:[(sizes@ra)<sizes@rb;{tmp::ra;ra::rb;rb::tmp}();0];
+        parent::parent:=ra,rb;sizes::sizes:=((sizes@ra)+sizes@rb),ra;sizes::sizes:=0,rb;
+        remaining::remaining-1;final::((coords@a)@0)*(coords@b)@0}()];
+      index::index+1}:~0;
+    :[part=1;{[live];live::sizes@&sizes>0;*/live@(3&#live)#>live}();final]}
+
+export:::{;"solve";solve}

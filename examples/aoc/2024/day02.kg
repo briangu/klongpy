@@ -1,0 +1,10 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Red-Nosed Reports. A safe report has adjacent changes of one sign and magnitude 1 to 3."
+.l("../parse")
+safe(levels)::{[steps];:[2>#levels;1;
+    {steps::(1_levels)-(-1)_levels;
+     (&/(steps>0)&steps<4)|&/(steps<0)&steps>(-4)}()]}
+accepted(levels;part)::{:[safe(levels);1:|part=1;0;
+    |/{safe((x#levels),(x+1)_levels)}'!#levels]}
+solve(lines;part;parameter)::{+/accepted(;part)'parse.numbers'lines}
+export:::{;"solve";solve}

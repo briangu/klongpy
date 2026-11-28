@@ -1,0 +1,13 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" 2023 day 1 - Trebuchet.
+   Test digit words at every starting position so overlapping words such as oneight both count."
+
+words::["one" "two" "three" "four" "five" "six" "seven" "eight" "nine"]
+digitAt(line;index;part)::{[code hits];code::(#line@index)-48;
+    :[(code>(-1))&code<10;code:|part=1;-1;
+      {hits::&{((#x)<1+(#line)-index)&x~(#x)#index _ line}'words;:[#hits;1+*hits;-1]}()]}
+calibration(line;part)::{[digits];digits::digitAt(line;;part)'!#line;digits::digits@&digits>(-1);
+    (10*(*digits))+*|digits}
+solve(lines;part;row)::{+/calibration(;part)'lines}
+
+export:::{;"solve";solve}

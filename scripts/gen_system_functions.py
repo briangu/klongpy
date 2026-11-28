@@ -32,6 +32,7 @@ HEADER = re.compile(r"^(?P<head>.*?)\s{2,}\[(?P<title>[^\]]+)\]\s*$")
 
 GROUPS = [
     ("Evaluation and output", "", ".E .d .p .pf .fmt .w .bkd .bkp .x .l .module .pc .now .rn .seed .sys .try .err .mem .ver"),
+    ("Integer arithmetic", "", ".bitxor .exactadd .exactsub .exactmul .exactdiv"),
     ("Reading and files", "", ".r .rl .rls .rs .mi .ic .oc .ac .cc .fc .tc .fl .df"),
     ("Strings", "", ".split .join .words .trim .num"),
     ("JSON", "See [JSON](language-additions.md#json).", ".json .unjson"),
@@ -57,6 +58,11 @@ GROUPS = [
 ]
 
 DESC = {
+    ".bitxor": "Compute the bitwise exclusive OR of signed machine integers or packed integer arrays.",
+    ".exactadd": "Return the exact sum of two scalar integers.",
+    ".exactmul": "Return the exact product of two scalar integers.",
+    ".exactsub": "Return the exact difference of two scalar integers.",
+    ".exactdiv": "Return the exact quotient of two scalar integers, requiring divisibility.",
     ".E": "Evaluate a string of Klong at global scope and return the result.",
     ".d": "Display a value without a newline (strings print without quotes).",
     ".p": "Display a value followed by a newline.",
@@ -163,6 +169,11 @@ DESC = {
 # Examples run at generation time: name -> list of expressions (one block per name,
 # one interpreter per block, so later lines may use earlier ones).
 EXAMPLES = {
+    ".bitxor": [".bitxor(6;3)", ".bitxor([4 5 6];3)"],
+    ".exactadd": [".exactadd(9223372036854775807;1)"],
+    ".exactmul": [".exactmul(3037000500;3037000500)"],
+    ".exactsub": [".exactsub(-9223372036854775808;1)"],
+    ".exactdiv": [".exactdiv(10^80;10^40)"],
     ".E": ['.E("a::123");a'],
     ".p": ['.p([1 2 3])'],
     ".fmt": ['.fmt("Spot: {}";3.5)', '.fmt("{1} {0}";[;1;2])', '.fmt("{:8}";"ab")',

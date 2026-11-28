@@ -1,0 +1,10 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Grove Positioning System. Mix original indices, preserving the identity of equal values."
+solve(lines;part;parameter)::{[values ids length period rounds zero];
+    values::(.num'lines)*:[part=1;1;811589153];length::#values;period::length-1;
+    ids::!length;rounds:::[part=1;1;10];
+    {x;{[id old pos];id::x;old::*ids?id;
+        pos::(period+((old+values@id)!period))!period;
+        ids::(old#ids),(old+1)_ids;ids::(pos#ids),id,pos _ ids}'!length}'!rounds;
+    values::values@ids;zero::*values?0;+/values@((zero+[1000 2000 3000])!length)}
+export:::{;"solve";solve}

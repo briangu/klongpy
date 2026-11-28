@@ -1,0 +1,10 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 6 - Tuning Trouble.
+   Gather a window from the signal and stop at the first window with distinct characters."
+
+marker(signal;width)::{[index last offsets];offsets::!width;last::(#signal)-width;
+    index::{:[x>last;0;width>#?signal@(x+offsets)]}{x+1}:~0;
+    :[index>last;.err("range";"no distinct marker");index+width]}
+solve(lines;part;row)::{marker(*lines;:[part=1;4;14])}
+
+export:::{;"solve";solve}

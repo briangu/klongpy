@@ -1,0 +1,10 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Point of Incidence. A reflection boundary must have exactly the requested mismatch count."
+.l("../parse")
+boundary(rows;errors)::{[answer];answer::0;
+    {[i n left right mismatches];i::x;n::i&(#rows)-i;left::,/(|(-n)#i#rows);right::,/n#i _ rows;
+      mismatches::+/0=left=right;:[mismatches=errors;answer::i;0]}'1+!(#rows)-1;answer}
+solve(lines;part;parameter)::{[groups];groups::parse.blocks(lines);
+    +/{[grid];grid::parse.codes'x;((100*boundary(grid;part-1))+boundary(+grid;part-1))}'groups}
+
+export:::{;"solve";solve}

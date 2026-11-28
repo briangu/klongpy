@@ -1,0 +1,21 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" 2023 day 5 - If You Give A Seed A Fertilizer.
+   Carry half-open seed intervals through source-sorted maps, including the unchanged gaps."
+
+.l("../parse")
+bounds(seed;length)::{[;seed;seed+length]}
+mapInterval(interval;mapping)::{[lo hi out];[lo hi]::interval;out::[];
+    { [dst src size from to];[dst src size]::x;
+      from::lo|src;to::hi&src+size;
+      :[from<to;{:[lo<from;out::out,,[;lo;from];0];
+        out::out,,((dst-src)+[;from;to]);lo::to}();0]}'mapping;
+    :[lo<hi;out::out,,[;lo;hi];0];out}
+table(block)::{[rows];rows::parse.numbers'1_block;rows@<{x@1}'rows}
+solve(lines;part;row)::{[blocks seeds intervals maps];blocks::parse.blocks(lines);
+    seeds::parse.numbers(.split(*(*blocks);":")@1);
+    intervals:::[part=1;bounds(;1)'seeds;{bounds(x@0;x@1)}'([-1 2]:^seeds)];
+    maps::table'1_blocks;
+    {[mapping];mapping::x;intervals::,/mapInterval(;mapping)'intervals}'maps;
+    &/{x@0}'intervals}
+
+export:::{;"solve";solve}

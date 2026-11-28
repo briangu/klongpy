@@ -1,0 +1,18 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Chronospatial Computer. Execute the eight opcodes. For the quine, reconstruct A
+   in base eight from suffixes, verifying the entire VM output at every extension."
+shift(a;bits)::{:[bits<63;a:%2^bits:|a<2^62;0;shift(a:%2^62;bits-62)]}
+execute(code;a;b;c)::{[ip out op arg combo];ip::0;out::[];
+    {x;ip<#code}{x;op::code@ip;arg::code@(ip+1);ip::ip+2;
+      combo:::[arg=4;a:|arg=5;b:|arg=6;c;arg];
+      :[op=0;a::shift(a;combo):|op=1;b::.bitxor(b;arg):|op=2;b::combo!8:|
+        op=3;:[a>0;ip::arg;0]:|op=4;b::.bitxor(b;c):|op=5;out::out,combo!8:|
+        op=6;b::shift(a;combo);c::shift(a;combo)]}:~0;out}
+solve(lines;part;parameter)::{[a b c code candidates];
+    [a b c]::{.num(*|.words(x))}'3#lines;code::.num'.split(*|.words(*|lines);",");
+    :[part=1;.join({$x}'execute(code;a;b;c);",");
+      {candidates::,0;
+        {[suffix expanded];suffix::x _ code;expanded::,/{(8*x)+!8}'candidates;
+          candidates::expanded@&{suffix~execute(code;x;b;c)}'expanded}'|!#code;
+        :[#candidates;&/candidates;.err("range";"no octal quine candidate")]}()]}
+export:::{;"solve";solve}

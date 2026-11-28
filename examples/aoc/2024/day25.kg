@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Code Chronicle. Column occupancy counts include the base row of each lock and key."
+.l("../parse")
+profile(block)::{[columns];columns::+{{x~0c#}'x}'block;{+/x}'columns}
+solve(lines;part;parameter)::{[blocks locks keys height];blocks::parse.blocks(lines);height::#*blocks;
+    locks::profile'blocks@&{(*(*x))~0c#}'blocks;
+    keys::profile'blocks@&{(*(*x))~0c.}'blocks;
+    0+/{[lock];lock::x;0+/{~|/(lock+x)>height}'keys}'locks}
+export:::{;"solve";solve}

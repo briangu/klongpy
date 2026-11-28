@@ -1,0 +1,13 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" 2023 day 2 - Cube Conundrum.
+   Keep the largest observed draw of each color for each game."
+
+game(line;part)::{[header body cubes pulls values];
+    [header body]::.split(line;":");cubes:::{;"red";0;"green";0;"blue";0};
+    pulls::.split(.join(.split(body;";");",");",");
+    {[amount color]::.words(x);cubes,color,,(.num(amount))|cubes@color}'pulls;
+    values::cubes@["red" "green" "blue"];
+    :[part=2;*/values:|0=+/values>[12 13 14];.num(*|.words(header));0]}
+solve(lines;part;row)::{+/game(;part)'lines}
+
+export:::{;"solve";solve}

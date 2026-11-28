@@ -1,0 +1,18 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Monkey Math. Fold constant branches, then invert the operations on the path to humn."
+calc(a;op;b)::{:[op~"+";a+b:|op~"-";a-b:|op~"*";a*b;a:%b]}
+evaluate(jobs;name;unknown)::{[words a b];words::jobs@name;
+    :[unknown&name~"humn";:undefined:|1=#words;.num(*words);
+      {a::evaluate(jobs;words@0;unknown);b::evaluate(jobs;words@2;unknown);
+       :[(:_a)|:_b;:undefined;calc(a;words@1;b)]}()]}
+isolate(jobs;name;goal)::{[words left op right a b];
+    :[name~"humn";goal;
+      {words::jobs@name;[left op right]::words;a::evaluate(jobs;left;1);b::evaluate(jobs;right;1);
+       :[:_a;isolate(jobs;left;:[op~"+";goal-b:|op~"-";goal+b:|op~"*";goal:%b;goal*b]);
+         isolate(jobs;right;:[op~"+";goal-a:|op~"-";a-goal:|op~"*";goal:%a;a:%goal])]}()]}
+solve(lines;part;parameter)::{[jobs root a b];jobs:::{};
+    {[key rhs]::.split(x;": ");jobs,key,,.words(rhs)}'lines;
+    :[part=1;evaluate(jobs;"root";0);
+      {root::jobs@"root";a::evaluate(jobs;root@0;1);b::evaluate(jobs;root@2;1);
+       :[:_a;isolate(jobs;root@0;b);isolate(jobs;root@2;a)]}()]}
+export:::{;"solve";solve}

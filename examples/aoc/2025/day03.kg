@@ -1,0 +1,10 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Lobby. Take the first maximum digit that leaves enough digits for the suffix."
+bank(line;count)::{[digits position total];digits::{(#x)-48}'line;position::0;total::0;
+    {[remaining choices digit];remaining::count-x;
+     choices::(1+(#digits)-position+remaining)#position _ digits;
+     digit::|/choices;position::position+1+*choices?digit;
+     total::digit+10*total}'!count;total}
+solve(lines;part;parameter)::{+/bank(;:[part=1;2;12])'lines}
+
+export:::{;"solve";solve}

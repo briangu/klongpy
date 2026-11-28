@@ -1,0 +1,12 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 2 - Rock Paper Scissors.
+   Number rock, paper and scissors 0 through 2. Their difference modulo three determines the outcome."
+
+score(line;part)::{[opponent code shape outcome];
+    opponent::(#line@0)-#0cA;code::(#line@2)-#0cX;
+    shape:::[part=1;code;(2+opponent+code)!3];
+    outcome:::[part=1;(4+shape-opponent)!3;code];
+    1+shape+3*outcome}
+solve(lines;part;row)::{+/score(;part)'lines}
+
+export:::{;"solve";solve}

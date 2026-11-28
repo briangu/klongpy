@@ -1,0 +1,22 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Blizzard Basin. Test a tile by looking backwards along each wind's trajectory."
+mod(n;base)::{(base+n!base)!base}
+free(b;pos;minute)::{[r c];r::pos:%b.stride;c::pos!b.stride;
+    :[(pos=b.start)|pos=b.end;1:|(r<1)|(r>b.h)|(c<1)|c>b.w;0;
+      ~((0c>~(b.grid@r)@(1+mod((c-1)-minute;b.w)))|
+        (0c<~(b.grid@r)@(1+mod((c-1)+minute;b.w)))|
+        (0cv~(b.grid@(1+mod((r-1)-minute;b.h)))@c)|
+        (0c^~(b.grid@(1+mod((r-1)+minute;b.h)))@c))]}
+gcd(a;b)::{:[b=0;a;gcd(b;a!b)]}
+trip(b;start;end;minute)::{[front next seen phase period];front::,start;
+    period::(b.h*b.w):%gcd(b.h;b.w);seen:::{};
+    {x;0=#front?end}{x;minute::minute+1;
+      next::?,/{x+b.steps}'front;front::next@&free(b;;minute)'next;
+      phase::(minute!period)*b.stride*(#b.grid);
+      front::front@&{:_seen@(phase+x)}'front;{seen,(phase+x),1}'front;
+      :[0=#front;.err("range";"no route through valley");0]}:~0;minute}
+solve(lines;part;parameter)::{[width start end b first];width::#*lines;
+    start::*(*lines)?".";end::((#lines)-1)*width;end::end+*(*|lines)?".";
+    b:::{;"grid";lines;"stride";width;"h";(#lines)-2;"w";width-2;"start";start;"end";end;"steps";[;0;1;-1;width;-width]};
+    first::trip(b;start;end;0);:[part=1;first;trip(b;start;end;trip(b;end;start;first))]}
+export:::{;"solve";solve}

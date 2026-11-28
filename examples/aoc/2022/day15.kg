@@ -1,0 +1,29 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 15 - Beacon Exclusion Zone.
+   Project each sensor onto the target row, merge the covered intervals, and subtract known beacons."
+
+sensor(line)::{[words];words::.words(line);
+    .num'{.trim(.join(.split(.join(.split(2_x;",");"");":");""))}'words@[2 3 8 9]}
+span(s;row)::{[sx sy bx by width];[sx sy bx by]::s;
+    width::((#(sx-bx))+#(sy-by))-#(sy-row);[;sx-width;sx+width]}
+excluded(sensors;row)::{[spans right covered beacons];
+    spans::span(;row)'sensors;spans::spans@&{~(x@0)>x@1}'spans;
+    :[0=#spans;0;{spans::spans@<{x@0}'spans;right::(*spans)@0;covered::0;
+      {[a b]::x;covered::covered+0|((b+1)-(a|right));right::right|b+1}'spans;
+      beacons::?{x@2}'sensors@&{row=x@3}'sensors;covered-#beacons}()]}
+
+radius(s)::{(#((s@0)-s@2))+#((s@1)-s@3)}
+distress(sensors;limit)::{[r sum diff plus minus candidates found];
+    r::1+radius'sensors;sum::{(x@0)+x@1}'sensors;diff::{(x@0)-x@1}'sensors;
+    plus::?(sum-r),sum+r;minus::?(diff-r),diff+r;
+    candidates::[[0 0]];candidates::candidates,,[;limit;0];candidates::candidates,,[;0;limit];candidates::candidates,,[;limit;limit];
+    {[p];p::x;candidates::candidates,[;[;p;0];[;0;p];[;limit;p-limit];[;p-limit;limit]];
+     {[a b];a::p+x;b::p-x;:[0=a!2;candidates::candidates,,[;a:%2;b:%2];0]}'minus}'plus;
+    {[d];d::x;candidates::candidates,[;[;d;0];[;0;-d];[;limit;limit-d];[;limit+d;limit]]}'minus;
+    candidates::?candidates@&{(( &/x)>(-1))&~(|/x)>limit}'candidates;
+    found::candidates@&{[point];point::x;~|/{(radius(x))>(((#((point@0)-x@0))+#((point@1)-x@1))-1)}'sensors}'candidates;
+    :[1=#found;(4000000*((*found)@0))+(*found)@1;.err("range";"expected one uncovered location")]}
+solve(lines;part;parameter)::{[sensors];sensors::sensor'lines;
+    :[part=1;excluded(sensors;parameter);distress(sensors;parameter)]}
+
+export:::{;"solve";solve}

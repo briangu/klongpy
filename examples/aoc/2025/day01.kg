@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Secret Entrance. Count complete revolutions, then check whether the residual arc reaches zero."
+solve(lines;part;parameter)::{[position clicks];position::50;clicks::0;
+    {[turn distance arc left hits];turn::x;distance::.num(1_turn);arc::distance!100;left::(turn@0)~0cL;
+     hits::(distance:%100)+:[left;(position>0)&~arc<position;~(position+arc)<100];
+     position::(100+position+:[left;-arc;arc])!100;
+     clicks::clicks+:[part=1;position=0;hits]}'lines;clicks}
+
+export:::{;"solve";solve}

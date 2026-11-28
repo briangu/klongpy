@@ -1,0 +1,77 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Pulse Propagation. Process signals in FIFO order. If rx is fed by independent
+   branches of a conjunction, detect each branch's full state cycle separately.
+   Within a press, FIFO sorts paths from the button by length then by edge order.
+   This lets us align actual high-memory intervals even when a branch sends
+   multiple pulses, or remembers a high pulse across button presses."
+network(lines)::{[parts names labels outs kinds edges parents memory count];
+    parts::{.split(x;" -> ")}'lines;labels::{*x}'parts;outs::{.split(x@1;", ")}'parts;
+    kinds::{:[(x@0)~0c%;1:|(x@0)~0c&;2;0]}'labels;
+    labels::{:[x~"broadcaster";x;1_x]}'labels;names::?labels,,/outs;count::#names;
+    edges::count#,[];parents::count#,[];memory:::{};
+    {[from to];from::x;to::{*names?x}'outs@from;edges::edges:=(,to),from;
+      {parents::parents:=(,(parents@x),from),x}'to}'!#labels;
+    kinds::kinds,(count-#labels)#0;
+    {:[(kinds@x)=2;memory,x,,(#parents@x)#0;memory,x,0]}'!count;
+    :{;"edges";edges;"parents";parents;"kinds";kinds;"memory";memory;
+      "start";*names?"broadcaster";"rx";:[#names?"rx";*names?"rx";-1]}}
+press(s;watch)::{[edges parents kinds memory start rx queue index low high hit log];
+    edges::(s.edges);parents::(s.parents);kinds::(s.kinds);memory::(s.memory);start::(s.start);rx::(s.rx);
+    queue::,[;-1;start;0;""];index::0;low::0;high::0;hit::0;log:::{};
+    {x;index<#queue}{[from to bit path old emit kind dests];x;[from to bit path]::queue@index;index::index+1;
+      high::high+bit;low::low+1-bit;hit::hit|(~bit)&to=rx;kind::kinds@to;emit::bit;
+      :[to=watch;{old::log@from;log,from,,(:[:_old;[];old]),,[;path;bit]}();0];
+      :[kind=1;:[bit;emit::-1;{emit::~memory@to;memory,to,emit}()]:|kind=2;
+        {old::memory@to;old::old:=bit,*((parents@to)?from);memory,to,,old;emit::~&/old}();0];
+      :[~emit<0;{dests::edges@to;
+        {queue::queue,,[;to;dests@x;emit;:[watch<0;"";path, :#32+x]]}'!#dests}();0]}:~0;
+    [;low;high;hit;log]}
+ancestors(s;node)::{[seen todo nodes];seen:::{};todo::,node;nodes::[];
+    {x;#todo}{[i];x;i::*todo;todo::1_todo;
+      :[:_seen@i;{seen,i,1;todo::todo,(s.parents)@i;:[(s.kinds)@i;nodes::nodes,i;0]}();0]}:~0;nodes}
+gcdex(a;b)::{[g p q];:[b=0;[;a;1;0];{[g p q]::gcdex(b;a!b);[;g;q;p-(a:%b)*q]}()]}
+modulo(n;m)::{(m+n!m)!m}
+congruence(pair;residue;period)::{[a m g inv other d factor];
+    [a m]::pair;[g inv other]::gcdex(m;period);d::residue-a;factor::period:%g;
+    :[d!g;[];[;modulo(a+m*modulo((d:%g)*inv;factor);m*factor);m*factor]]}
+aligned(solutions;residues;period)::{[next];next::[];
+    :[(#residues)=period;solutions;
+      {{[pair];pair::x;{[new];new::congruence(pair;x;period);:[#new;next::next,,new;0]}'residues}'solutions;?next}()]}
+after(a;b)::{:[(#a)=#b;b<a;(#a)>#b]}
+valueAt(trace;path;trigger)::{[value events];[value events]::trace;
+    :[trigger;|/0,{((x@0)~path)&x@1}'events;
+      {{:[~after(x@0;path);value::x@1;0]}'events;value}()]}
+periodic(branches;lower)::{[events answer];events:::{};answer::-1;
+    {[b];b::x;
+      {[t rec key group];t::x+(b.begin);rec::(b.records)@t;key::.json(rec);group::(b.patterns)@key;
+        :[:_group;{group:::{;"trace";rec;"residues";[]};(b.patterns),key,,group;
+           {:[x@1;events,(x@0),(b.input);0]}'rec@1}();0];
+        group,"residues",,(group.residues),t!(b.period)}'!(b.period)}'branches;
+    {[path source solutions];[path source]::x;solutions::,[0 1];
+      {[b matches];b::x;matches::[];
+        {[group];group::x@1;:[valueAt((group.trace);path;source=(b.input));matches::matches,(group.residues);0]}'(b.patterns);
+        solutions::aligned(solutions;matches;(b.period))}'branches;
+      {[a m next];[a m]::x;next::a+m*((0|lower-a)+m-1):%m;
+        :[(answer<0)|next<answer;answer::next;0]}'solutions}'events;answer}
+solve(lines;part;parameter)::{[s low high watch rxparents branches leaves all seen n answer log];
+    s::network(lines);
+    :[part=1;{low::0;high::0;{[r];x;r::press(s;-2);low::low+r@0;high::high+r@1}'!1000;low*high}();
+      {watch::-2;branches::[];seen:::{};n::1;answer::-1;
+       :[(s.rx)<0;.err("range";"network has no rx");0];rxparents::(s.parents)@(s.rx);
+       :[1=#rxparents;:[2=(s.kinds)@*rxparents;{watch::*rxparents;leaves::(s.parents)@watch;all::[];
+         {[nodes];nodes::ancestors(s;x);all::all,nodes;branches::branches,,:{;"input";x;"nodes";nodes;
+           "seen";:{};"records";:{};"patterns";:{};"period";0;"begin";0}}'leaves;
+         :[((#all)>#?all)|0<#all?watch;{watch::-2;branches::[]}();0]}();0];0];
+       {x;answer<0}{[previous key old r];x;
+         :[watch<0;{key::.json({(s.memory)@x}'!#(s.kinds));:[~:_seen@key;.err("range";"rx never receives low");seen,key,1]}();
+           {previous::(s.memory)@watch;
+            {[b key old];b::branches@x;
+              :[0=(b.period);{key::.json([;previous@x;{(s.memory)@x}'(b.nodes)]);old::(b.seen)@key;
+                :[:_old;(b.seen),key,n;{b,"begin",old;b,"period",n-old}()]}(x);0]}'!#branches;
+            :[&/{x.period>0}'branches;{answer::periodic(branches;n);
+              :[answer<0;.err("range";"rx never receives low");0]}();0]}()];
+         :[answer<0;{r::press(s;watch);:[r@2;answer::n;0];log::r@3;
+           {[b emissions];b::branches@x;:[0=(b.period);{emissions::log@(b.input);
+             (b.records),n,,[;previous@x;:[:_emissions;[];emissions]]}(x);0]}'!#branches;n::n+1}();0]}:~0;answer}()]}
+
+export:::{;"solve";solve}

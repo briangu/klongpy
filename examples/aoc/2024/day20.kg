@@ -1,0 +1,19 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Race Condition. Each cheat is an ordered pair of open tiles at Manhattan
+   distance within the budget. Use BFS distances from both ends of the track."
+bfs(grid;width;start)::{[dist level front dirs];dist::(#grid)#-1;dist::dist:=0,start;
+    front::,start;level::0;dirs::[;1;-1;width;-width];
+    {x;0<#front}{[near];x;near::?,/{x+dirs}'front;level::level+1;
+      front::near@&((dist@near)=-1)&(grid@near)>0;{dist::dist:=level,x}'front}:~0;dist}
+solve(lines;part;saving)::{[w width edge grid start end ds de normal limit offsets lengths];
+    w::#*lines;limit:::[part=1;2;20];width::w+2*limit;edge::(width*limit)#0;
+    grid::edge,(,/{(limit#0),({~x~0c#}'x),limit#0}'lines),edge;
+    start::(*(.join(lines;""))?"S");end::(*(.join(lines;""))?"E");
+    start::(limit+start!w)+width*limit+start:%w;end::(limit+end!w)+width*limit+end:%w;
+    ds::bfs(grid;width;start);de::bfs(grid;width;end);normal::ds@end;
+    offsets::[];lengths::[];
+    {[dr span cols];dr::x-limit;span::limit-#dr;cols::(!1+2*span)-span;
+     offsets::offsets,(dr*width)+cols;lengths::lengths,(#dr)+{#x}'cols}'!1+2*limit;
+    0+/{[i left remaining];i::x;left::normal-(saving+ds@i);remaining::de@(i+offsets);
+        +/(remaining>(-1))&~(lengths+remaining)>left}'&ds>(-1)}
+export:::{;"solve";solve}

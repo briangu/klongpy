@@ -1,0 +1,31 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Movie Theater. Compress both coordinates to vertex positions and their neighbouring tiles.
+   An integral image of exterior tiles makes each rectangle containment query constant time."
+axis(nums)::{[all];all::?(nums-1),nums,nums+1;all@<all}
+positions(axis;values)::{ {*axis?x}'values}
+outsideRow(edges;width;r)::{[flips border spans inside];
+    flips::width#0;border::width#0;spans::width#0;
+    {[a b c d]::x;
+     :[a=c;
+       {:[(r>(b&d)-1)&r<(b|d)+1;border::border:=1,a;0];
+        :[(r>(b&d)-1)&r<(b|d);flips::flips:=((flips@a)+1),a;0]}()
+       :|r=b;{spans::spans:=((spans@(a&c))+1),(a&c);
+              spans::spans:=((spans@(1+a|c))-1),(1+a|c)}();0]}'edges;
+    inside::border|((+\flips)!2)|(0<+\spans);
+    0,+\1-inside}
+
+solve(lines;part;parameter)::{[points cols rows xs ys cx cy edges prefix best];
+    points::{.num'.split(x;",")}'lines;cols::{x@0}'points;rows::{x@1}'points;best::0;
+    :[part=2;{xs::axis(cols);ys::axis(rows);cx::positions(xs;cols);cy::positions(ys;rows);
+       edges::{[j];j::(x+1)!#points;[;cx@x;cy@x;cx@j;cy@j]}'!#points;
+       prefix::+\(,((1+#xs)#0)),outsideRow(edges;#xs;)'!#ys}();0];
+    {[i];i::x;
+     {[area l r t b count];area::(1+#((cols@i)-cols@x))*1+#((rows@i)-rows@x);
+      :[area>best;
+        :[part=1;best::area;
+          {l::(cx@i)&cx@x;r::1+(cx@i)|cx@x;t::(cy@i)&cy@x;b::1+(cy@i)|cy@x;
+           count::(((prefix@b)@r)+((prefix@t)@l))-(((prefix@t)@r)+((prefix@b)@l));
+           :[0=count;best::area;0]}(x)];0]
+     }'(i+1)+!((#points)-(i+1))}'!(#points)-1;best}
+
+export:::{;"solve";solve}

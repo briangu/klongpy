@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Hoof It. Follow strictly increasing heights, merging equal endpoints only for the trailhead score."
+peaks(grid;width;pos)::{[height dirs next];height::grid@pos;dirs::[;1;-1;width;-width];
+    :[height=57;,pos;{next::pos+dirs;next::next@&((height+1)=grid@next);
+        ,/peaks(grid;width;)'next}()]}
+solve(lines;part;parameter)::{[w edge grid starts];w::2+#*lines;edge::w#0;
+    grid::edge,(,/{0,({#x}'x),0}'lines),edge;starts::grid?48;
+    0+/{[ends];ends::peaks(grid;w;x);:[part=1;#?ends;#ends]}'starts}
+export:::{;"solve";solve}

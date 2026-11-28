@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Bridge Repair. Undo operations from the target to keep the search tree small."
+.l("../parse")
+possible(nums;i;target;part)::{[last power];last::nums@i;
+    :[i=0;target=last:|target<0;0:|(last=0)&target=0;1;
+      {power::10^#$last;
+       :[(part=2)&last=target!power;:[possible(nums;i-1;target:%power;part);1;other(nums;i;target;last;part)];
+         other(nums;i;target;last;part)]}()]}
+other(nums;i;target;last;part)::{:[last>0;
+    :[0=target!last;:[possible(nums;i-1;target:%last;part);1;possible(nums;i-1;target-last;part)];
+      possible(nums;i-1;target-last;part)];possible(nums;i-1;target;part)]}
+calibrate(line;part)::{[goal fields nums];[goal fields]::.split(line;": ");goal::.num(goal);nums::parse.numbers(fields);
+    goal*possible(nums;(#nums)-1;goal;part)}
+solve(lines;part;parameter)::{+/calibrate(;part)'lines}
+export:::{;"solve";solve}

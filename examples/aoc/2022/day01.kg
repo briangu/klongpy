@@ -1,0 +1,10 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 1 - Calorie Counting.
+   Blank lines separate inventories. Rank the totals once for the top three."
+
+.l("../parse")
+calories(group)::{+/.num'group}
+solve(lines;part;row)::{[totals];totals::calories'parse.blocks(lines);
+    :[part=1;|/totals;+/totals@((3&#totals)#>totals)]}
+
+export:::{;"solve";solve}

@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 7 - No Space Left On Device.
+   Keep the path to each ancestor. A newly listed file contributes its bytes to every ancestor."
+
+solve(lines;part;row)::{[paths sizes seen totals needed];paths::, "/";sizes:::{;"/";0};seen:::{};
+    { [words name child bytes];words::.words(x);
+      :["$ cd /"~x;paths::, "/":|"$ cd .."~x;paths::(-1)_paths:|"$ cd "~5#x;
+        {child::(*|paths),(words@2),"/";paths::paths,,child;
+         :[:_sizes@child;sizes,child,0;0]}():|:_ .num(*words);0;
+        {name::(*|paths),.join(1_words;" ");bytes::.num(*words);
+         :[:_seen@name;{seen,name,1;{sizes,x,,bytes+sizes@x}'paths}();0]}()]}'lines;
+    totals::{x@1}'sizes;needed::(sizes@"/")-40000000;
+    :[part=1;0+/totals@&~totals>100000;&/totals@&~totals<needed]}
+
+export:::{;"solve";solve}

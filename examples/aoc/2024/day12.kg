@@ -1,0 +1,15 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Garden Groups. Flood-fill each region. Each convex or concave corner adds a boundary side."
+price(board;w;start;visited;part)::{[plant dirs front area fence];plant::board@start;dirs::[;1;w;-1;-w];
+    visited,start,1;front::,start;area::0;fence::0;
+    {x;0<#front}{[next];x;area::area+#front;next::[];
+     {[p same];p::x;same::plant=board@(p+dirs);
+      :[part=1;fence::fence+4-+/same;
+        { [after diag];after::same@[1 2 3 0];diag::plant=board@(p+dirs+dirs@[1 2 3 0]);
+          fence::fence++/((1-same)&1-after)|(same&after)&1-diag}()];
+      {:[ :_visited@x;{visited,x,1;next::next,x}(x);0]}'p+dirs@&same}'front;
+     front::next}:~0;area*fence}
+solve(lines;part;parameter)::{[w edge board visited];w::2+#*lines;edge::w#-1;
+    board::edge,(,/{(-1),({#x}'x),-1}'lines),edge;visited:::{};
+    0+/{:[:_visited@x;price(board;w;x;visited;part);0]}'&board>(-1)}
+export:::{;"solve";solve}

@@ -30,7 +30,7 @@ $ kg -e '.l("nstat");.p(nstat.sd([1 2 3 4]))'
 
 ## How it relates to KlongPy
 
-The conformance suite has 2220 cases for desktop `kg`. Each case pins the printed value or the error kind, and can also check console output. Both desktop commands use the same cases. The runner selects cases based on the features each host or target declares. Golden tests also compare 169 parse trees byte for byte. [Conformance suite](../conformance.md)
+The conformance suite has 2227 cases for desktop `kg`. Each case pins the printed value or the error kind, and can also check console output. Both desktop commands use the same cases. The runner selects cases based on the features each host or target declares. Golden tests also compare 169 parse trees byte for byte. [Conformance suite](../conformance.md)
 
 These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.
 
@@ -40,7 +40,7 @@ These are the differences. All of them follow from having no Python and no numpy
 | Tables and SQL | Built-in `.table` and `.db`, plus pandas and Arrow interchange | Desktop `kg` has the same table and SQL primitives. Firmware can enable in-memory tables. |
 | Other desktop functions | `.sys`, `.rls`, `.web`, `.ws`, FPGA card bindings, `.bkd` and `.bkp` | These functions require `kgpy`. |
 | Arrays and gradients | NumPy arrays, or PyTorch tensors with autograd | Native vectors on CPU. A macOS build with Metal supports device arrays and `:>` for a subset of operations. |
-| Integers | 64 bits, wrapping; a long literal or a long operand is exact for `+ - * < > \| &` | 64 bits, wrapping (32 with the feature `int32`); a long literal or a long operand is exact for `+ - * % :% < > = \| &`, and a scalar `^` of two integers is exact, as in KlongPy (the cargo feature `bigint`, on for the desktop binary, off for boards: there a literal that does not fit is a `syntax` error) |
+| Integers | 64 bits, wrapping; a long literal or a long operand is exact for `+ - * < > \| &` | 64 bits, wrapping (32 with the feature `int32`); a long literal or a long operand is exact for `+ - * < > = \| &`, and a scalar `^` of two integers is exact, as in KlongPy (the cargo feature `bigint`, on for the desktop binary, off for boards: there a literal that does not fit is a `syntax` error) |
 | Floats | 64 bits | 64 bits by default, 32 with the feature `float32` |
 | Strings | Unicode code points | Unicode code points, as KlongPy: `#"héllo"` is 5 and indexing counts code points. The runtime stores UTF-8; a string is always valid text |
 | Data nesting | a list nested 300 levels works | at most 128 levels of nested lists, by default (a `range` error beyond) |
@@ -85,10 +85,10 @@ This table is the status of every hardware target. Each row says what ran and it
 
 | Area | Result | Where it ran |
 |---|---|---|
-| The language, default build (64-bit) | 2220 of 2220 conformance cases (2026-11-19); 169 of 169 parse trees | desktop |
+| The language, default build (64-bit) | 2227 of 2227 conformance cases (2026-11-27); 169 of 169 parse trees | desktop |
 | The language, 32-bit build (`int32`, `float32`) | 1408 of 1408 cases that the build declares (2026-11-18) | desktop |
 | The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
-| The serial console | 1716 of 1716 cases through `^A run` (2026-11-19) | simulated boards |
+| The serial console | 1720 of 1720 cases through `^A run` (2026-11-27) | simulated boards |
 | The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases when it was run; see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |
 | Speed | `fib(24)` 4.2 s on the board, against about 35 ms on a desktop (Apple M2 Ultra); **the cause is not investigated** | an ESP32-P4 and the desktop |

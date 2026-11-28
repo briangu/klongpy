@@ -1,0 +1,26 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Step Counter. A shortest-distance layer can spend remaining pairs of steps
+   retracing an edge. For the repeating garden, sample at the same tile phase
+   and extrapolate once five consecutive second differences agree."
+gcd(a;b)::{:[b=0;a;gcd(b;a!b)]}
+solve(lines;part;steps)::{[w h grid start stride pad origin offsets seen front layer counts series result period];
+    h::#lines;w::#*lines;grid::,/lines;start::*grid?"S";period::(w*h):%gcd(w;h);
+    stride::(2*steps)+w+3;pad::steps+1;origin::(stride*pad+start:%w)+pad+start!w;
+    offsets::[;1;-1;stride;-stride];front::,origin;seen:::{};seen,origin,1;
+    layer::0;counts::[1 0];series::[];result::-1;
+    {x;(result<0)&~layer>steps}{[candidates cols rows tiles legal added parity amount diff second left];x;
+      parity::layer!2;amount::counts@parity;
+      :[layer=steps;result::amount:|(part=2)&(layer!period)=steps!period;
+        {series::series,amount;
+         :[6<#series;{diff::(1_series)-(-1)_series;second::(1_diff)-(-1)_diff;
+           :[1=#?(-5)#second;{left::(steps-layer):%period;
+              result::amount+(left*(*|diff))+(*|second)*((left*left+1):%2)}();0]}();0]}();0];
+      :[result<0;{candidates::?,/{front+x}'offsets;cols::(candidates!stride)-pad;rows::(candidates:%stride)-pad;
+        legal:::[part=1;(~(cols<0)|(rows<0)|(cols>w-1)|rows>h-1);(#candidates)#1];
+        cols::(w+cols!w)!w;rows::(h+rows!h)!h;tiles::grid@(w*rows)+cols;
+        candidates::candidates@&legal&~{x~0c#}'tiles;added::[];
+        {:[ :_seen@x;{seen,x,1;added::added,x}(x);0]}'candidates;
+        layer::layer+1;front::added;parity::layer!2;counts::counts:=((counts@parity)+#front),parity;
+        :[(layer=1)&0=#front;result::0;0]}();0]}:~0;result}
+
+export:::{;"solve";solve}

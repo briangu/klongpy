@@ -1,0 +1,22 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" A Long Walk. Compress degree-two corridors into weighted edges, retaining legal slope directions."
+adjacent(s;cell)::{[v];v::cell+s.dirs;v@&{~(s.grid@x)~0c#}'v}
+allows(s;cell;step)::{[idx];idx::"^>v<"?s.grid@cell;:[(s.slopes)&0<#idx;step=s.dirs@*idx;1]}
+edge(s;from;first)::{[prev here n next legal];prev::from;here::first;n::1;legal::allows(s;from;here-from);
+    {x;legal&:_s.nodes@here}{x;next::adjacent(s;here);next::*next@&{~x=prev}'next;
+      legal::allows(s;here;next-here);prev::here;here::next;n::n+1}:~0;
+    :[legal;[;s.nodes@here;n];[]]}
+longest(graph;node;goal;visited)::{[best length];:[node=goal;0;{best::-1;
+    visited::visited:=1,node;
+    {[dest cost]::x;:[~visited@dest;{length::longest(graph;dest;goal;visited);
+      :[length<0;0;best::best|cost+length]}();0]}'graph@node;best}()]}
+solve(lines;part;parameter)::{[s w grid start goal cells nodes graph];w::2+#*lines;
+    grid::(w#"#"),.join({"#",x,"#"}'lines;""),w#"#";start::(1+w)+*(*lines)?".";
+    goal::(1+w*#lines)+*(*|lines)?".";
+    s:::{;"grid";grid;"dirs";[;-w;1;w;-1];"nodes";:{};"slopes";part=1};
+    cells::&{~x~0c#}'grid;nodes::cells@&{(x=start)|(x=goal)|~2=#adjacent(s;x)}'cells;
+    {s.nodes,(nodes@x),x}'!#nodes;
+    graph::{[cell edges];cell::x;edges::edge(s;cell;)'adjacent(s;cell);edges@&{0<#x}'edges}'nodes;
+    longest(graph;s.nodes@start;s.nodes@goal;(#nodes)#0)}
+
+export:::{;"solve";solve}

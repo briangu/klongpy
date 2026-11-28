@@ -1,0 +1,11 @@
+broadcaster -> a0, b0
+&gate -> rx
+%a0 -> a1, aall
+%a1 -> a0, aall
+&aall -> aout
+&aout -> gate
+%b0 -> b1, ball
+%b1 -> b2, ball
+%b2 -> b0, ball
+&ball -> bout
+&bout -> gate

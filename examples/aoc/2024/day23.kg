@@ -1,0 +1,19 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" LAN Party. Grow each clique in ascending vertex order, intersecting its candidates
+   with the neighbours of each new member."
+add(adj;a;b)::{[old];old::adj@a;adj,a,,?(:[:_old;[];old]),b}
+extend(s;clique;options)::{[remaining];remaining::options;
+    :[(#clique)>#s.best;s.best::clique;0];
+    {x;(0<#remaining)&((#clique)+#remaining)>#s.best}{[v neighbours allowed];x;
+      v::*remaining;remaining::1_remaining;neighbours::s.adj@v;
+      allowed::remaining@&{0<#neighbours?x}'remaining;
+      extend(s;clique,v;allowed);0}:~0}
+triangles(adj;names;i)::{[a];a::adj@i;a::a@&a>i;
+    0+/{[j neighbours rest];j::x;neighbours::adj@j;rest::a@&a>j;
+        0+/{((0<#neighbours?x)&(0<#([;*(names@i);*(names@j);*(names@x)])?0ct))}'rest}'a}
+solve(lines;part;parameter)::{[edges names index adj state];edges::{.split(x;"-")}'lines;
+    names::?,/edges;names::names@<names;index:::{};adj:::{};
+    {index,[;names@x;x]}'!#names;{[a b]::index@x;add(adj;a;b);add(adj;b;a)}'edges;
+    :[part=1;+/triangles(adj;names;)'!#names;
+      {state:::{;"best";[];"adj";adj};extend(state;[];!#names);.join(names@state.best;",")}()]}
+export:::{;"solve";solve}

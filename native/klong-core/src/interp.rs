@@ -2527,7 +2527,7 @@ impl Interp {
         let nothing = !Tree::is_real(r);
         #[cfg(feature = "speed")]
         if !nothing {
-            if let Some(v) = self.append_assign(tree, id, l, r) {
+            if let Some(v) = self.collection_assign(tree, id, l, r) {
                 return v;
             }
         }
@@ -2610,13 +2610,12 @@ impl Interp {
         .map_err(|e| self.at_operator(tree, id, e))
     }
 
-    /// `v::v,y` where `v` is a name whose value is a string or a flat integer vector that nothing else holds, and `y` a string, a character
-    /// or an integer (or a vector of them): the join is made in the value where it is, and not in a copy (a loop that builds a string or a
-    /// vector by appending is otherwise quadratic). Nothing is evaluated when `None` is the answer. The depth, the order of evaluation
-    /// (the right operand, then the name), the error and the value are as `eval` of the join and `define` give them.
+    /// For `v::v,y` and `v::v:=y`, update unique storage when the primitive
+    /// would return the same representation. Evaluate the right operand before
+    /// looking up the slot: it may rebind or retain an alias to the target.
     #[cfg(feature = "speed")]
     #[inline(never)]
-    fn append_assign(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId) -> Option<Result<Value>> {
+    fn collection_assign(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId) -> Option<Result<Value>> {
         let s = match tree.node(l) {
             Node::Sym(s) if Tree::is_real(l) => *s,
             _ => return None,
@@ -2629,14 +2628,14 @@ impl Interp {
             return None;
         }
         let def = self.op_def(op).ok()?;
-        if def.glyph != "," || sym::is_arg(s) || self.scopes.len() > 1 || self.cur_mod != 0 || self.journal.is_some() {
+        if !matches!(def.glyph, "," | ":=") || sym::is_arg(s) || self.scopes.len() > 1 || self.journal.is_some() {
             return None;
         }
         #[cfg(feature = "host")]
-        if self.post {
+        if self.post || self.host_numeric.is_some() {
             return None;
         }
-        // (the evaluation of the join is a level of nesting; where a limit would be met, `eval` is what reports it)
+        // (the evaluation of the dyad is a level of nesting; where a limit would be met, `eval` is what reports it)
         if self.depth + 2 >= self.cfg.max_depth || self.check_stack().is_err() {
             return None;
         }
@@ -2644,14 +2643,14 @@ impl Interp {
         if self.depth > self.max_depth_seen {
             self.max_depth_seen = self.depth;
         }
-        let r = self.append_join(tree, id, l, r, l2, r2, s, def);
+        let r = self.collection_update(tree, id, l, r, l2, r2, s, def);
         self.depth -= 1;
         Some(r)
     }
 
     #[cfg(feature = "speed")]
-    fn append_join(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId, l2: NodeId, r2: NodeId, s: SymId, def: &'static ops::OpDef) -> Result<Value> {
-        let at_join = |e: Error| -> Error {
+    fn collection_update(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId, l2: NodeId, r2: NodeId, s: SymId, def: &'static ops::OpDef) -> Result<Value> {
+        let at_dyad = |e: Error| -> Error {
             let mut e = e;
             if e.span.is_none() {
                 if let Some(sp) = tree.span(r) {
@@ -2662,18 +2661,26 @@ impl Interp {
             e
         };
         let y = self.eval_op(tree, r2, false)?;
-        if let Some(slot) = self.append_slot(s) {
-            if Self::append_in_place(slot, &y) {
+        if let Some(slot) = self.collection_slot(s) {
+            let updated = if def.glyph == ":=" {
+                match ops::amend_packed(slot, &y) {
+                    Ok(updated) => updated,
+                    Err(e) => return Err(at_dyad(self.at_operator(tree, r, e))),
+                }
+            } else {
+                Self::append_in_place(slot, &y)
+            };
+            if updated {
                 return Ok(slot.dup());
             }
         }
         let x = self.eval_op(tree, l2, false)?;
-        let f = def.dyad.ok_or_else(|| Error::internal("join has no dyad"))?;
+        let f = def.dyad.ok_or_else(|| Error::internal("collection update has no dyad"))?;
         #[cfg(feature = "host")]
-        if let Some(v) = self.ext_dyad(",", &x, &y) {
-            return v.map_err(|e| self.at_operator(tree, r, e)).map_err(&at_join);
-        }
-        let v = f(self, x, y).map_err(|e| self.at_operator(tree, r, e)).map_err(&at_join)?;
+        let result = self.ext_dyad(def.glyph, &x, &y).unwrap_or_else(|| f(self, x, y));
+        #[cfg(not(feature = "host"))]
+        let result = f(self, x, y);
+        let v = result.map_err(|e| self.at_operator(tree, r, e)).map_err(&at_dyad)?;
         if let Some(e) = crate::value::take_deferred() {
             return Err(e);
         }
@@ -2683,7 +2690,7 @@ impl Interp {
     /// Where `assign` of the name `s` would store a value that is already bound: the slot in a frame or the global; `None` where it would do
     /// anything else, or the slot is unassigned.
     #[cfg(feature = "speed")]
-    fn append_slot(&mut self, s: SymId) -> Option<&mut Value> {
+    fn collection_slot(&mut self, s: SymId) -> Option<&mut Value> {
         if self.syms.qual_base(s).is_some() {
             return None;
         }
@@ -2700,6 +2707,11 @@ impl Interp {
                     return self.slots[r.start + p].1.as_mut();
                 }
             }
+        }
+        // Module globals have their own lookup rules (including classic module
+        // names and system fallbacks). Leave them to lookup and assign.
+        if self.cur_mod != 0 {
+            return None;
         }
         self.globals.get_mut(s.0 as usize)?.as_mut()
     }
@@ -2726,6 +2738,20 @@ impl Interp {
                 },
                 None => false,
             },
+            // A list of records remains mixed after concatenation. Packed numeric
+            // rows and host collection hooks still use the normalising constructor.
+            (Value::List(a), Value::List(b)) if matches!(a.first(), Some(Value::List(_))) => {
+                #[cfg(feature = "host")]
+                if a.may_reach_host_values() || b.may_reach_host_values() {
+                    return false;
+                }
+                let Some(list) = Rc::get_mut(a) else { return false };
+                if list.reserve_append(b.iter().cloned()).is_err() {
+                    return false;
+                }
+                list.append_reserved(b.iter().cloned());
+                true
+            }
             _ => false,
         }
     }

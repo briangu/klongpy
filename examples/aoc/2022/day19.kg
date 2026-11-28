@@ -1,0 +1,38 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" Not Enough Minerals. An easier factory builds obsidian robots for free and
+   geode robots for obsidian alone. It can still build only one robot per minute.
+   Its optimum bounds every continuation of the real factory."
+relaxed(minutes;cost)::{[cap width cells bots stock addObs addGeode affordable bounds prev];
+    cap::minutes&cost;width::1+((minutes*cost)&((minutes*(minutes-1)):%2));
+    cells::!(cap+1)*width;bots::cells:%width;stock::cells!width;
+    addObs::(width*(cap&bots+1))+((width-1)&stock+bots);
+    addGeode::(width*bots)+((width-1)&0|(stock+bots)-cost);
+    affordable::~stock<cost;prev::(#cells)#0;bounds::,prev;
+    {prev::(prev@addObs)|affordable*(x+prev@addGeode);bounds::bounds,,prev}'!minutes;
+    [;width;bounds]}
+
+:" Credit each geode robot with its full remaining lifetime. Skip producers when
+   stock and existing production already cover every future purchase."
+search(s;time;bots;stock;gain)::{[estimate choices];s.best::s.best|gain;
+    estimate::(s.bounds@time)@((s.width*bots@2)+stock@2);
+    :[(gain+estimate)>s.best;
+      {choices::3,|&((bots<s.cap)&stock<(time*s.cap)-(time-1)*bots);
+       {[kind cost need elapsed left next];kind::x;cost::s.cost@kind;need::0|cost-stock;
+        :[0=+/((bots=0)&need>0);
+          {elapsed::1+|/((need+(1|bots)-1):%(1|bots));left::time-elapsed;
+           :[left>0;{next:::[kind=3;bots;bots:=((bots@kind)+1),kind];
+             search(s;left;next;(stock+elapsed*bots)-cost;gain+left*(kind=3))}();0]}();0]
+       }'choices}();0];0}
+
+geodes(costs;minutes)::{[price r state];price::(costs@3)@2;
+    :[price>((minutes*(minutes-1)):%2);0;
+      {r::relaxed(minutes;price);
+       state:::{;"best";0;"cost";costs;"cap";{|/x}'+costs;"width";r@0;"bounds";r@1};
+       search(state;minutes;[1 0 0];[0 0 0];0);state.best}()]}
+quality(line;part)::{[w id ore clay obs geode costs];
+    w::.words(line);id::.num((-1)_w@1);ore::.num(w@6);clay::.num(w@12);
+    obs::.num'w@[18 21];geode::.num'w@[27 30];
+    costs::[;[;ore;0;0];[;clay;0;0];[;obs@0;obs@1;0];[;geode@0;0;geode@1]];
+    :[part=1;id*geodes(costs;24);geodes(costs;32)]}
+solve(lines;part;parameter)::{:[part=1;+/quality(;1)'lines;*/quality(;2)'(3&#lines)#lines]}
+export:::{;"solve";solve}

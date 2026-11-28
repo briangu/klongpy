@@ -1,0 +1,9 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Linen Layout. Count ways to reach each design suffix, starting at the empty suffix."
+ways(design;towels)::{[n counts];n::#design;counts::(n#0),1;
+    {[i suffix fits];i::x;suffix::i _ design;
+     fits::towels@&{((#x)<1+#suffix)&x~(#x)#suffix}'towels;
+     counts::counts:=(0+/{counts@(i+#x)}'fits),i}'|!n;*counts}
+solve(lines;part;parameter)::{[towels counts];towels::.split(*lines;", ");counts::ways(;towels)'2_lines;
+    :[part=1;+/counts>0;+/counts]}
+export:::{;"solve";solve}

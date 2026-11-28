@@ -308,7 +308,7 @@ impl List {
     }
 }
 
-#[cfg(feature = "tables")]
+#[cfg(any(feature = "tables", feature = "speed"))]
 impl List {
     pub(crate) fn reserve_append(&mut self, items: impl ExactSizeIterator<Item = Value>) -> Result<()> {
         let len = items.len();

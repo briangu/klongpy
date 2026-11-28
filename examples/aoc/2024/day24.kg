@@ -1,0 +1,79 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" Crossed Wires. Gate inputs stay fixed while gate output labels can be exchanged."
+bitName(prefix;i)::{prefix,:[i<10;"0";""],$i}
+key(op;a;b)::{[names];names::[;a;b];op,"/",.join(names@<names;"/")}
+evaluate(gates;values;labels)::{[pending blocked outputs];pending::gates;
+    {x;0<#pending}{x;blocked::[];
+      {[gate a op b out left right value];gate::x;[a op b out]::gate;left::values@a;right::values@b;
+       :[(:_left)|:_right;blocked::blocked,,gate;
+         {value:::[op~"AND";left&right:|op~"OR";left|right;(left+right)!2];
+          values,out,value}()]}'pending;
+      :[(#pending)=#blocked;.err("range";"circuit has unresolved inputs");0];pending::blocked}:~0;
+    outputs::labels@&{0cz~*x}'labels;
+    +/(2^!#outputs)*{values@x}'outputs}
+
+:" A binding is an involution. Identity bindings protect earlier gates from later swaps."
+bind(state;gate;label)::{[mapping cost a b];
+    :[:_state;:undefined;{[mapping cost]::state;a::mapping@gate;b::mapping@label;
+      :[(a=label)&b=gate;state:|(a>(-1))|b>(-1);:undefined:|(cost=4)&~gate=label;:undefined;
+        {mapping::mapping:=label,gate;mapping::mapping:=gate,label;
+         [;mapping;cost+~gate=label]}()]}()]}
+effective(mapping;gate)::{[label];label::mapping@gate;:[label<0;gate;label]}
+
+:" Try promising orientations first. Every compatible orientation remains searchable."
+order(rows;state;gateA;gateB)::{[mapping cost aa bb left right keep choices];
+    [mapping cost]::state;aa::mapping@gateA;bb::mapping@gateB;
+    left::rows@0;right::rows@1;keep::(#left)#1;
+    :[(aa>(-1))|cost=4;keep::keep&left=effective(mapping;gateA);0];
+    :[(bb>(-1))|cost=4;keep::keep&right=effective(mapping;gateB);0];
+    choices::&keep;
+    :[0=#choices;[];choices@<(~(left@choices)=effective(mapping;gateA))+(~(right@choices)=effective(mapping;gateB))]}
+
+frame(net;phase;i;state;a;b)::{[choices];
+    choices::order(:[phase=0;net.pairs;net.ors];state;a;b);
+    [;phase;i;state;a;b;choices]}
+
+:" Keep a stack of choices so the search depth is independent of the interpreter call stack.
+   Phase 0 matches the XOR/AND pair; phase 1 joins generate and transfer into the next carry."
+search(net;state;carry)::{[stack item phase i a b choices row rows idx trial result next];
+    stack::,frame(net;0;1;state;(net.bits@1)@0;carry);result:::undefined;
+    {x;(:_result)&0<#stack}{x;item::*|stack;stack::(-1)_stack;
+      [phase i state a b choices]::item;
+      :[0<#choices;{idx::*choices;
+        :[1<#choices;stack::stack,,[;phase;i;state;a;b;1_choices];0];
+        rows:::[phase=0;net.pairs;net.ors];row::{x@idx}'rows;
+        trial::bind(bind(state;a;row@0);b;row@1);
+        :[:_trial;0:|phase=0;
+          {trial::bind(trial;row@2;(net.bits@i)@2);
+           :[~:_trial;stack::stack,,frame(net;1;i;trial;(net.bits@i)@1;row@3);0]}()
+          :|(i+1)<#net.bits;
+           stack::stack,,frame(net;0;i+1;trial;(net.bits@(i+1))@0;row@2);
+          {next::bind(trial;row@2;net.last);
+           :[~:_next;:[4=next@1;result::next;0];0]}()]}();0]}:~0;result}
+
+repair(gates;labels;nbits)::{[ids lookup pairs ors bits net a b op idx aa bb transfer state swapped];
+    ids:::{};{ids,(labels@x),x}'!#labels;
+    lookup:::{};{[a op b idx]::x;lookup,key(op;a;b),ids@idx}'gates;
+    pairs::[];ors::[];
+    {[a op b idx]::x;aa::ids@a;bb::ids@b;idx::ids@idx;
+     :[(~:_aa)&~:_bb;
+       :[op~"XOR";{transfer::lookup@key("AND";a;b);
+         :[~:_transfer;pairs::pairs,[;[;aa;bb;idx;transfer];[;bb;aa;idx;transfer]];0]}()
+         :|op~"OR";ors::ors,[;[;aa;bb;idx];[;bb;aa;idx]];0];0]}'gates;
+    bits::{[xx yy];xx::bitName("x";x);yy::bitName("y";x);
+      [;lookup@key("XOR";xx;yy);lookup@key("AND";xx;yy);ids@bitName("z";x)]}'!nbits;
+    net:::{;"bits";bits;"last";ids@bitName("z";nbits);"pairs";+pairs;"ors";+ors};
+    state::bind([;(#labels)#(-1);0];(*bits)@0;(*bits)@2);
+    state::search(net;state;(*bits)@1);
+    :[:_state;.err("range";"no four-pair ripple-carry repair");
+      {swapped::&((state@0)>(-1))&~(state@0)=!#labels;.join(labels@swapped;",")}()]}
+
+solve(lines;part;parameter)::{[cut values gates labels];
+    cut::*lines?"";values:::{};
+    {[name value]::.split(x;": ");values,name,.num(value)}'(cut#lines);
+    gates::{(.words(x))@[0 1 2 4]}'(cut+1)_lines;
+    labels::{x@3}'gates;labels::labels@<labels;
+     :[part=1;evaluate(gates;values;labels);
+      repair(gates;labels;cut:%2)]}
+
+export:::{;"solve";solve}

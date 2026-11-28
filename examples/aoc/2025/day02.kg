@@ -1,0 +1,14 @@
+:" See ../SOURCES.md#2025 for the upstream programs, fixture origins and answer sources for this day."
+:" Gift Shop. A repeated block gives an integer multiple of 1 + 10^width + ... ."
+invalid(range;part)::{[lo hi largest values];
+    [lo hi]::.num'.split(range;"-");largest::#$hi;values::[];
+    {[width base];width::x;base::10^width;
+     {[repeats factor start stop];repeats::x;
+      factor::((base^repeats)-1):%(base-1);
+      start::(base:%10)|((lo+factor-1):%factor);stop::(base-1)&hi:%factor;
+      :[start>stop;0;values::values,factor*start+!1+stop-start]
+     }' :[part=1;,2;2+!((largest:%width)-1)]}'1+!largest:%2;
+    0+/?values}
+solve(lines;part;parameter)::{+/invalid(;part)'.split(.join(lines;"");",")}
+
+export:::{;"solve";solve}

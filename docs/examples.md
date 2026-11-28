@@ -11,6 +11,7 @@ Each directory is under [`examples/`](https://github.com/briangu/klongpy/tree/ma
 | Directory | What it shows | Needs |
 |---|---|---|
 | [1brc](https://github.com/briangu/klongpy/tree/main/examples/1brc) | One Billion Row Challenge weather statistics computed from a UTF-8 file with Klong and built-in SQL. | |
+| [Advent of Code](https://github.com/briangu/klongpy/tree/main/examples/aoc) | 170 puzzle parts across 2022–2025 in strict v2 Klong, with [per-part sources](https://github.com/briangu/klongpy/blob/main/examples/aoc/SOURCES.md), checked answers and ten generated benchmark workloads. | |
 | [autograd](https://github.com/briangu/klongpy/tree/main/examples/autograd) | Gradients, optimizers, linear regression, neural nets, finance and differentiable physics. | `klongpy[torch]`; `yfinance` for the live options examples |
 | [db](https://github.com/briangu/klongpy/tree/main/examples/db) | Four NYC taxi reports from monthly Parquet files, a persisted table store, and a web and database server. | Desktop `kg` or `kgpy` for taxis. The servers use `klongpy[db,web]`. |
 | [embedded](https://github.com/briangu/klongpy/tree/main/examples/embedded) | Static-profile programs (a moving average, a FIR filter, a PID step) with their expected output, compiled to C as in [Compiling Klong to C](embedded.md). | |

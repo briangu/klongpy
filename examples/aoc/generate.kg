@@ -1,0 +1,10 @@
+:" Write deterministic larger fixtures to an existing directory."
+dir::.a@0
+write(name;lines)::{[channel previous];channel::.oc(dir,"/",name,".txt");
+    previous::.tc(channel);{.p(x)}'lines;.tc(previous);.cc(channel)}
+games::["A X" "A Y" "A Z" "B X" "B Y" "B Z" "C X" "C Y" "C Z"]
+write("rounds";(4096*9)#games)
+write("marker";,(32768#"a"),"bcdefghijklmn")
+write("hill";,"S",(1024#"a"),"bcdefghijklmnopqrstuvwxyzE")
+write("cards";{.fmt("Card {}: 1 | {}";[;x+1;:[x=4095;0;1]])}'!4096)
+write("interval";["seeds: 1000000000 1000000000" "" "seed-to-location map:" "10 1500000000 100"])

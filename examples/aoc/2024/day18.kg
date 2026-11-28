@@ -1,0 +1,20 @@
+:" See ../SOURCES.md#2024 for the upstream programs, fixture origins and answer sources for this day."
+:" RAM Run. BFS measures distance after a byte prefix falls. Binary search the
+   monotone reachability predicate to identify the first blocking byte."
+distance(bytes;dim;count)::{[w edge cells front end steps];w::dim+2;edge::w#1;
+    cells::edge,(,/{x;1,(dim#0),1}'!dim),edge;{cells::cells:=1,x}'count#bytes;
+    end::(dim*w)+dim;front::,w+1;steps::0;
+    :[cells@*front;-1;
+      {cells::cells:=1,*front;
+       {x;(0<#front)&0=#front?end}{[next];x;next::?,/{x+[;1;-1;w;-w]}'front;
+         front::next@&0=cells@next;{cells::cells:=1,x}'front;steps::steps+1}:~0;
+       :[#front;steps;-1]}()]}
+solve(lines;part;dim)::{[bytes fallen lo hi mid];
+    bytes::{[col row]::.num'.split(x;",");(1+col)+(1+row)*dim+2}'lines;
+    fallen:::[dim=7;12;1024];
+    :[part=1;distance(bytes;dim;fallen&#bytes);
+      {lo::0;hi::#bytes;
+       :[distance(bytes;dim;hi)>(-1);.err("range";"no blocking byte");0];
+       {x;hi>lo+1}{x;mid::(lo+hi):%2;:[distance(bytes;dim;mid)<0;hi::mid;lo::mid]}:~0;
+       lines@(hi-1)}()]}
+export:::{;"solve";solve}

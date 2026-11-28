@@ -1,0 +1,22 @@
+:" See ../SOURCES.md#2023 for the upstream programs, fixture origins and answer sources for this day."
+:" Aplenty. Route disjoint inclusive rating boxes through the same rules for both parts."
+readFlow(line)::{[pieces];pieces::.split((-1)_line;"{");[;*pieces;.split(pieces@1;",")]}
+volume(ranges)::{*/{1+(x@1)-x@0}'ranges}
+route(workflows;name;ranges)::{[rules total active];
+    :[name~"R";0:|name~"A";volume(ranges);
+      {rules::workflows@name;total::0;active::1;
+       {[parts test dim limit lo hi pass fail box];parts::.split(x;":");
+        :[~active;0:|1=#parts;total::total+route(workflows;*parts;ranges);
+          {test::*parts;dim::*"xmas"?test@0;limit::.num(2_test);[lo hi]::ranges@dim;
+           :[(test@1)~0c<;{pass::[;lo;hi&limit-1];fail::[;lo|limit;hi]}();
+             {pass::[;lo|limit+1;hi];fail::[;lo;hi&limit]}()];
+           :[~(pass@0)>pass@1;{box::ranges:=(,pass),dim;total::total+route(workflows;parts@1;box)}();0];
+           ranges::ranges:=(,fail),dim;active::~(fail@0)>fail@1}()]}'rules;total}()]}
+solve(lines;part;parameter)::{[split flows];split::*lines?"";flows:::{};
+    {[name rules]::readFlow(x);flows,name,,rules}'split#lines;
+    :[part=2;route(flows;"in";4#,[1 4000]);
+      0+/{[ratings box];ratings::(4#0);
+        {[entry key];entry::x;key::*"xmas"?entry@0;ratings::ratings:=(.num(2_entry)),key}'.split((-1)_1_x;",");
+        box::{[;x;x]}'ratings;(+/ratings)*route(flows;"in";box)}'(split+1)_lines]}
+
+export:::{;"solve";solve}

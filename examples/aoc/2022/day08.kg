@@ -1,0 +1,14 @@
+:" See ../SOURCES.md#2022 for the upstream programs, fixture origins and answer sources for this day."
+:" 2022 day 8 - Treetop Tree House.
+   Read the four rays outward from each tree. The first blocking tree counts toward viewing distance."
+
+.l("../parse")
+view(ray;height)::{[hits];hits::&{~x<height}'ray;:[#hits;1+*hits;#ray]}
+tree(grid;cols;index;part)::{[r c rowside colside height rays];r::index:%#cols;c::index!#cols;
+    rowside::grid@r;colside::cols@c;height::rowside@c;
+    rays::[;|c#rowside;(c+1)_rowside;|r#colside;(r+1)_colside];
+    :[part=1;|/{0=#&{~x<height}'x}'rays;*/view(;height)'rays]}
+solve(lines;part;row)::{[grid cols scores];grid::parse.codes'lines;cols::+grid;
+    scores::tree(grid;cols;;part)'!((#grid)*#cols);:[part=1;+/scores;|/scores]}
+
+export:::{;"solve";solve}
