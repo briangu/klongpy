@@ -2222,7 +2222,7 @@
 <h1 id="conformance-suite">Conformance suite<a class="headerlink" href="#conformance-suite" title="Permanent link">&para;</a></h1>
 <p>The conformance suite is a set of test cases for the Klong language that does not depend on any implementation. This page is for someone who wants to run the suite, read its counts, or add a case. <code>conformance/README.md</code> is the specification of the case format, the tags and the runner protocol.</p>
 <p>Each case is a program and the text the REPL prints for its value, or the kind of error it must raise. KlongPy runs the cases in process. The <a href="../native/">native runtime</a> runs the same files through a small command-line protocol, with no Python. KlongPy is the reference: when it fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.</p>
-<p>The suite has 2220 cases in 25 files under <code>conformance/cases/</code>, 5 pending cases under <code>conformance/pending/</code> (that KlongPy fails), and 169 golden parse trees under <code>tests/golden/</code>.</p>
+<p>The suite has 2227 cases in 25 files under <code>conformance/cases/</code>, 5 pending cases under <code>conformance/pending/</code> (that KlongPy fails), and 170 golden parse trees under <code>tests/golden/</code>.</p>
 <h2 id="a-case">A case<a class="headerlink" href="#a-case" title="Permanent link">&para;</a></h2>
 <p>A case is a name, some tags, the source and the expected result:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>@ lists.take-last-more-cycles core
@@ -2245,18 +2245,18 @@
 <h2 id="running-it-against-klongpy">Running it against KlongPy<a class="headerlink" href="#running-it-against-klongpy" title="Permanent link">&para;</a></h2>
 <!-- check-docs: link conformance -->
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span>python<span class="w"> </span>conformance/run.py
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">2199 passed, 0 failed, 21 skipped by tags (KlongPy (in process))</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="go">2206 passed, 0 failed, 21 skipped by tags (KlongPy (in process))</span>
 </code></pre></div>
 <p>The in-process run takes about a second. To run KlongPy through the same executable protocol that a native implementation uses, give the reference shim as the command (about 17 seconds with 8 jobs):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.py" --jobs 8
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2199 passed, 0 failed, 21 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2206 passed, 0 failed, 21 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
 </code></pre></div>
 <p><code>--tags a,b</code> is the list of tags the implementation declares; other cases are skipped and counted. <code>--list</code> shows what would run. A file or directory argument limits the run. A failure prints the file, the line and the case name with the expected and the actual text.</p>
 <!-- check-docs: continue -->
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>python<span class="w"> </span>conformance/run.py<span class="w"> </span>conformance/cases/90-errors.cases
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">63 passed, 0 failed, 0 skipped by tags (KlongPy (in process))</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="gp">$ </span>python<span class="w"> </span>conformance/run.py<span class="w"> </span>--list<span class="w"> </span>--tags<span class="w"> </span>core<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'END { print NR }'</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">805</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">808</span>
 </code></pre></div>
 <p><code>python -m pytest tests/test_conformance.py --backend torch --device cpu</code> runs the in-process cases on the torch backend. The numpy backend declares every tag except <code>torch-only</code>, <code>timers</code>, <code>ipc</code> and <code>desktop</code>. The torch backend declares <code>torch-only</code> instead of <code>numpy-only</code>, because float32 text and <code>:undefined</code> inside a list differ there by design.</p>
 <h2 id="running-it-against-the-native-binary">Running it against the native binary<a class="headerlink" href="#running-it-against-the-native-binary" title="Permanent link">&para;</a></h2>
@@ -2265,19 +2265,19 @@
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>$ cd ..
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>$ python conformance/run.py --cmd "native/target/release/kg --conformance" \
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>      --jobs 8
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>2220 passed, 0 failed, 0 skipped by tags (native/target/release/kg --conformance)
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>2227 passed, 0 failed, 0 skipped by tags (native/target/release/kg --conformance)
 </code></pre></div>
-<p>Measured on 2026-11-19 on an Apple M2 Ultra: 2220 of 2220 in about 3 seconds with 8 jobs. With <code>--tags core</code> alone, 805 cases run. The desktop binary declares <code>bigint</code> (it is built with the feature <code>bigint</code>, on by default for <code>klong-cli</code>), <code>clock</code> and <code>kg-only</code>; it does not declare <code>torch-only</code>, <code>kgpy-only</code>, <code>timers</code>, <code>ipc</code> or <code>desktop</code>. Without <code>bigint</code> the run is smaller by the cases of big integers: a board build leaves them out.</p>
+<p>The desktop run passed all 2227 cases in 4.0 seconds with eight jobs on an Apple M2 Ultra on 2026-11-27. With <code>--tags core</code> alone, 808 cases run. The desktop binary declares <code>bigint</code> (it is built with the feature <code>bigint</code>, on by default for <code>klong-cli</code>), <code>clock</code> and <code>kg-only</code>; it does not declare <code>torch-only</code>, <code>kgpy-only</code>, <code>timers</code>, <code>ipc</code> or <code>desktop</code>. Without <code>bigint</code> the run is smaller by the cases of big integers: a board build leaves them out.</p>
 <p><code>native/scripts/conformance.py</code> prints the same run as a table of counts per file. The golden parse trees run the same way:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>$ python conformance/run.py --trees --cmd "native/target/release/kg"
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>169 of 169 trees match
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>170 of 170 trees match
 </code></pre></div>
 <p>A build for a 32-bit target (features <code>int32,float32</code>) declares fewer tags: <code>core,strings,dicts,unicode,sysio,static,strict1,strict2,numpy-only,device</code> (and <code>clock</code> where the board has one).</p>
 <h2 id="running-it-through-the-simulated-serial-console">Running it through the simulated serial console<a class="headerlink" href="#running-it-through-the-simulated-serial-console" title="Permanent link">&para;</a></h2>
 <p>A board is driven through its serial console, not through the <code>kg</code> binary. <code>native/scripts/console_conformance.py</code> sends each case to a simulated board (<code>klong-sim</code> on a pseudo-terminal) with the console's <code>^A run</code> command and judges what comes back over the wire. It resets the board for each case, as the fresh-interpreter rule requires.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>$ python native/scripts/console_conformance.py
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>...
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>total                         1716  1716   in 3.1 s through console of native/target/release/klong-sim, 8 jobs
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>total                         1720  1720   in 3.3 s through console of native/target/release/klong-sim, 8 jobs
 </code></pre></div>
 <p><code>--narrow</code> runs the tags of a 32-bit build (1527 cases passed on 2026-11-19). With <code>--port /dev/ttyUSB0</code> the same script drives a real board over a serial port, one case at a time. It is the only conformance run on a board; the other hardware results are on the <a href="../native/#status-what-has-and-has-not-been-proven">native status table</a>.</p>
 <h2 id="counts">Counts<a class="headerlink" href="#counts" title="Permanent link">&para;</a></h2>
@@ -2293,27 +2293,27 @@
 <tbody>
 <tr>
 <td>KlongPy, in process</td>
-<td>2199 (21 <code>kg-only</code> skipped)</td>
-<td>2199</td>
-<td>2026-11-19</td>
+<td>2206 (21 <code>kg-only</code> skipped)</td>
+<td>2206</td>
+<td>2026-11-27</td>
 </tr>
 <tr>
 <td>KlongPy through the executable shim</td>
-<td>2199 (21 <code>kg-only</code> skipped)</td>
-<td>2199</td>
-<td>2026-11-19</td>
+<td>2206 (21 <code>kg-only</code> skipped)</td>
+<td>2206</td>
+<td>2026-11-27</td>
 </tr>
 <tr>
 <td>Native runtime, desktop, default build</td>
-<td>2220</td>
-<td>2220</td>
-<td>2026-11-19</td>
+<td>2227</td>
+<td>2227</td>
+<td>2026-11-27</td>
 </tr>
 <tr>
 <td>Native runtime, simulated boards through the console</td>
-<td>1716</td>
-<td>1716</td>
-<td>2026-11-19</td>
+<td>1720</td>
+<td>1720</td>
+<td>2026-11-27</td>
 </tr>
 <tr>
 <td>Native runtime, desktop, without <code>bigint</code>, and the 32-bit build (<code>--narrow</code>)</td>
@@ -2330,7 +2330,7 @@
 </tbody>
 </table>
 <h3 id="why-the-counts-differ">Why the counts differ<a class="headerlink" href="#why-the-counts-differ" title="Permanent link">&para;</a></h3>
-<p>The hosted run skips the 21 <code>kg-only</code> cases and runs 2199 of 2220. The board and simulator omit cases for features they do not declare, such as <code>bigint</code>. A 32-bit build also omits tests requiring the desktop numeric widths. The physical ESP32-P4 result records the 1266-case suite of 2026-11-16. The desktop and simulator counts above use the expanded suite.</p>
+<p>The hosted run skips the 21 <code>kg-only</code> cases and runs 2206 of 2227. The board and simulator omit cases for features they do not declare, such as <code>bigint</code>. A 32-bit build also omits tests requiring the desktop numeric widths. The physical ESP32-P4 result records the 1266-case suite of 2026-11-16. The desktop and simulator counts above use the expanded suite.</p>
 <h2 id="the-pending-list">The pending list<a class="headerlink" href="#the-pending-list" title="Permanent link">&para;</a></h2>
 <p><code>conformance/pending/*.cases</code> hold cases whose correct result is known but which KlongPy does not give yet. The expectation in a pending case is the correct result. Each case also has <code>: reason</code> (why the current answer is wrong) and <code>: actual</code> (what KlongPy answers today).</p>
 <!-- check-docs: continue -->

@@ -2650,6 +2650,7 @@
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>20
 </code></pre></div>
 <p>This is the way to give an anonymous function more than three inputs: pass one list. Elsewhere in a body a destructuring follows the ordinary rule for assignment, so at <a href="../strict/">strict level 1 and 2</a> the names must be declared as locals.</p>
+<p>If one destination fails, earlier changes to Klong variables and dictionary fields in the same assignment are rolled back. For host-backed dictionary fields, the interpreter validates the Klong destinations before invoking the host. The host controls the effects of its callbacks.</p>
 <h3 id="what-is-not-a-destructuring">What is not a destructuring<a class="headerlink" href="#what-is-not-a-destructuring" title="Permanent link">&para;</a></h3>
 <p>A list on the left of <code>::</code> is a destructuring only when it holds at least one name, and every member is a plain name, none is <code>x</code>, <code>y</code> or <code>z</code>, and no name is repeated. Any other list binds nothing. At strict level 0 it is accepted with a warning that says why. At level 1 and 2 it is a syntax error:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>?&gt; .strict(1)
@@ -2719,18 +2720,15 @@
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>?&gt; m(1;2)
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>[2 3]
 </code></pre></div>
-<p>The right side must be a function in braces, at every strict level. The left side must be a call of a plain name whose arguments are plain names, none repeated and none of <code>x y z</code>. At strict level 0 a left side that fails that is accepted as it always was, with a warning, and defines nothing; at level 1 and 2 it is a syntax error:</p>
+<p>A named-parameter definition takes a function body in braces. Each parameter must be a distinct plain name. The parser reports a repeated name or a reserved <code>x</code>, <code>y</code> or <code>z</code> at the definition at every strict level, including level 0.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>?&gt; f(a;b)::5
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>error: named-parameter definition needs a function body in braces
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>?&gt; f(a;a)::{a}
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>:nilad
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>?&gt; f
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>:f
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>?&gt; .strict(1)
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>1
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>?&gt; f(a;a)::{a}
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>error: cannot define f with named parameters: a is named twice
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>error: cannot define f with named parameters: a is named twice
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>?&gt; f(x)::{x+1}
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>error: cannot define f with named parameters: x, y and z cannot be parameter names
 </code></pre></div>
+<p>A call with an expression or an empty slot on the left of <code>::</code>, such as <code>f(a;1)::{a}</code>, still follows the ordinary assignment rules. At level 0 it leaves <code>f</code> unbound if <code>f</code> had no earlier definition. Levels 1 and 2 report an invalid assignment target.</p>
 <h3 id="calling">Calling<a class="headerlink" href="#calling" title="Permanent link">&para;</a></h3>
 <p>A call works as for any function, and a function may be recursive by its own name or by <code>.f</code>:</p>
 <!-- check-docs: strict 2 -->
@@ -2958,6 +2956,7 @@
 <ul>
 <li>A file is a module exactly when it assigns <code>export</code> at its top level. A file without that assignment is a classic file: <code>.l</code> writes its names into the globals and returns what it returned before. A second argument on a classic file is an error that says to write <code>.l("name")</code>.</li>
 <li>The interface is read and frozen when the file finishes loading. The names in the file, <code>sq</code> above, are private to it: the importer cannot reach one that <code>export</code> does not list, and nothing is written into the importer's globals.</li>
+<li>A partially applied function keeps its defining module and private state alive, including when the caller releases the module name. A selective import that fails leaves the caller’s previous bindings intact.</li>
 <li>The key may differ from the name in the file: <code>export:::{;"seed";reset}</code> offers the function <code>reset</code> as <code>seed</code>.</li>
 <li>The second argument is a symbol or a list of strings. Any other value is a type error that says what to write. A missing entry in the names form is a name error that names it. Without an alias the stem must be a valid name, letters and digits starting with a letter; <code>.l("my-mod")</code> is an error that says to write <code>.l("my-mod";:name)</code>.</li>
 <li>At strict levels 0 and 1 a quoted symbol <code>:s</code> is the value of <code>s</code> when <code>s</code> is already defined, and at level 2 it is always the symbol. Choose an alias that is not in use.</li>

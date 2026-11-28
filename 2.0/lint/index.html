@@ -1210,6 +1210,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#w024-a-comparison-followed-by-group-of-a-scalar-threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W024: a comparison followed by Group of a scalar threshold
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#e001-a-syntax-error-at-strict-level-1" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2547,6 +2558,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#w024-a-comparison-followed-by-group-of-a-scalar-threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        W024: a comparison followed by Group of a scalar threshold
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#e001-a-syntax-error-at-strict-level-1" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2750,7 +2772,7 @@
 <a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="go">0 errors, 1 warning in 1 file</span>
 <a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="go">2</span>
 <a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'a'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>--select<span class="w"> </span>W999<span class="w"> </span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="go">kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, E001, E002, E003, E004, E005</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="go">kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, W024, E001, E002, E003, E004, E005</span>
 <a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="go">2</span>
 </code></pre></div>
 <p>The <code>--select W001</code> example reads <code>demo.kg</code> from the first example on this page.</p>
@@ -2779,7 +2801,7 @@
 <tbody>
 <tr>
 <td><code>E001</code></td>
-<td>At strict level 1 and 2, a <code>syntax</code> error with the same message. At level 0, a syntax warning: <code>trailing-input</code>, <code>stray-closer</code>, <code>missing-operand</code>, <code>unterminated-string</code>, <code>unterminated-list</code>, <code>unterminated-dict</code> or <code>unterminated-comment</code>.</td>
+<td>At strict levels 1 and 2, a <code>syntax</code> error with the same message. Reserved or repeated names in a named-parameter definition also raise a <code>syntax</code> error at level 0. Recoverable input at level 0 can emit a syntax warning such as <code>trailing-input</code>, <code>stray-closer</code>, <code>missing-operand</code>, <code>unterminated-string</code>, <code>unterminated-list</code>, <code>unterminated-dict</code> or <code>unterminated-comment</code>.</td>
 </tr>
 <tr>
 <td><code>E002</code></td>
@@ -2812,6 +2834,10 @@
 <tr>
 <td><code>W022</code></td>
 <td>None.</td>
+</tr>
+<tr>
+<td><code>W024</code></td>
+<td>A <code>type</code> error when Group receives the numeric threshold.</td>
 </tr>
 <tr>
 <td><code>W023</code></td>
@@ -2951,73 +2977,79 @@
 </code></pre></div>
 <h3 id="w023-a-local-file-shadows-a-bundled-library-file">W023: a local file shadows a bundled library file<a class="headerlink" href="#w023-a-local-file-shadows-a-bundled-library-file" title="Permanent link">&para;</a></h3>
 <p>A bare name given to <code>.l</code> is looked for in the directory of the file that contains the <code>.l</code>, then in <code>KLONGPATH</code>, then in the bundled library. When a file found in the first two places has the name of a library file (<code>csv</code>, <code>nstat</code>, <code>math</code>, ...) and is not that file, the program gets the local file and the linter says so. Write <code>./name</code> to say that the local file is meant, or rename it. The interpreter adds the same finding to its warning list.</p>
+<h3 id="w024-a-comparison-followed-by-group-of-a-scalar-threshold">W024: a comparison followed by Group of a scalar threshold<a class="headerlink" href="#w024-a-comparison-followed-by-group-of-a-scalar-threshold" title="Permanent link">&para;</a></h3>
+<p>Klong reads <code>n&gt;=2048</code> as <code>n &gt; (=2048)</code>, which calls Group on an integer. For an inclusive comparison, write <code>~n&lt;2048</code>. For <code>n&lt;=2048</code>, write <code>~n&gt;2048</code>. The warning applies to adjacent operator glyphs followed by a numeric literal. Grouping a list, as in <code>=items</code>, remains valid.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'full(n)::{n&gt;=2048}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="go">&lt;stdin&gt;:1:12: W024 &gt;= applies Group (=) to a scalar threshold</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="go">0 errors, 1 warning in 1 file</span>
+</code></pre></div>
 <h3 id="e001-a-syntax-error-at-strict-level-1">E001: a syntax error at strict level 1<a class="headerlink" href="#e001-a-syntax-error-at-strict-level-1" title="Permanent link">&para;</a></h3>
 <p>Everything that <a href="../strict/">strict level 1</a> rejects, found without running the file: input left over, a missing operand, an unterminated string, a closer with nothing open, and the like. All of a file's problems are listed; parsing resumes after each.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'1+'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="go">&lt;stdin&gt;:1:2: E001 missing right operand for +</span>
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'"abc'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="go">&lt;stdin&gt;:1:1: E001 unterminated string: the closing " is missing; it runs to the end of the input</span>
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'1+'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="go">&lt;stdin&gt;:1:2: E001 missing right operand for +</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'"abc'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="go">&lt;stdin&gt;:1:1: E001 unterminated string: the closing " is missing; it runs to the end of the input</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="go">1 error, 0 warnings in 1 file</span>
 </code></pre></div>
 <h3 id="e002-more-arguments-than-the-function-takes">E002: more arguments than the function takes<a class="headerlink" href="#e002-more-arguments-than-the-function-takes" title="Permanent link">&para;</a></h3>
 <p>The extra arguments are dropped at strict levels 0 and 1 and are an arity error at level 2. The limit is the number of named parameters, or the highest of <code>x</code>, <code>y</code> and <code>z</code> the function uses, so <code>{x+z}(1;2;3)</code> is fine and <code>{x}(1;2)</code> is not. The callee must be known: a name bound to a function literal at the top level of the file or of a file it loads with <code>.l</code>, or a literal called directly.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x}\nf(1;2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="go">&lt;stdin&gt;:2:1: E002 f takes 1 argument but is called with 2: the extra arguments are dropped</span>
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x+z}\nf(1;2;3)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="go">0 errors, 0 warnings in 1 file</span>
-<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f(a;b)::{a+b}\nf(1;2;3)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="go">&lt;stdin&gt;:2:1: E002 f takes 2 arguments but is called with 3: the extra arguments are dropped</span>
-<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x}\nf(1;2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="go">&lt;stdin&gt;:2:1: E002 f takes 1 argument but is called with 2: the extra arguments are dropped</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f::{x+z}\nf(1;2;3)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'f(a;b)::{a+b}\nf(1;2;3)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="go">&lt;stdin&gt;:2:1: E002 f takes 2 arguments but is called with 3: the extra arguments are dropped</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="go">1 error, 0 warnings in 1 file</span>
 </code></pre></div>
 <h3 id="e003-an-assignment-to-an-entry-of-a-module">E003: an assignment to an entry of a module<a class="headerlink" href="#e003-an-assignment-to-an-entry-of-a-module" title="Permanent link">&para;</a></h3>
 <p>A module is read-only. Writing <code>m.name::v</code>, where <code>m</code> was bound by <code>.l</code>, is a type error when it runs.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq(v)::{v*v}\ncube(v)::{v*sq(v)}\nexport:::{;"sq";sq;"cube";cube}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>geom.kg
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom")\ngeom.sq::5\ngeom.sq(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="go">&lt;stdin&gt;:2:1: E003 cannot assign geom.sq: geom holds a module, which is read-only</span>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'sq(v)::{v*v}\ncube(v)::{v*sq(v)}\nexport:::{;"sq";sq;"cube";cube}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>geom.kg
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom")\ngeom.sq::5\ngeom.sq(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="go">&lt;stdin&gt;:2:1: E003 cannot assign geom.sq: geom holds a module, which is read-only</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="go">1 error, 0 warnings in 1 file</span>
 </code></pre></div>
 <h3 id="e004-a-qualified-name-the-module-does-not-export">E004: a qualified name the module does not export<a class="headerlink" href="#e004-a-qualified-name-the-module-does-not-export" title="Permanent link">&para;</a></h3>
 <p>When the loaded file is found and its <code>export</code> is a literal dictionary, a read of <code>m.name</code> that the export does not list is a name error when it runs. So is an entry that <code>.l(path;[names])</code> asks for and the module lacks. The rule needs the file; with <code>-v</code> the hint lists what the module exports.</p>
 <!-- check-docs: continue -->
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom")\ngeom.nope\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>-v
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="go">&lt;stdin&gt;:2:1: E004 geom has no entry "nope"</span>
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="go">  hint: the module exports: cube sq</span>
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="go">1 error, 0 warnings in 1 file</span>
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom";["sq" "nope"])\nsq(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>-v
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="go">&lt;stdin&gt;:1:1: E004 ./geom has no entry "nope"</span>
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="go">  hint: the module exports: cube sq</span>
-<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom")\ngeom.nope\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>-v
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="go">&lt;stdin&gt;:2:1: E004 geom has no entry "nope"</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="go">  hint: the module exports: cube sq</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("./geom";["sq" "nope"])\nsq(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-<span class="w"> </span>-v
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="go">&lt;stdin&gt;:1:1: E004 ./geom has no entry "nope"</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="go">  hint: the module exports: cube sq</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="go">1 error, 0 warnings in 1 file</span>
 </code></pre></div>
 <h3 id="e005-an-extern-whose-value-is-discarded">E005: an <code>.extern</code> whose value is discarded<a class="headerlink" href="#e005-an-extern-whose-value-is-discarded" title="Permanent link">&para;</a></h3>
 <p><code>.extern(c_symbol;signature)</code> returns the host function as a value. A statement that only calls it declares nothing a program can use, and it is a <code>type</code> error when it runs. Assign it, in a module file that exports it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.extern("read_adc";"int -&gt; float")\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="go">&lt;stdin&gt;:1:1: E005 .extern returns the host function as a value, and this statement throws it away</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.extern("read_adc";"int -&gt; float")\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="go">&lt;stdin&gt;:1:1: E005 .extern returns the host function as a value, and this statement throws it away</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="go">1 error, 0 warnings in 1 file</span>
 </code></pre></div>
 <h2 id="how-names-are-resolved">How names are resolved<a class="headerlink" href="#how-names-are-resolved" title="Permanent link">&para;</a></h2>
 <p>W002, W012, E002 and E004 use a table of what the file defines: top-level <code>name::...</code>, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with <code>.l("file")</code>, with a literal argument, is looked up as <code>.l</code> looks it up: <code>file</code> and <code>file.kg</code> in the directory of the file that contains the <code>.l</code> (the working directory for standard input), then in each <code>KLONGPATH</code> directory (by default <code>.</code> and <code>lib</code>), then in the bundled library. The decision whether a file is a module (it assigns <code>export</code> at its top level) and the search order are the interpreter's: one implementation, <code>klong-core</code>'s <code>module.rs</code>, serves the interpreter, the linter and the checker. <code>kgpy</code>, <code>kgpy check</code> and <code>kgpy compile c</code> use the same order. It is parsed, not run.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'inc::{x+1}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>inc.kg
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("inc.kg")\ninc(1)\n'</span><span class="w"> </span>&gt;<span class="w"> </span>main.kg
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="gp">$ </span>kgpy<span class="w"> </span>lint<span class="w"> </span>main.kg
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="go">0 errors, 0 warnings in 1 file</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'inc(1)'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="go">&lt;stdin&gt;:1:1: W002 'inc' is never defined in this file</span>
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="go">0 errors, 1 warning in 1 file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'inc::{x+1}\n'</span><span class="w"> </span>&gt;<span class="w"> </span>inc.kg
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.l("inc.kg")\ninc(1)\n'</span><span class="w"> </span>&gt;<span class="w"> </span>main.kg
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="gp">$ </span>kgpy<span class="w"> </span>lint<span class="w"> </span>main.kg
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'inc(1)'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="go">&lt;stdin&gt;:1:1: W002 'inc' is never defined in this file</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="go">0 errors, 1 warning in 1 file</span>
 </code></pre></div>
 <p>Some definitions cannot be seen without running code. A <code>.py</code> or <code>.pyf</code> import, a <code>.pya</code>, <code>.E</code>, a <code>.l</code> with a computed argument, and a <code>.l</code> whose file is not found, define names that lint does not know. W002 is switched off for such a file, and the other rules still run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.pyf("math";"sqrt")\nsqrt(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="go">0 errors, 0 warnings in 1 file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="gp">$ </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'.pyf("math";"sqrt")\nsqrt(2)\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>kgpy<span class="w"> </span>lint<span class="w"> </span>-
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="go">0 errors, 0 warnings in 1 file</span>
 </code></pre></div>
 <p>A name that the host defines before the program runs is given with <code>--define</code>, as in <code>--define t</code>.</p>
 <h2 id="what-is-not-reported">What is not reported<a class="headerlink" href="#what-is-not-reported" title="Permanent link">&para;</a></h2>
 <p>A rule that needs run-time knowledge reports only what the text shows. W002 compares the order of the source with the order a program runs, which is right to left inside a statement and dynamic between functions, and it does not follow calls. W020 needs a two-element list written out. E002 knows only functions bound to a literal. There are no type checks, no formatting rules and no automatic fixes.</p>
 <h2 id="from-python">From Python<a class="headerlink" href="#from-python" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy.lint</span><span class="w"> </span><span class="kn">import</span> <span class="n">lint_source</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">lint_source</span><span class="p">(</span><span class="s2">"a::1</span><span class="se">\n</span><span class="s2">[a 2]</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"demo.kg"</span><span class="p">):</span>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">severity</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">line</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">hint</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy.lint</span><span class="w"> </span><span class="kn">import</span> <span class="n">lint_source</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">lint_source</span><span class="p">(</span><span class="s2">"a::1</span><span class="se">\n</span><span class="s2">[a 2]</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"demo.kg"</span><span class="p">):</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">severity</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">line</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">hint</span><span class="p">)</span>
 </code></pre></div>
 <p><code>lint_source(text, name, *, select, ignore, define, base_dir, resolve)</code> returns <code>Diagnostic</code> objects in order of position. <code>str(d)</code> is the line the command prints. <code>resolve=False</code> never reads other files. <code>lint_file(path, ...)</code> reads a file.</p>
 <p>See also: <a href="../strict/">Strict Mode</a>, <a href="../errors/">Errors</a>.</p>

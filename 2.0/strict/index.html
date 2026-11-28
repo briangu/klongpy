@@ -2459,6 +2459,7 @@
 <a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>?&gt; [a a]::[1 2]
 <a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>error: cannot destructure: a is named twice
 </code></pre></div>
+<p>In a named-parameter definition, the parser checks the parameter names at every strict level. Reserved <code>x</code>, <code>y</code>, or <code>z</code> and repeated names raise a syntax error at the definition. <a href="../language-additions/#named-parameters">Named parameters</a></p>
 <h3 id="assigning-inside-a-function">Assigning inside a function<a class="headerlink" href="#assigning-inside-a-function" title="Permanent link">&para;</a></h3>
 <p>At level 0 <code>::</code> on an unknown name inside a function creates a variable that belongs to that call and disappears when it returns. It does not create a global, and <code>.unsafe()</code> does not change that. At level 1 the assignment is an error unless the name is a parameter, a declared local, or already defined.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>?&gt; f::{c::1}

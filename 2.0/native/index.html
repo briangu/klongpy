@@ -2148,7 +2148,7 @@
 <h2 id="what-it-is-for">What it is for<a class="headerlink" href="#what-it-is-for" title="Permanent link">&para;</a></h2>
 <p>The firmware uses the same engine as the desktop commands. A board can select the features that fit its RAM and flash budget.</p>
 <ul>
-<li><strong>The language.</strong> The same parser, the same operators, adverbs, strings, dictionaries, modules and error kinds, the same strict levels, and the twelve library files of <code>klongpy/lib</code> (the thirteenth, <code>mgmt</code>, is carried by builds with IPC). A program that avoids the differences below gives the same answer.</li>
+<li><strong>The language.</strong> The same parser, the same operators, adverbs, strings, dictionaries, modules and error kinds, the same strict levels, and the thirteen standard library files in <code>klongpy/lib</code> (builds with IPC also carry <code>mgmt</code>). A program that avoids the differences below gives the same answer.</li>
 <li><strong>A small program.</strong> The interpreter is <code>no_std</code> Rust. See the <a href="building/#sizes-and-speed">size measurements</a> for different feature sets. The <a href="pico-bench/#rc1-on-two-rp2040-boards">RC1 binary tested on the RP2040 Picos</a> was 809,252 bytes with the lane, heap diagnostics and compiled examples.</li>
 <li><strong>A console on a serial line.</strong> A REPL with line editing over a UART, Ctrl-C for a program that does not stop, and a command mode for uploading files and running programs from a desktop, so that you can develop on a board without a debugger. See <a href="console/">Serial Console and Upload</a>.</li>
 <li><strong>Nodes that talk.</strong> The kdb+ IPC protocol, as KlongPy speaks it, timers, and a management library for reaching several nodes from one. See <a href="ipc/">IPC and Timers</a> and <a href="management-node/">Management Node</a>.</li>
@@ -2163,7 +2163,7 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="go">"1.1180339889579018"</span>
 </code></pre></div>
 <h2 id="how-it-relates-to-klongpy">How it relates to KlongPy<a class="headerlink" href="#how-it-relates-to-klongpy" title="Permanent link">&para;</a></h2>
-<p>The conformance suite has 2220 cases for desktop <code>kg</code>. Each case pins the printed value or the error kind, and can also check console output. Both desktop commands use the same cases. The runner selects cases based on the features each host or target declares. Golden tests also compare 169 parse trees byte for byte. <a href="../conformance/">Conformance suite</a></p>
+<p>The conformance suite has 2227 cases for desktop <code>kg</code>. Each case pins the printed value or the error kind, and can also check console output. Both desktop commands use the same cases. The runner selects cases based on the features each host or target declares. Golden tests also compare 170 parse trees byte for byte. <a href="../conformance/">Conformance suite</a></p>
 <p>These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.</p>
 <table>
 <thead>
@@ -2197,7 +2197,7 @@
 <tr>
 <td>Integers</td>
 <td>64 bits, wrapping; a long literal or a long operand is exact for <code>+ - * &lt; &gt; \| &amp;</code></td>
-<td>64 bits, wrapping (32 with the feature <code>int32</code>); a long literal or a long operand is exact for <code>+ - * % :% &lt; &gt; = \| &amp;</code>, and a scalar <code>^</code> of two integers is exact, as in KlongPy (the cargo feature <code>bigint</code>, on for the desktop binary, off for boards: there a literal that does not fit is a <code>syntax</code> error)</td>
+<td>64 bits, wrapping (32 with the feature <code>int32</code>); a long literal or a long operand is exact for <code>+ - * &lt; &gt; = \| &amp;</code>, and a scalar <code>^</code> of two integers is exact, as in KlongPy (the cargo feature <code>bigint</code>, on for the desktop binary, off for boards: there a literal that does not fit is a <code>syntax</code> error)</td>
 </tr>
 <tr>
 <td>Floats</td>
@@ -2340,7 +2340,7 @@
 <tbody>
 <tr>
 <td>The language, default build (64-bit)</td>
-<td>2220 of 2220 conformance cases (2026-11-19); 169 of 169 parse trees</td>
+<td>2227 of 2227 conformance cases (2026-11-27); 170 of 170 parse trees</td>
 <td>desktop</td>
 </tr>
 <tr>
@@ -2350,12 +2350,12 @@
 </tr>
 <tr>
 <td>The embedded library</td>
-<td>all twelve files load, at strict levels 0, 1 and 2</td>
+<td>all thirteen files load, at strict levels 0, 1 and 2</td>
 <td>desktop</td>
 </tr>
 <tr>
 <td>The serial console</td>
-<td>1716 of 1716 cases through <code>^A run</code> (2026-11-19)</td>
+<td>1720 of 1720 cases through <code>^A run</code> (2026-11-27)</td>
 <td>simulated boards</td>
 </tr>
 <tr>

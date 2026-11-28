@@ -812,6 +812,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#advent-of-code-in-strict-klong-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advent of Code in strict Klong v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#native-kg-and-numpy-on-resident-cpu-arrays" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2422,6 +2433,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#advent-of-code-in-strict-klong-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advent of Code in strict Klong v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#native-kg-and-numpy-on-resident-cpu-arrays" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2875,6 +2897,9 @@
 
 <h1 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h1>
 <p>The release comparisons below describe their workload, baseline, candidate and machine. The older array microbenchmarks that follow describe a separate development build.</p>
+<h2 id="advent-of-code-in-strict-klong-v2">Advent of Code in strict Klong v2<a class="headerlink" href="#advent-of-code-in-strict-klong-v2" title="Permanent link">&para;</a></h2>
+<p>The four-year corpus checks 170 puzzle answers and times ten larger workloads. The Apple M2 Ultra baseline records seven batches per case, source and input checksums, and the native executable checksum. For runtime comparisons, run the same Klong modules and fixtures with both binaries. A separate matched-process comparison runs three original Klong scripts and their v2 ports on the same binary. <a href="https://github.com/briangu/klongpy/tree/main/examples/aoc#apple-m2-ultra-baseline">Results and reproduction commands</a> · <a href="https://github.com/briangu/klongpy/blob/main/examples/aoc/SOURCES.md">Per-part source index</a></p>
+<p>On the same M2 Ultra, the new collection updates reduced the 4,096-card propagation workload from 112.69 ms to 17.56 ms. The four-seed market generator went from 21.82 ms to 2.25 ms with native integer XOR and a vector of seeds. The exact arithmetic regression also checks a hailstone coordinate sum above the signed 64-bit limit. <a href="https://github.com/briangu/klongpy/tree/main/examples/aoc#runtime-improvements-on-the-apple-m2-ultra">Before-and-after results</a></p>
 <h2 id="native-kg-and-numpy-on-resident-cpu-arrays">Native kg and NumPy on resident CPU arrays<a class="headerlink" href="#native-kg-and-numpy-on-resident-cpu-arrays" title="Permanent link">&para;</a></h2>
 <p>The November 21 development build ran 16 array workloads on an Apple M2 Ultra with 192 GiB, using standalone <code>kg</code> and NumPy 2.5.5 with Apple Accelerate. Each workload uses matching contiguous 64-bit inputs. The harness checks every output value, shape and inferred numeric dtype against NumPy before timing. Both engines warm up and calibrate a batch of at least 5 ms. The table reports medians of seven batches for 4,096 and one million elements and five batches for eight million. Timing covers the operation on resident data, including result allocation. Input construction, interpreter startup and JSON transfer happen outside the timer. These workloads cover NumPy operations also exercised by the upstream benchmark suite. <a href="https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_reduce.py">NumPy reductions</a> · <a href="https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_function_base.py">NumPy sorting workloads</a></p>
 <p>The ratio divides NumPy time by <code>kg</code> time. A value above one favors <code>kg</code>. Matrices have 64 columns. The wide keys form a deterministic strided permutation at the reported sizes. Sorted runs contain 64 copies of each key. Dot uses <code>numpy.dot</code>, including its BLAS implementation, and <code>+/a*b</code> in Klong.</p>
@@ -3529,6 +3554,7 @@
 </tbody>
 </table>
 <p>The two runs started their quote schedules at offsets of 0 and 17 ms. Scheduled p99 covers answered slots. Skipped slots count against the 99% budget. The optimized build answered all 2,400 historical slots on time. Its publisher acknowledgment p99 was 60.2–64.8 ms, measured from batch submission. Both 60-second runs drained within 11.5 ms of the deadline, and rollover took 4.88–5.08 s. The head’s 100 GbE interface averaged 0.56 Gbit/s received and 1.12 Gbit/s transmitted, with zero recorded drops or errors.</p>
+<p><strong>AoC runtime regression check, November 28 UTC.</strong> The runtime before the collection and integer changes (<code>3625a34</code>) and the benchmarked build (<code>442055e</code>) each sustained 2,097,152 offered trades/s in two verified minutes on the same hosts. Live scheduled p99 was 45.06–47.05 ms before and 43.37–44.71 ms after. Publisher acknowledgment p99 was 67.23–68.43 ms before and 68.02–68.39 ms after. Direct durable append at 98,304 rows had overlapping trial medians of 14.23–14.50 ms and 14.35–14.50 ms, respectively. All four runs met both quote budgets. These fixed-rate runs leave the maximum sustainable rate unmeasured. <a href="https://github.com/briangu/klongpy/blob/main/examples/stocks/tickerplant/results/2026-11-28-aoc-runtime-100gbe.jsonl">Trial records, binary and WAL checksums</a></p>
 <p><strong>Append and replay.</strong> A separate test on Milan excluded IPC, DuckDB and subscribers. It timed a synchronous append of four precomputed integer columns, then read every batch back from the warm file cache and compared every field. At 98,304 rows per batch, the daily file held 6,291,456 rows in 64 records. All three writers produced identical bytes.</p>
 <table>
 <thead>
